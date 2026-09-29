@@ -46,6 +46,7 @@ category_caps:
   link: 10
   style: 10
   combination: 40
+  ocr_quality: 0      # OCR indicators are informational only: OCR never adds risk points
 
 # Severity shown to users is derived from the weight (a floor always means "critical").
 severity_bands:   # minimum weight for each severity; weight <= 0 is "info"
@@ -606,3 +607,18 @@ indicators:
     scam_categories: [investment]
     title: "Combination: guaranteed returns in a private group"
     message: Guaranteed returns offered through WhatsApp or Telegram groups are a common investment-fraud pattern.
+
+  # ---- OCR / screenshot (module: ocr). Informational only (weight 0): OCR itself never makes
+  # anything suspicious; the extracted text is judged by the message rules above. -----------
+  OCR_LOW_CONFIDENCE:
+    module: ocr
+    category: ocr_quality
+    weight: 0
+    title: Text was hard to read
+    message: Parts of the screenshot were hard to read (blurry, small or stylised text), so some words may have been misread and warning signs may be missed.
+  OCR_TEXT_TRUNCATED:
+    module: ocr
+    category: ocr_quality
+    weight: 0
+    title: Only part of the text was analysed
+    message: The screenshot contained more text than QRGUARD analyses at once; only the first part was checked.

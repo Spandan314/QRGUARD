@@ -33,14 +33,23 @@ def test_invalid_json_requests_rejected(client, path, body):
     assert_error(client.post(path, json=body), 400, "VALIDATION_ERROR")
 
 
-@pytest.mark.parametrize("path", ["/api/analyze/screenshot", "/api/analyze/qr"])
-def test_multipart_upload_reaches_stub(client, path):
+def test_multipart_upload_reaches_qr_stub(client):
     response = client.post(
-        path,
+        "/api/analyze/qr",
         data={"file": (io.BytesIO(b"\x89PNG\r\n\x1a\n"), "shot.png")},
         content_type="multipart/form-data",
     )
     assert_error(response, 501, "NOT_IMPLEMENTED")
+
+
+def test_screenshot_endpoint_is_implemented_and_validates_images(client):
+    # Formerly a 501 stub; now the (truncated) PNG header is rejected by real validation.
+    response = client.post(
+        "/api/analyze/screenshot",
+        data={"file": (io.BytesIO(b"\x89PNG\r\n\x1a\n"), "shot.png")},
+        content_type="multipart/form-data",
+    )
+    assert_error(response, 422, "UNPROCESSABLE_IMAGE")
 
 
 def test_screenshot_without_file_400(client):

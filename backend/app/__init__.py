@@ -11,6 +11,7 @@ from flask import Flask
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from app.analyzers.ocr import TesseractOcrEngine
 from app.analyzers.redirect_resolver import RedirectSettings
 from app.analyzers.scam_rules import load_scam_rules
 from app.analyzers.url_rules import load_url_rules
@@ -21,6 +22,7 @@ from app.logging_setup import configure_logging
 from app.middleware import register_middleware
 from app.routes import register_blueprints
 from app.services.message_analysis_service import MessageAnalysisService
+from app.services.screenshot_analysis_service import ScreenshotAnalysisService
 from app.services.url_analysis_service import UrlAnalysisService
 from app.threat_intelligence.service import ThreatIntelService
 from app.version import __version__
@@ -78,8 +80,20 @@ def create_app(config: Config | None = None) -> Flask:
         ),
     )
     app.extensions["qrguard.url_analysis"] = url_service
-    app.extensions["qrguard.message_analysis"] = MessageAnalysisService(
+    message_service = MessageAnalysisService(
         rules=load_scam_rules(url_rules), url_service=url_service
+    )
+    app.extensions["qrguard.message_analysis"] = message_service
+    app.extensions["qrguard.screenshot_analysis"] = ScreenshotAnalysisService(
+        message_service=message_service,
+        ocr_engine=TesseractOcrEngine(
+            command=config.tesseract_cmd,
+            languages=config.ocr_languages,
+            timeout=config.ocr_timeout_seconds,
+            max_concurrent=config.ocr_max_concurrent,
+        ),
+        max_bytes=config.max_content_length,
+        max_pixels=config.max_image_megapixels * 1_000_000,
     )
 
     register_middleware(app)

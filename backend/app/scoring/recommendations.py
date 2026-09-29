@@ -33,6 +33,16 @@ SUMMARIES = {
     },
 }
 
+SUMMARIES["screenshot"] = {
+    MALICIOUS: "Strong warning signs: the content of this screenshot is very likely a scam.",
+    SUSPICIOUS: "Several warning signs were found in this screenshot. Treat it as suspicious.",
+    SAFE_VERIFIED: "No significant suspicious indicators detected in the screenshot text.",
+    SAFE_UNVERIFIED: (
+        "No significant suspicious indicators detected in the text read from this screenshot. "
+        "This does not guarantee that it is genuine."
+    ),
+}
+
 RECOMMENDATIONS = {
     "url": {
         MALICIOUS: (
@@ -73,6 +83,8 @@ RECOMMENDATIONS = {
         ),
     },
 }
+
+RECOMMENDATIONS["screenshot"] = RECOMMENDATIONS["message"]
 
 # Extra advice added for the first matching evidence type (checked in this order).
 EXTRA_ADVICE = [
@@ -148,7 +160,7 @@ def recommendation_for(
                 parts.append(advice)
                 break
         parts.append(REPORTING_ADVICE)
-        if input_type == "message":
+        if input_type in ("message", "screenshot"):
             parts.append(MESSAGE_REPORTING_ADVICE)
     elif key == SAFE_UNVERIFIED and input_type == "url":
         for ids, advice in EXTRA_ADVICE:
