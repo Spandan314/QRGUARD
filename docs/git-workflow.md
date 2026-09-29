@@ -27,18 +27,29 @@
    `area:mobile`, `area:backend`, `area:scam-ocr`, `area:web`, `area:devops`, `type:bug`,
    `type:feature`, `type:docs`, `security`, `blocked`.
 
-## 2. Branch model
+## 2. Branch model (agreed)
+
+| Branch | Lifetime | Purpose | Merged by |
+|---|---|---|---|
+| `main` | permanent | Always demo-ready. Tagged releases. Auto-deploys to Render/Vercel from Phase 9. | M4, via PR from `develop` at milestones |
+| `develop` | permanent | Integration branch. All features meet here. | Any member, via a reviewed PR |
+| `feature/<area>-<task>` | **1–5 days** | One task / one issue | Author opens PR → `develop`, and the branch is **deleted after merge** |
+| `fix/<area>-<task>` | hours–days | Bug fix | same as feature |
+| `hotfix/<task>` | hours | Urgent fix on `main` | PR → `main`, then `main` merged back into `develop` |
+
+Example branch names: `feature/backend-url-analysis`, `feature/mobile-qr-scanner`,
+`feature/scam-message-detector`, `feature/web-dashboard`, `fix/backend-cors-origin`.
 
 ```mermaid
 gitGraph
   commit id: "phase-1 docs"
   branch develop
   checkout develop
-  branch feature/backend-url-analyzer
+  branch feature/backend-url-analysis
   commit id: "url features"
   commit id: "tests"
   checkout develop
-  merge feature/backend-url-analyzer
+  merge feature/backend-url-analysis
   branch feature/mobile-qr-scanner
   commit id: "camera scan"
   checkout develop
@@ -47,38 +58,78 @@ gitGraph
   merge develop tag: "v0.1-alpha"
 ```
 
-| Branch | Purpose | Who merges |
-|---|---|---|
-| `main` | Always demo-ready. Deployed automatically to Render and Vercel. | M4, via PR from `develop` only, at the end of each milestone |
-| `develop` | Integration branch. Everything meets here. | Any member, via reviewed PR |
-| `feature/<area>-<short-name>` | One task / issue, **lives 1–5 days** | Author opens PR → `develop` |
-| `fix/<area>-<short-name>` | Bug fix | same |
-| `hotfix/<name>` | Urgent fix to `main` | PR to `main`, then merge `main` back into `develop` |
+## 3. Exact workflow
 
-### About the suggested `feature/mobile`, `feature/backend` … branches
-
-Long-lived per-person branches drift apart for weeks and then produce painful "big bang" merges.
-We **recommend short-lived feature branches** named by area (`feature/mobile-qr-scanner`,
-`feature/backend-url-analyzer`, `feature/scam-rules-kyc`, `feature/web-history-page`). They give you
-the same "four parallel streams", but integrate every few days.
-
-If your guide requires the four named branches, keep them, but **merge `develop` into your branch
-at least twice a week** and open a PR back to `develop` at least once a week.
-
-## 3. Daily flow for each member
+### 3.1 One-time setup (M4)
 
 ```bash
-git checkout develop && git pull origin develop
-git checkout -b feature/backend-url-analyzer        # one issue = one branch
-# ... work, commit small and often ...
-git add -p && git commit -m "feat(backend): detect IP-address hosts in URLs"
-git fetch origin && git merge origin/develop          # stay current, resolve conflicts locally
-git push -u origin feature/backend-url-analyzer
-# open PR on GitHub → base: develop, link issue ("Closes #12"), request reviewer
+git clone https://github.com/<org>/QRGUARD.git && cd QRGUARD
+git checkout main
+git checkout -b develop
+git push -u origin develop
 ```
 
-**Commit messages** use Conventional Commits: `feat(mobile): …`, `fix(backend): …`, `test(scam): …`,
-`docs: …`, `chore(ci): …`.
+Then, on GitHub: **Settings → General → Default branch = `develop`**, so PRs target it by default.
+Also enable **"Automatically delete head branches"** in Settings → General → Pull Requests. Set up
+branch protection as described in section 1.
+
+### 3.2 Every task (every member)
+
+```bash
+# 1. Start from the latest develop
+git checkout develop
+git pull origin develop
+
+# 2. Create a short-lived branch for ONE issue
+git checkout -b feature/backend-url-analysis
+
+# 3. Work in small commits
+git add <files>
+git commit -m "feat(backend): detect IP-address hosts in URLs"
+
+# 4. Before pushing, bring in teammates' merged work and re-run your tests
+git fetch origin
+git merge origin/develop            # resolve any conflicts locally
+cd backend && pytest && cd ..       # (or npm test / npm run lint for web/mobile)
+
+# 5. Push and open a PR  (base: develop, compare: your branch)
+git push -u origin feature/backend-url-analysis
+```
+
+On GitHub:
+
+1. Open a PR with base `develop`. Fill in the template and add `Closes #<issue>`.
+2. CI runs automatically, and a CODEOWNER / review partner reviews within 24 h.
+3. Fix review comments by pushing more commits to the same branch.
+4. When CI is green and the PR is approved, use **Squash and merge**. GitHub deletes the remote branch.
+5. Clean up locally:
+
+```bash
+git checkout develop
+git pull origin develop
+git branch -d feature/backend-url-analysis
+git fetch --prune                    # forget deleted remote branches
+```
+
+### 3.3 Milestone release (M4, end of a milestone)
+
+1. Open a PR from `develop` to `main` titled "Release v0.x".
+2. The whole team checks the demo script on `develop`, then uses **Create a merge commit**.
+3. Tag the release:
+
+```bash
+git checkout main && git pull
+git tag -a v0.1-alpha -m "URL analysis end-to-end"
+git push origin v0.1-alpha
+```
+
+### 3.4 Rules
+
+- Never commit directly to `main` or `develop`. Branch protection enforces this.
+- One branch = one task. Don't reuse a merged branch; create a new one.
+- Keep PRs under about 400 changed lines. Split big features into several PRs.
+- Changes to shared contracts (`docs/api-spec.md`, `backend/app/scoring/*`) need the extra CODEOWNER review.
+- Never commit `.env` files, keys, service-account JSON or APKs.
 
 ## 4. Pull requests and code review
 

@@ -39,7 +39,17 @@ Returned by all four `/api/analyze/*` endpoints.
       "evidence": "http://"
     }
   ],
-  "score_breakdown": { "url_structure": 18, "lexical": 12, "brand": 25, "host": 0, "reputation": 0, "message": 0, "qr": 0, "combination_bonus": 12 },
+  "score_breakdown": {
+    "modules": [
+      { "module": "url_qr", "score": 67, "weight": 0.35, "applicable": true },
+      { "module": "threat_intel", "score": null, "weight": 0.30, "applicable": false, "reason": "no positive finding" },
+      { "module": "message", "score": null, "weight": 0.20, "applicable": false, "reason": "no text input" },
+      { "module": "ocr", "score": null, "weight": 0.15, "applicable": false, "reason": "not a screenshot" }
+    ],
+    "weighted_score": 67,
+    "floor_applied": null
+  },
+  "scam_categories": [ { "id": "phishing", "label": "Phishing" }, { "id": "malicious_url", "label": "Malicious / suspicious URL" } ],
   "threat_intel": [
     { "provider": "local_feed", "status": "not_listed" },
     { "provider": "urlhaus", "status": "not_listed" },
@@ -116,7 +126,7 @@ not stored**.
 
 `details`:
 ```json
-{ "scam_types": [{ "type": "kyc_banking", "score": 55 }],
+{ "matched_categories": ["kyc_account_suspension", "impersonation", "malicious_url"],
   "matched_phrases": [{ "category": "threat", "phrase": "account will be BLOCKED" }, { "category": "urgency", "phrase": "today" }],
   "urls": [ { "url": "http://sbi-kyc.example/login", "risk_score": 70, "risk_level": "MALICIOUS", "indicators": [ ] } ],
   "phone_numbers": [], "language": "en" }

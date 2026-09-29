@@ -1,0 +1,481 @@
+{
+  "info": {
+    "name": "QRGUARD API",
+    "description": "QRGUARD backend API. Phase 2 foundation: analysis endpoints validate input and return 501 until each module is implemented.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:5000"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "GET /api/health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Analyze (contract stubs)",
+      "item": [
+        {
+          "name": "POST /api/analyze/url",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com\",\n  \"save_to_history\": false\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 501', () => pm.response.to.have.status(501));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
+                  "pm.test('error code is NOT_IMPLEMENTED', () => pm.expect(pm.response.json().error.code).to.eql('NOT_IMPLEMENTED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/analyze/message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "message"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"DEMO / TEST DATA: Your account will be blocked today. Update KYC now.\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 501', () => pm.response.to.have.status(501));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
+                  "pm.test('error code is NOT_IMPLEMENTED', () => pm.expect(pm.response.json().error.code).to.eql('NOT_IMPLEMENTED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/analyze/qr (decoded content)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"upi://pay?pa=demo@upi&pn=Demo&am=1\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 501', () => pm.response.to.have.status(501));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
+                  "pm.test('error code is NOT_IMPLEMENTED', () => pm.expect(pm.response.json().error.code).to.eql('NOT_IMPLEMENTED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/analyze/screenshot (choose a file)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
+                  "pm.test('error code is MISSING_FILE', () => pm.expect(pm.response.json().error.code).to.eql('MISSING_FILE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /api/generate/qr",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/generate/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "generate",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"url\",\n  \"data\": {\n    \"url\": \"https://example.com\"\n  },\n  \"format\": \"png\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 501', () => pm.response.to.have.status(501));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
+                  "pm.test('error code is NOT_IMPLEMENTED', () => pm.expect(pm.response.json().error.code).to.eql('NOT_IMPLEMENTED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Error handling",
+      "item": [
+        {
+          "name": "404 unknown route",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/nope",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "nope"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
+                  "pm.test('error code is NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "405 wrong method",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 405', () => pm.response.to.have.status(405));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
+                  "pm.test('error code is METHOD_NOT_ALLOWED', () => pm.expect(pm.response.json().error.code).to.eql('METHOD_NOT_ALLOWED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 malformed JSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{not json"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
+                  "pm.test('error code is INVALID_JSON', () => pm.expect(pm.response.json().error.code).to.eql('INVALID_JSON'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 missing field",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 unknown field",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com\",\n  \"URL\": \"x\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "415 wrong content type",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "text/plain"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "url=https://example.com"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 415', () => pm.response.to.have.status(415));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
+                  "pm.test('error code is UNSUPPORTED_MEDIA_TYPE', () => pm.expect(pm.response.json().error.code).to.eql('UNSUPPORTED_MEDIA_TYPE'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

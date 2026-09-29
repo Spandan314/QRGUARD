@@ -1,0 +1,25 @@
+# QRGUARD scoring configuration: the ONE place for risk weights and thresholds.
+#
+# Change values here, not in Python code. The file is validated at startup; an
+# invalid file stops the server with a clear error instead of producing wrong scores.
+#
+# NOTE (Phase 2 foundation): only thresholds and module weights exist so far.
+# Per-indicator weights are added when the URL analyzer and risk engine are built.
+
+version: 1
+
+# Risk levels:   0 .. suspicious-1  -> SAFE
+#                suspicious .. malicious-1 -> SUSPICIOUS
+#                malicious .. 100 -> MALICIOUS
+thresholds:
+  suspicious: 30
+  malicious: 60
+
+# Relative importance of each analysis module. Must add up to 1.0.
+# The risk engine normalises over the modules that actually apply to an input,
+# so a URL-only check is NOT penalised for having no message or OCR evidence.
+module_weights:
+  url_qr: 0.35        # URL structure / lexical / QR payload analysis
+  threat_intel: 0.30  # known-malicious lists and reputation services
+  message: 0.20       # scam-message indicators
+  ocr: 0.15           # screenshot / OCR-specific indicators

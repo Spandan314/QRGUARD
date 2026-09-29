@@ -64,7 +64,8 @@ QRGUARD/
 │   │   │   ├── indicator.py               M2  Indicator dataclass (shared contract!)
 │   │   │   ├── engine.py                  M2  combine, cap, floor, level, confidence
 │   │   │   ├── recommendations.py         M3  action text per level + dominant category
-│   │   │   └── weights.yaml               M2+M3  all weights, caps, thresholds
+│   │   │   ├── settings.py                M2  loads + validates scoring_config.yaml
+│   │   │   └── scoring_config.yaml        M2+M3  ONE place for weights, caps, floors, thresholds
 │   │   ├── utils/
 │   │   │   ├── net_safety.py              M2  is_public_ip(), safe resolve, port allowlist
 │   │   │   ├── image_utils.py             M3  magic-byte check, Pillow verify, pixel cap
@@ -128,5 +129,5 @@ QRGUARD/
 |---|---|---|
 | `docs/api-spec.md` | Web, mobile and backend all depend on it | PR needs approval from M1 **and** M4 |
 | `backend/app/scoring/indicator.py` | M2 and M3 modules both emit it | PR needs approval from M2 **and** M3 |
-| `backend/app/scoring/weights.yaml` | Tuning affects every result | Change only with updated tests |
+| `backend/app/scoring/scoring_config.yaml` | Tuning affects every result | Change only with updated tests |
 | `web/src/types/api.ts`, `mobile/types/api.ts` | Mirror of the API schema | Updated in the same PR as `api-spec.md` |

@@ -21,18 +21,27 @@ live phishing pages are shown.
 | 12 | Security | Postman: SSRF attempt `http://169.254.169.254`, 20 MB upload, `.exe` renamed `.png`, rate-limit burst | Blocked, 413, 415, 429, with clean JSON errors |
 | 13 | Results | Evaluation table: precision/recall per input type on our labelled set | Honest numbers, including known failures |
 
-## 2. Out of scope for the 3-month MVP (do NOT implement)
+## 2. Out of scope for the 3-month MVP (agreed; documented as future scope)
 
-| Item | Reason |
+The following are **not implemented** in the initial version:
+
+| Item | Why it is excluded / future direction |
 |---|---|
-| ML / transformer-based classifiers | Needs data, training and evaluation time. The indicator vector is kept ML-ready instead. |
-| Browser extension | A separate platform with its own review process |
-| Android share-sheet / SMS-reading integration | Needs native code and a dev build, and SMS permissions raise Play Store policy issues |
-| Multilingual (Hindi/Marathi) detection | Needs native-speaker rule sets and OCR language packs. Only a feasibility note in Week 10. |
-| Fetching / rendering page content, screenshots of websites, sandbox detonation | Security risk (SSRF, malware) and heavy infrastructure |
-| Our own crawling / threat feed / campaign clustering | Research-scale work |
-| Real-time push alerts, background scanning | Battery, permissions and complexity |
-| iOS App Store release | Needs a paid Apple developer account. Expo Go iOS testing is possible if a team member has an iPhone. |
-| Federated / privacy-preserving learning | Research topic |
-| Payments, multi-tenant orgs, complex admin RBAC | Not needed for the objective |
-| Claims of guaranteed or "100 %" detection | Not truthful |
+| Deep learning model training | Needs data, GPUs and evaluation time. The indicator vector is ML-ready. |
+| Large-scale custom dataset creation | We build only a small labelled evaluation set (about 150 items). |
+| Transformer-based NLP | Rule-based detection is explainable and sufficient for the MVP. |
+| Continuous background monitoring | Battery, permissions and platform policy constraints |
+| Browser extension | A separate platform, and future scope |
+| Real-time device-wide protection | Needs OS-level integration |
+| Automatic blocking of websites | QRGUARD advises and never blocks |
+| Automatic deletion / quarantine of files | Not an antivirus, and it never touches user files |
+| Full antivirus functionality | Out of the project's objective |
+| Production-scale threat-intelligence infrastructure | We use existing feeds/APIs with a cache |
+| Complex admin management system | The admin view is limited to stats and a reports list |
+| Multilingual AI model | English rules only. Hindi/Marathi rules are future scope. |
+| Federated learning | Research topic |
+| Blockchain | Adds nothing to the objective |
+| Advanced user reporting / reputation network | Only a simple "report false result" form |
+
+Also not planned: iOS App Store release (needs a paid Apple account), fetching or rendering page
+content, and any claim of guaranteed or "100 %" detection.

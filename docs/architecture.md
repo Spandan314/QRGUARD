@@ -8,8 +8,8 @@
 
 | # | Decision | Choice | Trade-off / reason |
 |---|---|---|---|
-| D1 | Where analysis runs | **Backend only** (Flask) | One implementation shared by web and mobile. Rules and threat-intel keys stay server-side. Cost: analysis needs network access. |
-| D2 | Camera QR decode | **On device** (`expo-camera`) and only the decoded string is sent | Fast, and no image upload. |
+| D1 | Where analysis runs | **Backend only** (Flask). Web and mobile are thin clients with **no security logic**. | One implementation shared by web and mobile. Rules and threat-intel keys stay server-side. Cost: analysis needs network access. |
+| D2 | Camera QR decode | **On device** (`expo-camera`) and only the decoded string is sent. Decoding is not analysis: the backend classifies the payload type and analyses it. | Fast, and no image upload. |
 | D3 | Gallery / screenshot QR decode | **Backend** (OpenCV `QRCodeDetector`) | One decoder for web and mobile. The native library is a `pip` wheel with no system lib to install. |
 | D4 | OCR | **Tesseract** on the backend, run in a **Docker** image | Tesseract is a system binary, and Docker is the reliable way to ship it to Render. |
 | D5 | QR generation | **On client** (mobile: `react-native-qrcode-svg`; web: `qrcode`). The API endpoint exists for completeness. | Wi-Fi passwords and personal data never leave the device, and the generator works offline. |
@@ -18,7 +18,7 @@
 | D8 | Detection method | **Rule-based, weighted, explainable** (no ML in MVP) | Explainable, testable and realistic in 3 months. The indicator schema is ML-ready. |
 | D9 | Threat intel | Pluggable `ThreatIntelService` with **local feeds first**, then APIs | Local feeds need no per-request call and do not leak user URLs to third parties. APIs are optional and degrade gracefully. |
 | D10 | Fetching URLs | **Never fetch page bodies.** Optional redirect-header resolution (HEAD/GET, no body) behind SSRF guard; default: *shortener domains only* | Covers the "shortened URL hides destination" case without turning the server into a proxy. |
-| D11 | Language | Backend Python 3.12. Web and mobile use **TypeScript**. | TS catches API-contract mismatches between four people. Expo and Vite templates default to TS. |
+| D11 | Language | Backend Python 3.12 (3.11+ supported). Web and mobile use **TypeScript in `strict` mode**. | TS catches API-contract mismatches between four people. Expo and Vite templates default to TS. |
 | D12 | Monorepo tooling | **None** (plain folders, each app has its own package manager) | Nothing to learn beyond npm and pip, and fewer build failures. The cost is duplicated TS types, which stay small. |
 
 ### 1.2 System architecture diagram
@@ -53,7 +53,7 @@ flowchart TB
       API[URLhaus API · Google Safe Browsing ·<br/>VirusTotal · PhishTank opt.]
     end
     RR[Safe Redirect Resolver<br/>SSRF-guarded]
-    SE[Scoring Engine<br/>weights.yaml + thresholds]
+    SE[Scoring Engine<br/>scoring_config.yaml]
     HS[History Service]
   end
 
@@ -112,7 +112,7 @@ flowchart TB
 | Web | **React 18/19 + Vite + TypeScript + React Router + Tailwind CSS** | Fast dev server, simple static deploy | Next.js (SSR not needed) |
 | Mobile | **Expo (current SDK) + expo-router + TypeScript** | Expo Go for testing, EAS for APKs | Bare RN (harder builds) |
 | Mobile libs | `expo-camera`, `expo-image-picker`, `expo-sharing`, `expo-media-library`, `expo-file-system`, `react-native-qrcode-svg`, `react-native-svg`, `@react-native-async-storage/async-storage` | Official or near-official Expo-compatible | — |
-| Hosting | **Render** (backend, Docker), **Vercel** (web), **EAS Build** (Android), **Firebase Spark** (free) | Free tiers, GitHub-connected | Railway (trial credit only), Fly.io (card required) |
+| Hosting | **Render** (backend, Docker; no Render-specific code, so it can move to Railway/Fly.io/a VM), **Vercel** (web), **EAS Build** (Android), **Firebase Spark** (free) | Free tiers, GitHub-connected | Railway (trial credit only), Fly.io (card required) |
 | CI | **GitHub Actions** with path filters per app | Free for public repos, generous for private | — |
 
 ## 3. Mobile architecture
@@ -139,7 +139,7 @@ mobile/
 ├── components/               # RiskBadge, IndicatorList, ScoreGauge, OpenLinkGuard, ActionButton…
 ├── services/                 # api.ts (fetch wrapper), firebase.ts, analysis.ts, history.ts
 ├── context/                  # AuthContext, ResultContext, ThemeContext
-├── utils/                    # qrPayload.ts (type detection), validators.ts, format.ts
+├── utils/                    # format.ts, input limits (no security logic)
 ├── constants/                # theme.ts (colors, spacing), config.ts (reads EXPO_PUBLIC_*)
 ├── types/                    # api.ts (mirrors backend result schema)
 ├── app.config.ts             # Expo config (reads env)
@@ -186,7 +186,7 @@ web/
 │   ├── services/     api.ts, firebase.ts, auth.ts
 │   ├── hooks/        useAnalysis.ts, useAuth.ts, useHistory.ts
 │   ├── types/        api.ts
-│   └── utils/        format.ts, qrPayload.ts
+│   └── utils/        format.ts (no security logic)
 ├── public/
 ├── index.html, vite.config.ts, tailwind.config.js, vercel.json
 └── .env.example

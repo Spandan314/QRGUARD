@@ -3,8 +3,8 @@
 ## 1. Design goals
 
 1. **Explainable:** every point in the score traces back to a named indicator.
-2. **Configurable:** weights, caps, bonuses and thresholds live in `scoring/weights.yaml`, with env
-   overrides for thresholds. They are never hard-coded in analyzers.
+2. **Configurable:** weights, caps, bonuses, floors and thresholds live in one file,
+   `scoring/scoring_config.yaml`. They are never hard-coded in analyzers.
 3. **Robust to keyword stuffing:** per-category caps stop a single category from dominating, and
    high scores require **independent** evidence types.
 4. **Honest:** a confidence value reflects how much evidence was actually available, for example when
@@ -17,7 +17,7 @@
 class Indicator:
     id: str            # "URL_IP_HOST"  (stable, used in tests + history)
     category: str      # url_structure | lexical | brand | host | reputation | qr | message_* | ocr
-    weight: int        # from weights.yaml (0 for info)
+    weight: int        # from scoring_config.yaml (0 for info)
     severity: str      # info | low | medium | high | critical  (derived from weight)
     title: str         # "Link uses an IP address instead of a domain name"
     explanation: str   # plain language, for non-technical users
@@ -115,31 +115,107 @@ Analyzers **only emit indicators**. They never compute a final verdict.
 A single keyword cannot exceed its category cap (≤ 25). **No single message category alone can reach
 MALICIOUS**, so a MALICIOUS verdict always needs corroborating evidence.
 
-## 4. Combining modules
+## 4. Combining modules (agreed model: normalised module weights)
 
-When an input produces several module scores (e.g. message + 2 URLs + QR from a screenshot):
+All weights and thresholds live in **one file**: `backend/app/scoring/scoring_config.yaml`.
+
+### 4.1 Module weights
+
+| Module | Weight | Produces a score when… |
+|---|---|---|
+| `url_qr` | 0.35 | the input contains a URL or a QR payload |
+| `threat_intel` | 0.30 | at least one provider returns a **positive** finding (`listed` or partial) |
+| `message` | 0.20 | there is text to analyse (message input, OCR text, plain-text QR) |
+| `ocr` | 0.15 | the input is a screenshot (OCR-specific indicators, e.g. QR inside the screenshot, obfuscated link text) |
+
+### 4.2 Formula
 
 ```
-module_score(m)  = min(100, Σ capped category subtotals in m)
-base             = max(module_scores)
-corroboration    = 0.25 × Σ(other module scores)          # damped, so evidence adds but doesn't explode
-raw              = base + corroboration + combination_bonuses
-score            = clamp(raw, 0, 100)
-if TI_LISTED:      score = max(score, 90)
+applicable = modules that produced a score for this input
+module_score(m) = min(100, Σ capped category subtotals in m)      # 0..100
+
+weighted = Σ_{m ∈ applicable} w_m × module_score(m)  /  Σ_{m ∈ applicable} w_m
+score    = max(weighted, floors)                                   # see 4.3
+score    = round(clamp(score, 0, 100))
 ```
 
-Why take the max instead of an average: an average would **dilute** a clearly malicious link inside
-an otherwise harmless message.
+Dividing by the weights of **applicable** modules only means that an input is never penalised,
+or made to look safer, because a module did not apply. A plain URL check is scored on URL evidence
+alone. It is not diluted by an absent message or OCR module.
+
+**Why `not_listed` does not count as threat-intel evidence:** if "not on a blacklist" were scored as
+0, it would pull every score down and quietly treat absence from a list as proof of safety, which we
+have promised not to claim. `not_listed`, `unavailable` and `disabled` therefore make the module
+*not applicable*. They are still shown to the user, and they affect **confidence** (section 6).
+
+### 4.3 Floors (strong evidence cannot be averaged away)
+
+A weighted average can hide one decisive finding. Suppose a harmless-looking message contains a link
+to a known phishing site. Averaging the link with the harmless text would pull the score down. So a
+few **critical indicators** set a minimum score, and the result explains this in its own line:
+
+| Indicator | Floor |
+|---|---|
+| `TI_LISTED` (known malicious in any provider) | 90 |
+| `URL_DANGEROUS_SCHEME` (`javascript:`, `data:`…) | 80 |
+| `URL_APK_DOWNLOAD`, `BRAND_LOOKALIKE`, `QR_UPI_RECEIVE_CONTEXT` | 60 (= MALICIOUS threshold) |
+
+Floors are configured in `scoring_config.yaml` together with the indicator weights.
+
+### 4.4 Worked examples
+
+| Input | Module scores | Calculation | Result |
+|---|---|---|---|
+| URL only, TI `not_listed` | url_qr 48 | 0.35·48 / 0.35 = 48 | 48 → SUSPICIOUS |
+| URL, TI `listed` | url_qr 30, TI 100 | (0.35·30 + 0.30·100) / 0.65 = 62, then floor 90 | 90 → MALICIOUS |
+| Message with a link | message 40, url_qr 55 | (0.20·40 + 0.35·55) / 0.55 = 49.5 | 50 → SUSPICIOUS |
+| Genuine bank SMS, no link | message 0 | 0 / 0.20 = 0 | 0 → SAFE |
+| Screenshot: text + link + QR | message 50, url_qr 70, ocr 20 | (0.20·50 + 0.35·70 + 0.15·20) / 0.70 = 53.6 | 54 → SUSPICIOUS |
+| Nothing analysable (empty OCR) | none | no applicable module | error `OCR_FAILED`, not "SAFE" |
+
+### 4.5 Explaining the score
+
+Every result includes `score_breakdown`, which gives each applicable module's score, weight and
+weighted contribution, plus any floor that applied. The `indicators` list names every contributing
+indicator with its weight. The "Why?" list in the apps is built directly from these two fields.
 
 ## 5. Levels and thresholds
 
-| Level | Default range | Env override |
+| Level | Default range | Configured in |
 |---|---|---|
-| SAFE | 0 – 29 | `RISK_THRESHOLD_SUSPICIOUS=30` |
-| SUSPICIOUS | 30 – 59 | `RISK_THRESHOLD_MALICIOUS=60` |
+| SAFE | 0 – 29 | `scoring_config.yaml` → `thresholds.suspicious: 30` |
+| SUSPICIOUS | 30 – 59 | `scoring_config.yaml` → `thresholds.malicious: 60` |
 | MALICIOUS | 60 – 100 | |
 
+The file is validated at startup: thresholds must be ordered and the weights must sum to 1.0.
 User-facing wording for SAFE is **"No major risks detected"**, always shown with the disclaimer.
+
+## 5a. Scam categories (multi-label)
+
+One input can match **several** categories. Each category has its own rule set, and every category
+whose rules reach its minimum evidence level is reported, strongest first.
+
+| ID | Label |
+|---|---|
+| `phishing` | Phishing |
+| `otp_scam` | OTP scam |
+| `banking_payment` | Banking / payment scam |
+| `upi_scam` | UPI scam |
+| `kyc_account_suspension` | KYC / account suspension scam |
+| `lottery_prize` | Lottery / prize scam |
+| `fake_job` | Fake job scam |
+| `fake_internship` | Fake internship scam |
+| `investment` | Investment / financial scam |
+| `impersonation` | Impersonation scam |
+| `fake_customer_support` | Fake customer support scam |
+| `credential_theft` | Credential theft |
+| `malicious_url` | Malicious / suspicious URL |
+| `social_engineering_other` | Other social-engineering scam |
+
+Categories are *labels that explain the result*. The score still comes from the weighted indicators,
+so a category is never assigned from a single keyword. Example: "Your SBI KYC expires today, share the
+OTP at http://sbi-kyc.example" → `kyc_account_suspension`, `otp_scam`, `impersonation`,
+`malicious_url`.
 
 ## 6. Confidence
 
@@ -164,24 +240,20 @@ User-facing wording for SAFE is **"No major risks detected"**, always shown with
 
 ```mermaid
 flowchart TD
-  A[Indicators from all modules] --> B[Group by module and category]
-  B --> C[Apply per-category caps]
-  C --> D[Module score = sum of capped subtotals]
-  D --> E[base = max module score]
-  E --> F[+ 0.25 x other modules]
-  F --> G[+ combination bonuses]
-  G --> H{TI listed?}
-  H -- yes --> I[score = max score, 90]
-  H -- no --> J[clamp 0..100]
-  I --> K
-  J --> K{score >= MALICIOUS threshold?}
+  A[Indicators from all modules] --> B[Apply per-category caps]
+  B --> C[Module score per applicable module 0..100]
+  C --> D[Weighted average over APPLICABLE modules only<br/>weights from scoring_config.yaml]
+  A --> F{Critical indicator present?}
+  F -- yes --> G[Apply floor e.g. TI listed = 90]
+  F -- no --> H[No floor]
+  D & G & H --> I[score = max of weighted, floor]
+  I --> K{score >= malicious threshold?}
   K -- yes --> M[MALICIOUS]
-  K -- no --> L{score >= SUSPICIOUS threshold?}
+  K -- no --> L{score >= suspicious threshold?}
   L -- yes --> S[SUSPICIOUS]
   L -- no --> SA[SAFE]
-  M & S & SA --> CF[Compute confidence]
-  CF --> RA[Select recommended action]
-  RA --> OUT[Result + breakdown + indicators]
+  M & S & SA --> CF[Confidence + scam categories + recommended action]
+  CF --> OUT[Result with score_breakdown and indicators]
 ```
 
 ## 9. Future ML extension (not in MVP)

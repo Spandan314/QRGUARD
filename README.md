@@ -10,12 +10,12 @@ recommended safe action.
 
 ## Project status
 
-**Phase 1: Architecture & design (awaiting approval).** No application code yet.
+**Phase 2: Backend foundation.** Architecture approved. The Flask API foundation runs and is tested; see [backend/README.md](backend/README.md).
 
 | Phase | Scope | Status |
 |---|---|---|
-| 1 | Architecture, folder structure, DB design, API design, roadmap | ✅ Drafted, awaiting approval |
-| 2 | Backend foundation, URL analysis, risk engine | ⏳ |
+| 1 | Architecture, folder structure, DB design, API design, roadmap | ✅ Approved |
+| 2 | Backend foundation ✅ · URL analysis ⏳ · risk engine ⏳ | 🚧 In progress |
 | 3 | Scam message detector, OCR/screenshot analyzer | ⏳ |
 | 4 | Threat intelligence | ⏳ |
 | 5 | React web application | ⏳ |
