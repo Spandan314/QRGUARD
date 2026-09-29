@@ -129,6 +129,7 @@ export interface AnalysisResult {
   analysis: AnalysisDetails
   disclaimer: string
   engine_version?: string
+  history?: HistoryInfo
 }
 
 export interface ApiErrorBody {
@@ -147,4 +148,78 @@ export interface HealthResponse {
     }
     [key: string]: unknown
   }
+}
+
+// ----- Sign-in, history, reports, admin (docs/api-spec.md "Sign-in, history, reports, admin") ---
+
+export interface HistoryInfo {
+  saved: boolean
+  scan_id?: string
+  reason?: 'sign_in_required' | 'history_disabled' | 'history_unavailable' | 'history_error'
+}
+
+export type HistoryInputType = 'url' | 'message' | 'screenshot' | 'qr_camera' | 'qr_image'
+
+export interface ScanTarget {
+  kind: string
+  domain?: string | null
+  url_hash?: string | null
+  length?: number | null
+  url_count?: number
+  payee_domain?: string | null
+}
+
+export interface HistoryItem {
+  id: string
+  input_type: HistoryInputType
+  created_at: string
+  risk_score: number
+  risk_level: RiskLevel
+  confidence: Confidence
+  verification: { status: 'VERIFIED' | 'UNVERIFIED'; source: Verification['source'] }
+  categories: string[]
+  indicators: { id: string; title: string | null; severity: Severity | null; score_contribution: number | null; source: EvidenceSource | null }[]
+  recommended_action: string | null
+  target: ScanTarget
+  threat_intel: { provider: string; status: TIStatus }[]
+  engine_version: string
+}
+
+export interface HistoryPage {
+  items: HistoryItem[]
+  next_cursor: string | null
+}
+
+export interface Profile {
+  uid: string
+  is_anonymous: boolean
+  admin: boolean
+  save_history: boolean
+  history_retention_days: number
+}
+
+export type ReportKind = 'false_positive' | 'false_negative' | 'scam'
+
+export interface DailyStats {
+  date: string
+  total: number
+  by_level: Partial<Record<RiskLevel, number>>
+  by_type: Partial<Record<HistoryInputType, number>>
+  ti_unavailable: number
+}
+
+export interface AdminStats {
+  days: DailyStats[]
+  threat_intel: { provider: string; enabled: boolean; external: boolean }[]
+}
+
+export interface AdminReport {
+  id: string
+  scan_id: string | null
+  reported_as: ReportKind
+  domain: string | null
+  url_hash: string | null
+  note: string
+  status: 'open' | 'reviewed'
+  created_at: string
 }
