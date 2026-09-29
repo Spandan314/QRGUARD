@@ -1,0 +1,86 @@
+# Brands commonly impersonated in Indian phishing/scam campaigns.
+#
+# official_domains: registrable domains that genuinely belong to the brand.
+#   A URL on (or under) one of these domains is NEVER flagged for brand impersonation.
+# keywords: words that identify the brand inside other domains.
+#   Short keywords (< 5 letters) are only matched as a whole word (e.g. "sbi" in
+#   "sbi-kyc.com", but not inside "sbicard.com").
+#
+# DEMO NOTE: verify official domains from each organisation's own website before the
+# final submission, and extend the list as needed. Banks are also moving to the
+# RBI-designated .bank.in domain; add those domains here once confirmed.
+
+lookalike:
+  min_length_for_distance_1: 6   # brand keywords this long may differ by 1 edit (hdfcbamk)
+  min_length_for_distance_2: 9   # this long may differ by 2 edits (icicibnak)
+
+brands:
+  - name: State Bank of India
+    official_domains: [sbi.co.in, onlinesbi.sbi, onlinesbi.com, sbi.bank.in, sbicard.com]
+    keywords: [sbi, onlinesbi, yonosbi, statebank]
+  - name: HDFC Bank
+    official_domains: [hdfcbank.com, hdfc.com, hdfcbank.bank.in]
+    keywords: [hdfc, hdfcbank]
+  - name: ICICI Bank
+    official_domains: [icicibank.com, icici.bank.in]
+    keywords: [icici, icicibank]
+  - name: Axis Bank
+    official_domains: [axisbank.com, axis.bank.in]
+    keywords: [axisbank]
+  - name: Kotak Mahindra Bank
+    official_domains: [kotak.com, kotak.bank.in]
+    keywords: [kotak, kotakbank]
+  - name: Punjab National Bank
+    official_domains: [pnbindia.in, pnb.bank.in]
+    keywords: [pnbindia, pnbbank]
+  - name: Bank of Baroda
+    official_domains: [bankofbaroda.in, bankofbaroda.com, bankofbaroda.bank.in]
+    keywords: [bankofbaroda, bobibanking]
+  - name: Paytm
+    official_domains: [paytm.com, paytm.in, paytmbank.com]
+    keywords: [paytm]
+  - name: PhonePe
+    official_domains: [phonepe.com]
+    keywords: [phonepe]
+  - name: Google
+    official_domains: [google.com, google.co.in, gmail.com, youtube.com]
+    keywords: [google, gmail, googlepay, gpay]
+  - name: NPCI / BHIM UPI
+    official_domains: [npci.org.in, bhimupi.org.in]
+    keywords: [npci, bhimupi]
+  - name: Amazon
+    official_domains: [amazon.in, amazon.com, amazon.co.uk, amazonpay.in, amazon.dev, aws.amazon.com]
+    keywords: [amazon, amazonpay]
+  - name: Flipkart
+    official_domains: [flipkart.com]
+    keywords: [flipkart]
+  - name: Microsoft
+    official_domains: [microsoft.com, live.com, office.com, outlook.com, microsoftonline.com, office365.com]
+    keywords: [microsoft, office365, microsoftonline]
+  - name: Apple
+    official_domains: [apple.com, icloud.com]
+    keywords: [apple, icloud, appleid]
+  - name: PayPal
+    official_domains: [paypal.com, paypal.me]
+    keywords: [paypal]
+  - name: Meta (Facebook / Instagram / WhatsApp)
+    official_domains: [facebook.com, fb.com, instagram.com, whatsapp.com, meta.com, wa.me]
+    keywords: [facebook, instagram, whatsapp]
+  - name: Netflix
+    official_domains: [netflix.com]
+    keywords: [netflix]
+  - name: Income Tax Department
+    official_domains: [incometax.gov.in, incometaxindia.gov.in]
+    keywords: [incometax, itrefund]
+  - name: India Post
+    official_domains: [indiapost.gov.in]
+    keywords: [indiapost]
+  - name: IRCTC
+    official_domains: [irctc.co.in]
+    keywords: [irctc]
+  - name: EPFO
+    official_domains: [epfindia.gov.in]
+    keywords: [epfo, epfindia]
+  - name: UIDAI / Aadhaar
+    official_domains: [uidai.gov.in, myaadhaar.uidai.gov.in]
+    keywords: [uidai, aadhaar, myaadhaar]

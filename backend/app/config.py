@@ -18,6 +18,8 @@ from app.scoring.settings import ScoringSettings, load_scoring_settings
 
 VALID_ENVIRONMENTS = ("development", "production", "testing")
 VALID_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
+# off: never contact links | shorteners_only: follow known shorteners | all: follow every link
+REDIRECT_MODES = ("off", "shorteners_only", "all")
 
 
 class ConfigError(ValueError):
@@ -64,6 +66,10 @@ class Config:
     ratelimit_analyze: str = "20 per minute;200 per day"
     ratelimit_storage_uri: str = "memory://"
     trust_proxy_hops: int = 0
+    redirect_resolution: str = "shorteners_only"
+    redirect_max_hops: int = 5
+    redirect_timeout_seconds: int = 3
+    redirect_total_timeout_seconds: int = 8
     scoring: ScoringSettings = field(default_factory=load_scoring_settings)
 
     # ----- derived values -------------------------------------------------
@@ -111,5 +117,13 @@ class Config:
             or "20 per minute;200 per day",
             ratelimit_storage_uri=env.get("RATELIMIT_STORAGE_URI", "").strip() or "memory://",
             trust_proxy_hops=_get_int(env, "TRUST_PROXY_HOPS", 0, 0, 5),
+            redirect_resolution=_get_choice(
+                env, "REDIRECT_RESOLUTION", "shorteners_only", REDIRECT_MODES
+            ),
+            redirect_max_hops=_get_int(env, "REDIRECT_MAX_HOPS", 5, 0, 10),
+            redirect_timeout_seconds=_get_int(env, "REDIRECT_TIMEOUT_SECONDS", 3, 1, 10),
+            redirect_total_timeout_seconds=_get_int(
+                env, "REDIRECT_TOTAL_TIMEOUT_SECONDS", 8, 1, 30
+            ),
             scoring=load_scoring_settings(scoring_path),
         )

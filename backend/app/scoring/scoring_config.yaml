@@ -1,25 +1,356 @@
-# QRGUARD scoring configuration: the ONE place for risk weights and thresholds.
+# QRGUARD scoring configuration: the ONE place for risk weights, caps, floors and thresholds.
 #
-# Change values here, not in Python code. The file is validated at startup; an
-# invalid file stops the server with a clear error instead of producing wrong scores.
+# Change values here, not in Python code. The file is validated at startup; an invalid file
+# stops the server with a clear error instead of silently producing wrong scores.
 #
-# NOTE (Phase 2 foundation): only thresholds and module weights exist so far.
-# Per-indicator weights are added when the URL analyzer and risk engine are built.
+# How a score is built (details: docs/risk-scoring.md):
+#   1. Analyzers emit indicator IDs (they know nothing about points).
+#   2. Each indicator adds its `weight` to its module; each category inside a module is capped.
+#   3. Module scores (0-100) are combined with `module_weights`, averaged ONLY over modules
+#      that apply to this input.
+#   4. A `floor` on a critical indicator guarantees a minimum final score.
+#   5. The final score is mapped to a level with `thresholds` + the `verification` rule.
 
-version: 1
+version: 2
 
-# Risk levels:   0 .. suspicious-1  -> SAFE
-#                suspicious .. malicious-1 -> SUSPICIOUS
-#                malicious .. 100 -> MALICIOUS
+# Score bands. SAFE additionally requires positive verification (see `verification`).
 thresholds:
-  suspicious: 30
-  malicious: 60
+  suspicious: 30   # score >= 30 -> SUSPICIOUS
+  malicious: 60    # score >= 60 -> MALICIOUS
 
 # Relative importance of each analysis module. Must add up to 1.0.
-# The risk engine normalises over the modules that actually apply to an input,
-# so a URL-only check is NOT penalised for having no message or OCR evidence.
 module_weights:
-  url_qr: 0.35        # URL structure / lexical / QR payload analysis
-  threat_intel: 0.30  # known-malicious lists and reputation services
-  message: 0.20       # scam-message indicators
-  ocr: 0.15           # screenshot / OCR-specific indicators
+  url_qr: 0.35
+  threat_intel: 0.30
+  message: 0.20
+  ocr: 0.15
+
+# Maximum points per category inside a module, so one kind of evidence cannot dominate.
+category_caps:
+  url_structure: 45
+  lexical: 15
+  brand: 40
+  redirect: 40
+  trust: 100
+  reputation: 100
+
+# Severity shown to users is derived from the weight (a floor always means "critical").
+severity_bands:   # minimum weight for each severity; weight <= 0 is "info"
+  low: 1
+  medium: 10
+  high: 20
+  critical: 40
+
+# SAFE is only shown when the result is positively verified. Otherwise a low score is
+# reported as UNVERIFIED ("no warning signs found, but not verified safe").
+verification:
+  safe_requires_indicator: TRUSTED_DOMAIN   # destination is on a curated trusted list
+  blocked_by_severity: medium               # any finding this severe or worse prevents SAFE
+
+# Labels for scam categories (multi-label). Categories EXPLAIN a result; they never add points.
+scam_categories:
+  phishing: Phishing
+  otp_scam: OTP scam
+  banking_payment: Banking / payment scam
+  upi_scam: UPI scam
+  kyc_account_suspension: KYC / account suspension scam
+  lottery_prize: Lottery / prize scam
+  fake_job: Fake job scam
+  fake_internship: Fake internship scam
+  investment: Investment / financial scam
+  impersonation: Impersonation scam
+  fake_customer_support: Fake customer support scam
+  credential_theft: Credential theft
+  malicious_url: Malicious / suspicious URL
+  social_engineering_other: Other social-engineering scam
+
+# ---------------------------------------------------------------------------------------------
+# Indicator catalogue. Every indicator an analyzer can emit MUST be listed here.
+#   module:          which analysis module it belongs to
+#   category:        category for capping (see category_caps)
+#   weight:          points added (negative = evidence of legitimacy)
+#   floor:           optional minimum final score when this indicator is present
+#   scam_categories: optional labels reported when the result is SUSPICIOUS/MALICIOUS
+#   title / message: plain-language text shown to users
+# ---------------------------------------------------------------------------------------------
+indicators:
+  # ---- URL structure ------------------------------------------------------------------------
+  URL_DANGEROUS_SCHEME:
+    module: url_qr
+    category: url_structure
+    weight: 60
+    floor: 80
+    scam_categories: [malicious_url]
+    title: Link can run code or open apps
+    message: This is not a normal web link. Links starting with "javascript:", "data:" or "intent:" can run code or open apps on your device.
+  URL_SCHEME_ASSUMED:
+    module: url_qr
+    category: url_structure
+    weight: 0
+    title: No http:// or https:// given
+    message: The link had no protocol, so it was analysed as an https:// address.
+  URL_IP_HOST:
+    module: url_qr
+    category: url_structure
+    weight: 25
+    scam_categories: [malicious_url]
+    title: Uses an IP address instead of a domain name
+    message: The URL uses an IP address instead of a normal domain name. Genuine organisations almost always use a named domain.
+  URL_OBFUSCATED_IP:
+    module: url_qr
+    category: url_structure
+    weight: 15
+    scam_categories: [malicious_url]
+    title: IP address written in a disguised form
+    message: The address is written as a number in an unusual format (for example hexadecimal), a trick used to hide where the link really goes.
+  URL_PRIVATE_NETWORK_HOST:
+    module: url_qr
+    category: url_structure
+    weight: 15
+    title: Points to a local or private network address
+    message: This link points to a device on a private or local network (such as a router), not a public website. It was not contacted.
+  URL_USERINFO_AT:
+    module: url_qr
+    category: url_structure
+    weight: 20
+    scam_categories: [phishing]
+    title: Contains an "@" before the real address
+    message: Everything before "@" in a web address is ignored by the browser. Scammers put a trusted name there to hide the real destination after the "@".
+  URL_NO_HTTPS:
+    module: url_qr
+    category: url_structure
+    weight: 8
+    title: Does not use HTTPS
+    message: The link uses http:// instead of https://, so anything you type on the page is not encrypted.
+  URL_NONSTANDARD_PORT:
+    module: url_qr
+    category: url_structure
+    weight: 10
+    title: Uses an unusual port number
+    message: The address includes an unusual port number (like ":8080"), which is uncommon for genuine public websites.
+  URL_MANY_SUBDOMAINS:
+    module: url_qr
+    category: url_structure
+    weight: 10
+    scam_categories: [phishing]
+    title: Many subdomains
+    message: The address has an unusually long chain of sub-parts before the real domain, often used to make a fake site look official.
+  URL_LONG:
+    module: url_qr
+    category: url_structure
+    weight: 5
+    title: Long URL
+    message: The link is longer than usual, which can be used to hide the real address.
+  URL_VERY_LONG:
+    module: url_qr
+    category: url_structure
+    weight: 10
+    title: Very long URL
+    message: The link is very long, which is often used to hide the real address or tracking data.
+  URL_SPECIAL_CHARS:
+    module: url_qr
+    category: url_structure
+    weight: 5
+    title: Many special characters
+    message: The link contains an unusually high number of symbols, which can be used to confuse readers.
+  URL_ENCODED_CHARS:
+    module: url_qr
+    category: url_structure
+    weight: 10
+    title: Heavily encoded characters
+    message: Parts of the link are hidden using "%" encoding, a technique used to disguise words or destinations.
+  URL_EMBEDDED_URL:
+    module: url_qr
+    category: url_structure
+    weight: 10
+    title: Contains another link inside it
+    message: This link contains a second web address inside it, a pattern used to redirect you somewhere else.
+  URL_BACKSLASH:
+    module: url_qr
+    category: url_structure
+    weight: 5
+    title: Uses backslashes in the address
+    message: The address uses "\" characters, which browsers silently change to "/". This is sometimes used to disguise a link.
+  URL_SHORTENER:
+    module: url_qr
+    category: url_structure
+    weight: 10
+    title: Uses a link shortener
+    message: Shortened links hide the real destination until you open them.
+  URL_SUSPICIOUS_TLD:
+    module: url_qr
+    category: url_structure
+    weight: 10
+    title: Uses a domain ending often abused by scammers
+    message: The domain ending is frequently used for scam or malware sites. Many legitimate sites use it too, so this is only a weak signal.
+  URL_MANY_HYPHENS:
+    module: url_qr
+    category: url_structure
+    weight: 5
+    title: Domain has many hyphens
+    message: The domain name contains many hyphens, common in fake sites such as "secure-login-bank-update".
+  URL_EXECUTABLE_DOWNLOAD:
+    module: url_qr
+    category: url_structure
+    weight: 35
+    scam_categories: [malicious_url]
+    title: Downloads an app or program file
+    message: This link points to an installable file (such as .apk or .exe). Installing apps from links can give scammers control of your phone or computer.
+  URL_USER_CONTENT_HOST:
+    module: url_qr
+    category: url_structure
+    weight: 8
+    title: Hosted on a site where anyone can publish
+    message: This page is hosted on a free platform where anyone can create pages, so the platform's name does not mean the page is genuine.
+  URL_PUNYCODE:
+    module: url_qr
+    category: url_structure
+    weight: 15
+    scam_categories: [phishing]
+    title: Uses international characters (punycode)
+    message: The domain uses non-English characters (shown as "xn--" in its raw form). This can be genuine, but it is also used to create look-alike addresses.
+  URL_MIXED_SCRIPT:
+    module: url_qr
+    category: url_structure
+    weight: 25
+    scam_categories: [phishing, impersonation]
+    title: Mixes letters from different alphabets
+    message: The domain mixes letters from different alphabets (for example Latin and Cyrillic) that look identical, a classic trick to imitate a real website.
+
+  # ---- Lexical --------------------------------------------------------------------------------
+  URL_PHISHING_KEYWORD:
+    module: url_qr
+    category: lexical
+    weight: 5
+    scam_categories: [phishing]
+    title: Contains a word often used in phishing links
+    message: The link contains words like "login", "verify" or "kyc" that scam sites use to look urgent or official.
+
+  # ---- Brand / lookalike ----------------------------------------------------------------------
+  OFFICIAL_DOMAIN_IN_SUBDOMAIN:
+    module: url_qr
+    category: brand
+    weight: 40
+    floor: 60
+    scam_categories: [phishing, impersonation]
+    title: Real brand address used as a disguise
+    message: A genuine brand's web address appears at the start of this link, but the link actually belongs to a different domain.
+  OFFICIAL_DOMAIN_IN_USERINFO:
+    module: url_qr
+    category: brand
+    weight: 40
+    floor: 60
+    scam_categories: [phishing, impersonation]
+    title: Real brand address placed before "@"
+    message: A genuine brand's web address is placed before "@", but the browser would actually open a different site.
+  BRAND_LOOKALIKE:
+    module: url_qr
+    category: brand
+    weight: 40
+    floor: 60
+    scam_categories: [phishing, impersonation]
+    title: Look-alike of a well-known brand's domain
+    message: The domain imitates a well-known brand by swapping or changing characters, but it is not the brand's official website.
+  BRAND_IN_SUBDOMAIN:
+    module: url_qr
+    category: brand
+    weight: 25
+    scam_categories: [phishing, impersonation]
+    title: Brand name used on another website
+    message: A well-known brand name appears in the address, but the site does not belong to that brand.
+  BRAND_IN_DOMAIN_NAME:
+    module: url_qr
+    category: brand
+    weight: 25
+    scam_categories: [impersonation]
+    title: Domain combines a brand name with other words
+    message: The domain contains a well-known brand name combined with other words but is not one of the brand's official domains. This can be genuine (for example a partner site), so check carefully.
+  BRAND_NAME_UNOFFICIAL_DOMAIN:
+    module: url_qr
+    category: brand
+    weight: 20
+    scam_categories: [impersonation]
+    title: Brand name on an unrecognised domain ending
+    message: The domain uses a well-known brand name with a domain ending that is not on our list of the brand's official websites.
+  TRUSTED_DOMAIN:
+    module: url_qr
+    category: trust
+    weight: -20
+    title: Recognised domain
+    message: The destination belongs to a domain on QRGUARD's list of recognised legitimate websites.
+
+  # ---- Redirects ------------------------------------------------------------------------------
+  REDIRECT_DANGEROUS_SCHEME:
+    module: url_qr
+    category: redirect
+    weight: 60
+    floor: 80
+    scam_categories: [malicious_url]
+    title: Redirects to code or an app link
+    message: The link redirects to a "javascript:", "data:" or "intent:" address that could run code or open apps.
+  REDIRECT_NON_WEB_SCHEME:
+    module: url_qr
+    category: redirect
+    weight: 15
+    title: Redirects out of the web browser
+    message: The link redirects to a non-web address (for example a payment or app link). It was not followed further.
+  REDIRECT_TO_PRIVATE_ADDRESS:
+    module: url_qr
+    category: redirect
+    weight: 30
+    scam_categories: [malicious_url]
+    title: Redirects to a private or internal address
+    message: The link redirects to a private, local or internal network address. QRGUARD blocked this request.
+  REDIRECT_CHAIN_TOO_LONG:
+    module: url_qr
+    category: redirect
+    weight: 15
+    title: Too many redirects
+    message: The link bounces through more redirects than QRGUARD allows, a pattern used to hide the final destination.
+  REDIRECT_HTTPS_DOWNGRADE:
+    module: url_qr
+    category: redirect
+    weight: 10
+    title: Redirects from a secure to an insecure page
+    message: The link starts on an encrypted (https) page but redirects to an unencrypted (http) one.
+  REDIRECT_BLOCKED_PORT:
+    module: url_qr
+    category: redirect
+    weight: 10
+    title: Redirects to an unusual port
+    message: The link redirects to an address with an unusual port number. QRGUARD did not follow it.
+  REDIRECT_CROSS_DOMAIN:
+    module: url_qr
+    category: redirect
+    weight: 0
+    title: Leads to a different website
+    message: The link redirects to a different website. That destination was analysed too.
+  DOMAIN_NOT_RESOLVING:
+    module: url_qr
+    category: redirect
+    weight: 5
+    title: Domain could not be found
+    message: The domain does not currently exist in DNS. It may be misspelled, new, or already taken down.
+  REDIRECT_CHECK_INCOMPLETE:
+    module: url_qr
+    category: redirect
+    weight: 0
+    title: Could not check where the link leads
+    message: QRGUARD could not safely finish checking where this link redirects (for example the server did not answer in time).
+
+  # ---- Threat intelligence --------------------------------------------------------------------
+  TI_LISTED:
+    module: threat_intel
+    category: reputation
+    weight: 100
+    floor: 90
+    scam_categories: [malicious_url]
+    title: Listed as malicious by a threat-intelligence source
+    message: This link appears in a database of known malicious or phishing links.
+  TI_PARTIAL:
+    module: threat_intel
+    category: reputation
+    weight: 50
+    scam_categories: [malicious_url]
+    title: Flagged by some security vendors
+    message: Some, but not all, security sources flag this link as harmful.

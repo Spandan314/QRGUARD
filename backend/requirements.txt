@@ -1,5 +1,5 @@
 # QRGUARD backend: runtime dependencies (pinned for reproducible builds).
-# Later phases add their own libraries (e.g. tldextract, opencv, pytesseract, firebase-admin).
+# Later phases add their own libraries (e.g. opencv, pytesseract, firebase-admin).
 Flask==3.1.3              # web framework
 flask-cors==6.0.5         # CORS with an explicit origin allowlist
 Flask-Limiter==4.1.1      # rate limiting
@@ -7,3 +7,9 @@ pydantic==2.13.5          # request validation / schemas
 PyYAML==6.0.3             # scoring configuration file
 python-dotenv==1.2.3      # loads backend/.env during local development
 gunicorn==26.2.0          # production WSGI server
+
+# URL analysis
+tldextract==5.3.2         # registrable domain via the bundled Public Suffix List (no network)
+idna==3.20                # international domain names (IDNA 2008 / UTS-46)
+urllib3==2.8.0            # low-level HTTP with IP pinning for the SSRF-safe redirect checker
+certifi==2026.7.22        # CA certificates for TLS verification

@@ -10,13 +10,27 @@ recommended safe action.
 
 ## Project status
 
-**Phase 2: Backend foundation.** Architecture approved. The Flask API foundation runs and is tested; see [backend/README.md](backend/README.md).
+**Phase 3: URL analysis + risk-scoring engine implemented.** `POST /api/analyze/url` is live and
+tested (263 automated tests, Postman collection). See [backend/README.md](backend/README.md).
+
+### Risk levels
+
+| Level | Meaning |
+|---|---|
+| ⛔ **MALICIOUS** (60–100) | Strong or decisive evidence of harm |
+| ⚠️ **SUSPICIOUS** (30–59) | Several warning signs |
+| ❔ **UNVERIFIED** (0–29) | No strong warning signs, but the link could **not be verified as safe** |
+| ✅ **SAFE** (0–29) | Low score **and** a recognised domain with no medium-or-worse warning sign |
+
+QRGUARD never calls a link SAFE just because nothing suspicious was found, and it never treats
+"not found in a threat database" as proof of safety.
 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Architecture, folder structure, DB design, API design, roadmap | ✅ Approved |
-| 2 | Backend foundation ✅ · URL analysis ⏳ · risk engine ⏳ | 🚧 In progress |
-| 3 | Scam message detector, OCR/screenshot analyzer | ⏳ |
+| 2 | Backend foundation | ✅ Done |
+| 3a | URL analysis, SSRF-safe redirect checking, risk-scoring engine | ✅ Done (awaiting review) |
+| 3b | Scam message detector, OCR/screenshot analyzer | ⏳ |
 | 4 | Threat intelligence | ⏳ |
 | 5 | React web application | ⏳ |
 | 6 | React Native (Expo) mobile application | ⏳ |

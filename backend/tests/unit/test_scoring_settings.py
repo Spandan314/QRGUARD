@@ -1,6 +1,11 @@
 import pytest
+import yaml
 
-from app.scoring.settings import ScoringConfigError, load_scoring_settings
+from app.scoring.settings import (
+    DEFAULT_SCORING_CONFIG_PATH,
+    ScoringConfigError,
+    load_scoring_settings,
+)
 
 
 def test_default_scoring_file_matches_agreed_values():
@@ -16,40 +21,52 @@ def test_default_scoring_file_matches_agreed_values():
     )
 
 
-def _write(tmp_path, body: str):
+def test_agreed_floors_and_categories():
+    settings = load_scoring_settings()
+    assert settings.indicators["TI_LISTED"].floor == 90
+    assert settings.indicators["BRAND_LOOKALIKE"].floor >= 60
+    assert len(settings.scam_categories) == 14
+
+
+def _write(tmp_path, data):
     path = tmp_path / "scoring.yaml"
-    path.write_text(body, encoding="utf-8")
+    path.write_text(yaml.safe_dump(data), encoding="utf-8")
     return path
 
 
-VALID_WEIGHTS = "module_weights: {url_qr: 0.35, threat_intel: 0.3, message: 0.2, ocr: 0.15}\n"
+@pytest.fixture
+def valid():
+    return yaml.safe_load(DEFAULT_SCORING_CONFIG_PATH.read_text(encoding="utf-8"))
 
 
-def test_thresholds_must_be_ordered(tmp_path):
-    path = _write(
-        tmp_path, "version: 1\nthresholds: {suspicious: 70, malicious: 60}\n" + VALID_WEIGHTS
-    )
+def test_thresholds_must_be_ordered(tmp_path, valid):
+    valid["thresholds"] = {"suspicious": 70, "malicious": 60}
     with pytest.raises(ScoringConfigError, match="lower than"):
-        load_scoring_settings(path)
+        load_scoring_settings(_write(tmp_path, valid))
 
 
-def test_weights_must_sum_to_one(tmp_path):
-    path = _write(
-        tmp_path,
-        "version: 1\nthresholds: {suspicious: 30, malicious: 60}\n"
-        "module_weights: {url_qr: 0.5, threat_intel: 0.3, message: 0.2, ocr: 0.15}\n",
-    )
+def test_weights_must_sum_to_one(tmp_path, valid):
+    valid["module_weights"]["url_qr"] = 0.5
     with pytest.raises(ScoringConfigError, match="add up to 1.0"):
-        load_scoring_settings(path)
+        load_scoring_settings(_write(tmp_path, valid))
 
 
-def test_unknown_keys_rejected(tmp_path):
-    path = _write(
-        tmp_path,
-        "version: 1\nthresholds: {suspicious: 30, malicious: 60, extreme: 90}\n" + VALID_WEIGHTS,
-    )
+def test_indicator_with_unknown_category_rejected(tmp_path, valid):
+    valid["indicators"]["URL_IP_HOST"]["category"] = "nonsense"
+    with pytest.raises(ScoringConfigError, match="unknown category"):
+        load_scoring_settings(_write(tmp_path, valid))
+
+
+def test_indicator_with_unknown_scam_category_rejected(tmp_path, valid):
+    valid["indicators"]["URL_IP_HOST"]["scam_categories"] = ["crypto_heist"]
+    with pytest.raises(ScoringConfigError, match="unknown scam category"):
+        load_scoring_settings(_write(tmp_path, valid))
+
+
+def test_unknown_keys_rejected(tmp_path, valid):
+    valid["thresholds"]["extreme"] = 90
     with pytest.raises(ScoringConfigError):
-        load_scoring_settings(path)
+        load_scoring_settings(_write(tmp_path, valid))
 
 
 def test_missing_file(tmp_path):
@@ -58,5 +75,7 @@ def test_missing_file(tmp_path):
 
 
 def test_invalid_yaml(tmp_path):
+    path = tmp_path / "bad.yaml"
+    path.write_text("version: [1, 2\n", encoding="utf-8")
     with pytest.raises(ScoringConfigError):
-        load_scoring_settings(_write(tmp_path, "version: [1, 2\n"))
+        load_scoring_settings(path)

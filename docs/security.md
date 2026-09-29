@@ -13,8 +13,8 @@ Phase 10 expands this into the report chapter.
 | Rate limiting | Flask-Limiter: per IP for anonymous callers, per uid for signed-in ones, with a tighter limit on OCR | Protects CPU and third-party quotas from abuse |
 | API key protection | Server secrets only in env/Render secrets. Keys never go into client bundles. `.env` is git-ignored. `gitleaks` runs in CI. | Stops key leakage |
 | CORS | Explicit origin allowlist from `ALLOWED_ORIGINS`. No wildcard with credentials. | Stops other websites from calling the API with a user's session |
-| SSRF protection | See below | Stops the URL checker from being used as a proxy into internal networks |
-| Redirect handling | Manual redirect loop (`allow_redirects=False`), max 5 hops, every hop re-validated, no body read | Stops a redirect to `http://169.254.169.254/` |
+| SSRF protection | See "SSRF protection" below (implemented) | Stops the URL checker from being used as a proxy into internal networks |
+| Redirect handling | Manual redirect loop, max 5 hops, every hop re-validated, IP pinning, no body read | Stops a redirect to `http://169.254.169.254/` |
 | Logging | JSON logs with request_id, route, status and latency. **Never** raw message text, OCR text, full URLs (only domain and hash), tokens or keys. Newlines in values escaped. | Logs alone never expose user data |
 | Error handling | Global handlers return the generic JSON error. `DEBUG=False` in production. Stack traces only in server logs. | Avoids leaking internals |
 | Security headers | `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`, a CSP on the web app | Defence in depth for browsers |
@@ -23,17 +23,54 @@ Phase 10 expands this into the report chapter.
 | ReDoS | Scam patterns are simple alternations with no nested quantifiers. Input is capped at 5000 chars. Rules are unit-tested for time. | Stops CPU exhaustion from crafted text |
 | Dependencies | Pinned `requirements.txt` / lockfiles, Dependabot, `pip-audit` and `npm audit` in CI | Supply-chain hygiene |
 
-## SSRF guard (used by the redirect resolver and domain-age lookup)
+## SSRF protection and safe redirect checking (implemented)
 
-1. Only `http` and `https` are allowed. The port must be 80 or 443.
-2. Resolve the hostname (`getaddrinfo`). **Every** resolved address must pass `is_public_ip()`, which
-   rejects private, loopback, link-local (including cloud metadata `169.254.169.254`), multicast,
-   reserved, unspecified, CGNAT `100.64/10`, IPv6 ULA and IPv4-mapped forms.
-3. Connect to the **validated IP** with the original `Host` header / SNI (IP pinning). This defeats
-   DNS rebinding between the check and the connect.
-4. `HEAD` first, falling back to `GET` with `stream=True`. The body is closed immediately. 3 s timeout.
-   `User-Agent: QRGUARD-LinkCheck`.
-5. On a redirect, the `Location` header is resolved against the current URL and **re-validated from
-   step 1**.
-6. Default mode is `REDIRECT_RESOLUTION=shorteners_only`. Following a link can itself notify the
-   attacker (e.g. burning a one-time tracking token), so we only do it where it adds real value.
+**Threat:** the URL checker takes attacker-controlled input. If the backend blindly fetched URLs,
+an attacker could make it request `http://169.254.169.254/` (cloud credentials),
+`http://localhost:5000/…` (internal services) or machines on a private network, and read the
+results through our API.
+
+**Design principle:** the backend contacts a link **only to learn where it redirects**, and by
+default only for known link shorteners (`REDIRECT_RESOLUTION=shorteners_only`). All other analysis
+is static (no network).
+
+Implementation: `app/utils/net_safety.py` and `app/analyzers/redirect_resolver.py`.
+
+| Requirement | How it is enforced |
+|---|---|
+| Only HTTP/HTTPS | Every hop's scheme is checked. `javascript:`, `data:`, `intent:`… stop the check and are reported (`REDIRECT_DANGEROUS_SCHEME`, floor 80). `upi:`, `ftp:`… stop it too (`REDIRECT_NON_WEB_SCHEME`). |
+| Only standard ports | Ports 80 and 443 only. Links with other ports are never contacted. |
+| Block localhost / 127.0.0.0/8 | `is_public_ip()` rejects loopback. Names `localhost`, `*.localhost`, `*.local`, `*.internal`, `*.lan`, `*.home.arpa`… and single-label names are refused **before** DNS. |
+| Block private IPv4 | 10/8, 172.16/12, 192.168/16, plus 100.64/10 (CGNAT), 0/8, 192.0.0/24, 198.18/15 |
+| Block link-local | 169.254/16 (includes the cloud metadata address) and fe80::/10 |
+| Block multicast / reserved | 224/4, 240/4, broadcast, `::`, ff00::/8, documentation ranges (everything not globally routable) |
+| Block IPv6 loopback/private | ::1, fc00::/7, fe80::/10, NAT64 64:ff9b::/96, and **IPv4 hidden in IPv6** (`::ffff:127.0.0.1`, 6to4, Teredo) |
+| Disguised IPs | `http://2130706433/`, `0x7f.1`, `0177.0.0.1` are decoded the way browsers do, then checked |
+| Re-resolve DNS after redirects | Every hop resolves its host again, and **all** returned addresses must be public |
+| DNS rebinding | The request connects to the **already-validated IP** (IP pinning) and sends the real hostname in `Host`/TLS SNI. The certificate is verified against the hostname. A second DNS answer cannot redirect the connection. |
+| Validate every redirect destination | Each `Location` is joined to the current URL and re-checked from the first step (scheme, port, host, DNS, IP) |
+| Limit redirect count | `REDIRECT_MAX_HOPS` (default 5); more → `REDIRECT_CHAIN_TOO_LONG` |
+| Limit response size | Response bodies are **never read** (0 bytes; `preload_content=False`, connection closed). Only the status code and `Location` header (≤ 2048 characters) are used. |
+| Strict timeouts | DNS, connect and read each ≤ `REDIRECT_TIMEOUT_SECONDS` (3 s), and the whole check ≤ `REDIRECT_TOTAL_TIMEOUT_SECONDS` (8 s). No retries. |
+| No execution of downloaded content | Nothing is downloaded, stored, parsed or executed. `HEAD` is used; `GET` only if the server refuses `HEAD`, and its body is still not read. |
+| No internal exposure | Resolved IP addresses are never included in API responses or error messages. Blocked targets are reported only as `blocked_private_address`. |
+| Fail safe | DNS failures, timeouts, TLS and connection errors are reported as statuses, and confidence drops. The analysis still completes and never crashes. |
+
+**Residual risks (documented honestly):**
+- Following a link is itself a visit: it can confirm to a scammer that the link was opened, or
+  consume a one-time token. That is why only shorteners are followed by default, and why
+  `REDIRECT_RESOLUTION=off` exists.
+- Only HTTP 3xx redirects are followed. JavaScript or `<meta refresh>` redirects inside a page are
+  not detected, because we never read page content.
+- `resolve_host` uses the server's system DNS resolver; the DNS answer is trusted only after the
+  public-IP check.
+
+## URL input handling (implemented)
+
+- Pydantic validation: string, 1–2048 characters, unknown fields rejected.
+- Control characters are rejected, and tabs/newlines removed (as browsers do). Hosts are converted
+  with IDNA/UTS-46 and each label is validated. Invalid input → `400 INVALID_URL`.
+- The public-suffix split uses the list **bundled** with `tldextract` (no network download at runtime).
+- The normalised URL masks any password (`user:***@host`) and drops the `#fragment`.
+- Rule files (`app/data/*.yaml`) and `scoring_config.yaml` are loaded with `yaml.safe_load` and
+  strictly validated at startup.

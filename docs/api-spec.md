@@ -9,66 +9,80 @@
 
 ## 1. Common result object (`AnalysisResult`)
 
-Returned by all four `/api/analyze/*` endpoints.
+Returned by all four `/api/analyze/*` endpoints. Implemented for `/api/analyze/url` (v0.1.0).
+The example below is a real response for `http://sbi.co.in.kyc-verify.xyz/login` (shortened).
 
 ```json
 {
-  "request_id": "b7c1e0f2a9",
+  "request_id": "7917ce154f334c1d",
   "input_type": "url",
-  "risk_score": 67,
-  "risk_level": "SUSPICIOUS",
-  "confidence": "MEDIUM",
-  "summary": "This link shows several warning signs commonly seen in phishing.",
+  "risk_score": 73,
+  "risk_level": "MALICIOUS",
+  "confidence": "HIGH",
+  "summary": "Strong warning signs: this link is very likely malicious.",
+  "categories": [
+    { "id": "phishing", "label": "Phishing" },
+    { "id": "impersonation", "label": "Impersonation scam" }
+  ],
   "indicators": [
     {
-      "id": "URL_SHORTENER",
-      "category": "url_structure",
-      "severity": "medium",
-      "weight": 10,
-      "title": "Link uses a URL shortener",
-      "explanation": "Shortened links hide the real destination.",
-      "evidence": "bit.ly"
+      "id": "OFFICIAL_DOMAIN_IN_SUBDOMAIN",
+      "severity": "critical",
+      "title": "Real brand address used as a disguise",
+      "message": "A genuine brand's web address appears at the start of this link, but the link actually belongs to a different domain.",
+      "evidence": "State Bank of India",
+      "weight": 40,
+      "score_contribution": 40.0,
+      "module": "url_qr"
     },
-    {
-      "id": "URL_NO_HTTPS",
-      "category": "url_structure",
-      "severity": "low",
-      "weight": 8,
-      "title": "Link does not use HTTPS",
-      "explanation": "Data sent to this site is not encrypted.",
-      "evidence": "http://"
-    }
+    { "id": "URL_SUSPICIOUS_TLD", "severity": "medium", "evidence": ".xyz", "weight": 10, "score_contribution": 10.0, "…": "…" },
+    { "id": "URL_NO_HTTPS", "severity": "low", "evidence": "http://", "weight": 8, "score_contribution": 8.0, "…": "…" }
   ],
+  "recommendation": "Do not open this link and do not enter any personal, banking, OTP, PIN or payment details. … In India, report financial fraud at 1930 or https://cybercrime.gov.in.",
   "score_breakdown": {
     "modules": [
-      { "module": "url_qr", "score": 67, "weight": 0.35, "applicable": true },
-      { "module": "threat_intel", "score": null, "weight": 0.30, "applicable": false, "reason": "no positive finding" },
-      { "module": "message", "score": null, "weight": 0.20, "applicable": false, "reason": "no text input" },
-      { "module": "ocr", "score": null, "weight": 0.15, "applicable": false, "reason": "not a screenshot" }
+      { "module": "url_qr", "applicable": true, "module_score": 73.0, "weight": 0.35, "effective_weight": 1.0 },
+      { "module": "threat_intel", "applicable": false, "module_score": null, "weight": 0.3, "effective_weight": 0.0 },
+      { "module": "message", "applicable": false, "module_score": null, "weight": 0.2, "effective_weight": 0.0 },
+      { "module": "ocr", "applicable": false, "module_score": null, "weight": 0.15, "effective_weight": 0.0 }
     ],
-    "weighted_score": 67,
-    "floor_applied": null
+    "weighted_score": 73.0,
+    "floor_applied": null,
+    "final_score": 73
   },
-  "scam_categories": [ { "id": "phishing", "label": "Phishing" }, { "id": "malicious_url", "label": "Malicious / suspicious URL" } ],
-  "threat_intel": [
-    { "provider": "local_feed", "status": "not_listed" },
-    { "provider": "urlhaus", "status": "not_listed" },
-    { "provider": "google_safe_browsing", "status": "unavailable", "detail": "timeout" },
-    { "provider": "virustotal", "status": "disabled" }
-  ],
-  "threat_intel_note": "Not being listed does not mean a link is safe.",
-  "recommended_action": "Do not open the link or enter OTP/payment details. Verify via the official app or website.",
-  "details": { },
+  "threat_intel": {
+    "checked": false,
+    "providers": [],
+    "note": "Threat-intelligence lookups are not enabled yet; this result is based on the link's structure only."
+  },
+  "analysis": { "…": "endpoint-specific, see below" },
   "disclaimer": "This is an automated security assessment, not a guarantee.",
-  "engine_version": "0.1.0",
-  "history_id": null
+  "engine_version": "0.1.0"
 }
 ```
 
-- `severity` ∈ `info | low | medium | high | critical`. `info` indicators have weight 0 and are
-  explanatory only, e.g. "This QR makes a UPI payment".
-- `threat_intel[].status` ∈ `listed | not_listed | unavailable | disabled | error`.
-- `details` depends on the endpoint (below).
+| Field | Meaning |
+|---|---|
+| `risk_level` | `SAFE` · `UNVERIFIED` · `SUSPICIOUS` · `MALICIOUS` (see below) |
+| `confidence` | `LOW` · `MEDIUM` · `HIGH`: how much evidence the verdict rests on |
+| `categories` | Scam categories (multi-label). Only for SUSPICIOUS/MALICIOUS. **They never add points.** |
+| `indicators[].severity` | `info` · `low` · `medium` · `high` · `critical` (derived from weight; any floor = critical) |
+| `indicators[].weight` | Nominal points from `scoring_config.yaml` (negative = sign of legitimacy) |
+| `indicators[].score_contribution` | Points this indicator actually added to the final score, after caps and module weighting |
+| `indicators[].evidence` | Short, user-safe detail. It never contains resolved IPs or raw provider data. |
+| `score_breakdown.floor_applied` | `{indicator, minimum_score, points_added}` when a critical finding raised the score |
+| `threat_intel.providers[].status` | `listed` · `partial` · `not_listed` · `unavailable` · `disabled` · `error` |
+
+### Risk levels
+
+| Level | Score | Meaning |
+|---|---|---|
+| **MALICIOUS** | 60–100 | Strong or decisive evidence of harm (for example a known-malicious listing, a look-alike bank domain, or several independent warning signs). |
+| **SUSPICIOUS** | 30–59 | Several warning signs; the link should not be trusted. |
+| **UNVERIFIED** | 0–29 | No strong warning signs were found, **but nothing positively verified the link either**. This is the normal result for an unknown website. |
+| **SAFE** | 0–29 | Low score **and** positively verified: the destination is on the curated trusted list, and no medium-or-worse warning sign was found. |
+
+A low score alone never produces SAFE.
 
 ## 2. Common error object
 
@@ -78,7 +92,7 @@ Returned by all four `/api/analyze/*` endpoints.
 
 | HTTP | `code` examples | When |
 |---|---|---|
-| 400 | `INVALID_JSON`, `VALIDATION_ERROR`, `INVALID_URL`, `NO_QR_FOUND` | Bad input |
+| 400 | `INVALID_JSON`, `VALIDATION_ERROR`, `EMPTY_URL`, `INVALID_URL`, `UNSUPPORTED_PROTOCOL`, `MISSING_FILE`, `NO_QR_FOUND` | Bad input |
 | 401 | `AUTH_REQUIRED`, `INVALID_TOKEN` | Missing or expired token on protected routes |
 | 403 | `FORBIDDEN` | Not an admin, or not the owner |
 | 404 | `NOT_FOUND` | Unknown route or scan ID |
@@ -87,35 +101,78 @@ Returned by all four `/api/analyze/*` endpoints.
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Not PNG/JPEG/WEBP, or wrong Content-Type |
 | 422 | `UNPROCESSABLE_IMAGE`, `OCR_FAILED` | Corrupt image, OCR produced nothing |
 | 429 | `RATE_LIMITED` | Includes a `Retry-After` header |
+| 501 | `NOT_IMPLEMENTED` | Endpoint validated the request, but its analyzer is not built yet |
 | 500 | `INTERNAL_ERROR` | Generic message only. The stack trace goes to server logs, never to the client. |
 | 503 | `SERVICE_UNAVAILABLE` | e.g. history requested but Firebase is not configured |
 
 ## 3. Endpoints
 
 ### `GET /api/health`
-Public. No rate limit beyond the global one.
+Public and exempt from rate limiting.
 ```json
-{ "status": "ok", "engine_version": "0.1.0", "time": "2026-09-29T10:00:00Z",
-  "components": { "ocr": "ok", "firebase": "ok", "threat_intel": { "local_feed": "enabled", "urlhaus": "enabled", "google_safe_browsing": "enabled", "virustotal": "disabled", "phishtank": "disabled" } } }
+{ "status": "ok", "service": "qrguard-backend", "engine_version": "0.1.0", "time": "2026-09-29T10:00:00+00:00",
+  "components": { "api": "ok",
+                  "scoring_config": { "status": "loaded", "version": 2, "thresholds": { "suspicious": 30, "malicious": 60 } },
+                  "ocr_engine": "available" } }
 ```
 
-### `POST /api/analyze/url`
+### `POST /api/analyze/url` ✅ implemented
+
 Request:
 ```json
-{ "url": "http://bit.ly/demo-test", "save_to_history": true }
+{ "url": "https://bit.ly/demo", "save_to_history": false }
 ```
-Rules: `url` must be a string of 1–2048 characters. A missing scheme is treated as `http://`
-(reported as an indicator). Only `http`/`https` are analysed as web links. `javascript:`, `data:`,
-`file:` and `intent:` are rejected as **MALICIOUS-by-scheme** results, not errors.
 
-`details`:
+Input rules:
+- `url` is a string of 1–2048 characters after trimming. Unknown fields are rejected.
+- A missing scheme (`example.com`) is analysed as `https://` and reported with the info indicator
+  `URL_SCHEME_ASSUMED`.
+- `http` and `https` are analysed. `javascript:`, `data:`, `vbscript:`, `file:`, `blob:` and
+  `intent:` are **analysed as MALICIOUS** (floor 80); they are not errors.
+- Other schemes (`ftp:`, `mailto:`, `tel:`, `upi:` …) → `400 UNSUPPORTED_PROTOCOL`.
+- Malformed input (no host, spaces, invalid characters or port) → `400 INVALID_URL`. Whitespace-only
+  input → `400 VALIDATION_ERROR`.
+- `save_to_history` is accepted now and used once history is implemented.
+
+`analysis` for `https://bit.ly/demo` (generated by the code, with the redirect to `https://www.example.com/offer` simulated by the test fakes):
 ```json
-{ "original_url": "http://bit.ly/demo-test", "normalized_url": "http://bit.ly/demo-test",
-  "scheme": "http", "host": "bit.ly", "registrable_domain": "bit.ly", "tld": "ly",
-  "redirect_chain": [{ "url": "http://bit.ly/demo-test", "status": 301 }, { "url": "https://example.com/", "status": 200 }],
-  "final_url": "https://example.com/", "redirect_resolution": "performed",
-  "domain_age_days": null, "domain_age_status": "unavailable" }
+{
+  "input_url": "https://bit.ly/demo",
+  "normalized_url": "https://bit.ly/demo",
+  "scheme": "https",
+  "host": "bit.ly",
+  "host_unicode": null,
+  "domain": "bit.ly",
+  "subdomain": null,
+  "public_suffix": "ly",
+  "port": null,
+  "brand": null,
+  "features": {
+    "url_length": 19, "host_length": 6, "path_length": 5, "query_length": 0,
+    "subdomain_count": 0, "hyphens_in_domain": 0, "digits_in_host": 0,
+    "special_char_count": 0, "special_char_ratio": 0.0, "encoded_char_count": 0,
+    "uses_https": true, "is_ip_address": false, "is_private_or_local": false,
+    "has_userinfo": false, "has_nonstandard_port": false, "is_punycode": false,
+    "is_shortener": true, "is_user_content_host": false, "suspicious_tld": false,
+    "executable_download": false, "phishing_keywords": [], "is_trusted_domain": false
+  },
+  "redirects": {
+    "checked": true,
+    "status": "completed",
+    "redirect_count": 1,
+    "hops": [ { "url": "https://bit.ly/demo", "status_code": 301 },
+              { "url": "https://www.example.com/offer", "status_code": 200 } ],
+    "final_url": "https://www.example.com/offer",
+    "final_domain": "example.com"
+  }
+}
 ```
+
+- `host_unicode` is only set for international (IDN) domains, e.g. `"pаypal.com"` for `xn--pypal-4ve.com`.
+- `brand` is `{"brand": "HDFC Bank", "match_type": "official" | "lookalike" | "impersonation"}` or `null`.
+- `redirects.status` ∈ `completed`, `not_attempted` (with `reason`), `too_many_redirects`,
+  `blocked_private_address`, `blocked_dangerous_scheme`, `blocked_scheme`, `blocked_port`,
+  `dns_failure`, `timeout`, `connection_error`, `tls_error`, `invalid_redirect`.
 
 ### `POST /api/analyze/message`
 ```json
@@ -192,8 +249,8 @@ Special characters (`\ ; , : "`) in Wi-Fi fields are escaped as the Wi-Fi QR for
 | Rate limit, anonymous | 20/min, 200/day per IP |
 | Rate limit, authenticated | 40/min, 500/day per uid |
 | `/api/analyze/screenshot` | additional 6/min (CPU-heavy OCR) |
-| Threat-intel time budget | 6 s total, 3 s per provider |
-| Redirect resolution | max 5 hops, 3 s per hop, ports 80/443 only |
+| Threat-intel time budget | 6 s total, 3 s per provider (when providers are added) |
+| Redirect checking | `REDIRECT_RESOLUTION=shorteners_only`, max 5 redirects, 3 s per request, 8 s total, ports 80/443 only, 0 body bytes read |
 
 ## 5. CORS
 

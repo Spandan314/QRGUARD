@@ -24,7 +24,7 @@ def test_rate_limit_returns_429_with_retry_after():
     client = make_app(RATELIMIT_ANALYZE="3 per minute").test_client()
     body = {"url": "https://example.com"}
     statuses = [client.post("/api/analyze/url", json=body).status_code for _ in range(3)]
-    assert statuses == [501, 501, 501]
+    assert statuses == [200, 200, 200]
 
     response = client.post("/api/analyze/url", json=body)
     assert_error(response, 429, "RATE_LIMITED")
@@ -48,4 +48,4 @@ def test_proxy_fix_uses_forwarded_client_ip_for_rate_limits():
     first = client.post("/api/analyze/url", json=body, headers={"X-Forwarded-For": "203.0.113.1"})
     other = client.post("/api/analyze/url", json=body, headers={"X-Forwarded-For": "203.0.113.2"})
     again = client.post("/api/analyze/url", json=body, headers={"X-Forwarded-For": "203.0.113.1"})
-    assert (first.status_code, other.status_code, again.status_code) == (501, 501, 429)
+    assert (first.status_code, other.status_code, again.status_code) == (200, 200, 429)

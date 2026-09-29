@@ -10,7 +10,6 @@ from tests.integration.test_errors import assert_error
 @pytest.mark.parametrize(
     ("path", "body"),
     [
-        ("/api/analyze/url", {"url": "https://example.com", "save_to_history": False}),
         ("/api/analyze/message", {"text": "Your account will be blocked today"}),
         ("/api/analyze/qr", {"content": "upi://pay?pa=demo@upi", "source": "camera"}),
         ("/api/generate/qr", {"type": "url", "data": {"url": "https://example.com"}}),

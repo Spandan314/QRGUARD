@@ -1,0 +1,142 @@
+# QRGUARD URL analysis rules: lists used by the URL analyzer.
+#
+# These are DATA, not code: add/remove entries here without touching Python.
+# Weights/points for each finding live in app/scoring/scoring_config.yaml.
+# Brand rules (official domains, keywords) live in brands.yaml.
+
+# Structural thresholds
+limits:
+  long_url_length: 100          # URL_LONG above this many characters
+  very_long_url_length: 200     # URL_VERY_LONG above this
+  max_subdomains: 3             # URL_MANY_SUBDOMAINS when MORE than this (www is not counted)
+  max_hyphens_in_domain: 3      # URL_MANY_HYPHENS when MORE than this in the registrable domain
+  special_char_ratio: 0.30      # URL_SPECIAL_CHARS when this share of the URL is symbols...
+  special_char_min_length: 40   # ...and the URL is at least this long
+  many_encoded_chars: 10        # URL_ENCODED_CHARS when at least this many %xx sequences
+
+# Schemes that can run code or open apps. Never analysed as normal links.
+dangerous_schemes: [javascript, vbscript, data, file, blob, intent, filesystem]
+
+# Host names that only exist on local/private networks (never public websites).
+# A host equal to one of these, or ending in "." + one of these, is treated as private.
+local_host_suffixes: [localhost, local, localdomain, internal, intranet, lan, home, corp,
+                      home.arpa]
+
+# Other non-web schemes. The URL checker rejects them (use the QR analyzer for upi:, tel:, ...).
+non_web_schemes: [ftp, ftps, sftp, ssh, telnet, mailto, tel, sms, smsto, upi, market, whatsapp,
+                  ws, wss, geo, magnet, about, chrome, content, irc, ldap, gopher, dict]
+
+# File extensions that install or run software if downloaded.
+executable_extensions: [apk, xapk, apks, exe, msi, scr, bat, cmd, com, ps1, vbs, js, jar, dll, dmg, pkg, sh]
+
+# TLDs frequently abused for phishing/malware (cheap or free registration, or confusing names).
+# Being on this list is only a weak signal: many legitimate sites use these TLDs.
+suspicious_tlds: [zip, mov, top, xyz, click, country, gq, tk, ml, cf, ga, work, support, rest,
+                  cam, icu, buzz, monster, cfd, sbs, cyou, lol, quest, bond, beauty, hair, skin,
+                  makeup, loan, win, bid, racing, download, stream, review, party, trade, date, faith]
+
+# Link-shortening services: they hide the real destination.
+url_shorteners: [bit.ly, bitly.com, tinyurl.com, t.co, goo.gl, is.gd, v.gd, cutt.ly, rb.gy,
+                 ow.ly, buff.ly, shorturl.at, tiny.cc, s.id, rebrand.ly, t.ly, bl.ink, shorte.st,
+                 adf.ly, tiny.one, qrco.de, surl.li, shorturl.asia, clck.ru, u.to, rotf.lol,
+                 lnkd.in, dub.sh, short.io, t2m.io, 2.gy, urlz.fr, gg.gg, bit.do]
+
+# Hosting platforms where anyone can publish a page (often abused for phishing).
+# A page here is NOT trusted even if the platform owner's main domain is trusted.
+user_content_hosts: [sites.google.com, docs.google.com, forms.gle, drive.google.com,
+                     storage.googleapis.com, firebasestorage.googleapis.com, script.google.com,
+                     github.io, gitlab.io, netlify.app, vercel.app, pages.dev, workers.dev,
+                     web.app, firebaseapp.com, glitch.me, herokuapp.com, onrender.com,
+                     000webhostapp.com, weebly.com, wixsite.com, blogspot.com, wordpress.com,
+                     square.site, godaddysites.com, webflow.io, notion.site, ipfs.io,
+                     r2.dev, azurewebsites.net, s3.amazonaws.com, trycloudflare.com, ngrok.io,
+                     ngrok-free.app, repl.co, replit.app, framer.website, carrd.co]
+
+# Words common in phishing URLs. Matched against words in the host and path.
+phishing_keywords: [login, signin, sign-in, logon, verify, verification, validate, update,
+                    secure, security, account, banking, netbanking, kyc, ekyc, wallet, reward,
+                    rewards, refund, cashback, bonus, prize, lottery, winner, gift, free, claim,
+                    unlock, suspend, suspended, blocked, confirm, password, otp, pin, aadhaar,
+                    pancard, credential, recover, recovery, billing, invoice, payment, support,
+                    helpdesk, alert, urgent, expire, expired, redeem, webscr, authenticate]
+
+# Domains trusted as legitimate destinations (in addition to every brand's official domains).
+# A URL is only shown as SAFE when its registrable domain is on one of these lists AND no
+# medium-or-higher warning sign is found. Keep this list small and well known.
+trusted_domains: [wikipedia.org, wikimedia.org, github.com, gitlab.com, stackoverflow.com,
+                  youtube.com, linkedin.com, python.org, mozilla.org, gov.in, nic.in,
+                  cybercrime.gov.in, rbi.org.in, npci.org.in, sancharsaathi.gov.in]
+
+# Characters from other scripts that look like Latin letters (homoglyphs).
+# Used to build a "skeleton" of a domain before comparing it with brand names.
+homoglyphs:
+  # Cyrillic
+  "а": a
+  "в": b
+  "е": e
+  "о": o
+  "р": p
+  "с": c
+  "у": y
+  "х": x
+  "і": i
+  "ј": j
+  "ԁ": d
+  "ӏ": l
+  "ѕ": s
+  "ԛ": q
+  "ԝ": w
+  "һ": h
+  "к": k
+  "м": m
+  "н": h
+  "т": t
+  # Greek
+  "α": a
+  "ο": o
+  "ν": v
+  "ι": i
+  "κ": k
+  "ρ": p
+  "τ": t
+  "υ": u
+  "χ": x
+  "ϲ": c
+  "ε": e
+  # Latin look-alikes
+  "ı": i
+  "ɩ": i
+  "ɡ": g
+  "ł": l
+  "ø": o
+  "ö": o
+  "ó": o
+  "ò": o
+  "à": a
+  "á": a
+  "ä": a
+  "é": e
+  "è": e
+  "ë": e
+  "í": i
+  "ï": i
+  "ü": u
+  "ú": u
+  "ñ": n
+  "ç": c
+
+# ASCII substitutions attackers use (paypa1, g00gle, micr0soft).
+# "1" is tried as both "l" and "i".
+ascii_substitutions:
+  "0": o
+  "3": e
+  "4": a
+  "5": s
+  "7": t
+  "8": b
+  "9": g
+  "$": s
+  "@": a
+multi_char_substitutions:
+  rn: m
+  vv: w

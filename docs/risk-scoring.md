@@ -1,199 +1,212 @@
 # Risk-Scoring Architecture
 
+> **Status (v0.1.0):** the scoring engine and the URL module are implemented
+> (`backend/app/scoring/engine.py`). The message, OCR and QR-payload indicators in section 3.3 are
+> the **planned** design for the next phases.
+>
+> **Single source of truth:** every weight, cap, floor, threshold, category label and indicator
+> text lives in `backend/app/scoring/scoring_config.yaml`. The tables below describe the defaults. If
+> they ever disagree with the YAML file, the file wins.
+
 ## 1. Design goals
 
-1. **Explainable:** every point in the score traces back to a named indicator.
-2. **Configurable:** weights, caps, bonuses, floors and thresholds live in one file,
-   `scoring/scoring_config.yaml`. They are never hard-coded in analyzers.
-3. **Robust to keyword stuffing:** per-category caps stop a single category from dominating, and
-   high scores require **independent** evidence types.
-4. **Honest:** a confidence value reflects how much evidence was actually available, for example when
-   threat intel was down or OCR quality was poor.
+1. **Explainable:** every point in the score traces back to a named indicator (`score_contribution`),
+   or to a documented floor.
+2. **Configurable:** analyzers emit only indicator IDs and never points. All numbers are in one YAML
+   file, which is validated at startup.
+3. **Robust to keyword stuffing:** per-category caps stop a single kind of evidence from dominating.
+4. **Honest:** a low score is **not** automatically "SAFE" (see the UNVERIFIED level), absence
+   from a threat database is not evidence of safety, and confidence drops when checks could not be
+   completed.
+5. **Scam categories never add points:** they label the result. The score comes from the indicators.
 
 ## 2. The Indicator contract
 
 ```python
 @dataclass(frozen=True)
 class Indicator:
-    id: str            # "URL_IP_HOST"  (stable, used in tests + history)
-    category: str      # url_structure | lexical | brand | host | reputation | qr | message_* | ocr
-    weight: int        # from scoring_config.yaml (0 for info)
-    severity: str      # info | low | medium | high | critical  (derived from weight)
-    title: str         # "Link uses an IP address instead of a domain name"
-    explanation: str   # plain language, for non-technical users
-    evidence: str | None = None   # short snippet; returned to caller, never stored
+    id: str                    # "URL_IP_HOST" (must exist in scoring_config.yaml)
+    evidence: str | None = None  # short, user-safe detail, trimmed to 120 characters
 ```
 
-Analyzers **only emit indicators**. They never compute a final verdict.
+Each ID's definition in the YAML file gives `module`, `category`, `weight`, optional `floor`,
+optional `scam_categories`, and user-facing `title` and `message`. A unit test
+(`tests/unit/test_indicator_catalog.py`) fails if the code emits an ID that is not configured.
 
-## 3. Indicator catalogue (initial weights, to be tuned in Week 8)
+In the API, each indicator becomes:
 
-### URL: structure (category cap 45)
+```json
+{ "id": "URL_IP_HOST", "severity": "high", "title": "Uses an IP address instead of a domain name",
+  "message": "The URL uses an IP address instead of a normal domain name. …",
+  "evidence": "8.8.8.8", "weight": 25, "score_contribution": 25.0, "module": "url_qr" }
+```
 
-| ID | Condition | Weight |
-|---|---|---|
-| `URL_DANGEROUS_SCHEME` | `javascript:`, `data:`, `file:`, `intent:` | 60 |
-| `URL_IP_HOST` | Host is an IPv4/IPv6 literal (including decimal/hex forms) | 25 |
-| `URL_USERINFO_AT` | `@` in authority (`https://bank.com@evil.io`) | 20 |
-| `URL_PUNYCODE` | Label starts with `xn--` | 15 |
-| `URL_MIXED_SCRIPT` | Decoded IDN mixes scripts (e.g. Latin + Cyrillic) | 25 |
-| `URL_NO_HTTPS` | Scheme `http` | 8 |
-| `URL_NONSTANDARD_PORT` | Explicit port other than 80/443 | 10 |
-| `URL_MANY_SUBDOMAINS` | > 3 labels before the registrable domain | 10 |
-| `URL_LONG` | > 100 chars (+5), > 200 (+10) | 5 / 10 |
-| `URL_SPECIAL_CHARS` | High ratio of `-_~%=&` | 5 |
-| `URL_ENCODED_OBFUSCATION` | `%xx` in host, or excessive encoding in path | 10 |
-| `URL_EMBEDDED_URL` | `http` inside path/query (`?next=http://…`) | 10 |
-| `URL_SHORTENER` | Host is on `url_shorteners.txt` | 10 |
-| `URL_SUSPICIOUS_TLD` | TLD in `suspicious_tlds.txt` (e.g. `zip, mov, top, xyz, click`) | 10 |
-| `URL_MANY_HYPHENS` | ≥ 3 hyphens in registrable domain | 5 |
-| `URL_APK_DOWNLOAD` | Path ends in `.apk`/`.exe`/`.scr` | 35 |
+`severity` is derived from the weight: ≤0 → info, 1–9 → low, 10–19 → medium, 20–39 → high,
+≥40 → critical. Any indicator with a floor is always critical.
 
-### URL: lexical and brand (category cap 40)
+## 3. Indicator catalogue
 
-| ID | Condition | Weight |
-|---|---|---|
-| `LEX_PHISH_KEYWORDS` | `login, verify, update, secure, kyc, wallet, reward, refund…` in host/path | 5 each, max 15 |
-| `BRAND_IN_WRONG_PLACE` | Known brand in a subdomain/path but the registrable domain is not the brand's (`sbi.co.in.kyc-update.xyz`) | 25 |
-| `BRAND_LOOKALIKE` | Registrable domain within edit distance ≤ 2 of a brand, or matching after homoglyph normalisation (`paytrn`, `hdfcbnak`) | 30 |
-| `TRUSTED_DOMAIN` | Exact registrable-domain match on `trusted_domains.txt`. Excludes user-content hosts such as `sites.google.com`. | −20 (cannot cancel a reputation hit) |
+### 3.1 URL / QR module (`url_qr`), implemented
 
-### URL: host (category cap 25, best-effort)
+| ID | Condition | Category | Weight | Floor |
+|---|---|---|---|---|
+| `URL_DANGEROUS_SCHEME` | `javascript:`, `data:`, `vbscript:`, `file:`, `blob:`, `intent:` | url_structure | 60 | **80** |
+| `URL_IP_HOST` | Host is an IP address | url_structure | 25 | |
+| `URL_OBFUSCATED_IP` | IP written as decimal/hex/octal/short form (`0x7f.1`) | url_structure | 15 | |
+| `URL_PRIVATE_NETWORK_HOST` | Private/loopback IP, `localhost`, `.local`, `.internal`…, or a domain resolving to one | url_structure | 15 | |
+| `URL_USERINFO_AT` | `@` before the host (`https://bank.com@evil.xyz`) | url_structure | 20 | |
+| `URL_NO_HTTPS` | `http://` | url_structure | 8 | |
+| `URL_NONSTANDARD_PORT` | Explicit port other than 80/443 | url_structure | 10 | |
+| `URL_MANY_SUBDOMAINS` | More than 3 subdomain levels (excluding `www`) | url_structure | 10 | |
+| `URL_LONG` / `URL_VERY_LONG` | > 100 / > 200 characters | url_structure | 5 / 10 | |
+| `URL_SPECIAL_CHARS` | ≥ 30 % symbols in a URL of 40+ characters | url_structure | 5 | |
+| `URL_ENCODED_CHARS` | `%`-encoded host, encoded letters/digits, or ≥ 10 `%xx` | url_structure | 10 | |
+| `URL_EMBEDDED_URL` | Another `http(s)://` inside the path/query | url_structure | 10 | |
+| `URL_BACKSLASH` | `\` in the address | url_structure | 5 | |
+| `URL_SHORTENER` | Known link shortener (`bit.ly`, `tinyurl.com`…) | url_structure | 10 | |
+| `URL_SUSPICIOUS_TLD` | TLD often abused (`.xyz`, `.top`, `.zip`…) | url_structure | 10 | |
+| `URL_MANY_HYPHENS` | More than 3 hyphens in the domain name | url_structure | 5 | |
+| `URL_EXECUTABLE_DOWNLOAD` | Path ends in `.apk`, `.exe`, `.msi`… | url_structure | 35 | |
+| `URL_USER_CONTENT_HOST` | Free hosting where anyone can publish (`sites.google.com`, `*.web.app`…) | url_structure | 8 | |
+| `URL_PUNYCODE` | International domain (`xn--`) | url_structure | 15 | |
+| `URL_MIXED_SCRIPT` | Letters from different alphabets in one label | url_structure | 25 | |
+| `URL_SCHEME_ASSUMED` | No `http(s)://` typed | url_structure | 0 (info) | |
+| `URL_PHISHING_KEYWORD` | `login`, `verify`, `kyc`, `refund`… (max 3 reported) | lexical | 5 each | |
+| `OFFICIAL_DOMAIN_IN_SUBDOMAIN` | `sbi.co.in.kyc-verify.xyz` | brand | 40 | **60** |
+| `OFFICIAL_DOMAIN_IN_USERINFO` | `https://www.sbi.co.in@evil.xyz` | brand | 40 | **60** |
+| `BRAND_LOOKALIKE` | `paypa1.com`, `hdfcbnak.com`, Cyrillic `аpple.com` | brand | 40 | **60** |
+| `BRAND_IN_SUBDOMAIN` | `paytm.secure-login.xyz` | brand | 25 | |
+| `BRAND_IN_DOMAIN_NAME` | `sbi-kyc-update.com`, `paytmcashback.in` | brand | 25 | |
+| `BRAND_NAME_UNOFFICIAL_DOMAIN` | `paypal.xyz` | brand | 20 | |
+| `TRUSTED_DOMAIN` | Registrable domain on the trusted list or a brand's official domain | trust | −20 | |
+| `REDIRECT_DANGEROUS_SCHEME` | Redirect to `javascript:` / `intent:`… | redirect | 60 | **80** |
+| `REDIRECT_TO_PRIVATE_ADDRESS` | Redirect to a private/internal address (blocked) | redirect | 30 | |
+| `REDIRECT_NON_WEB_SCHEME` | Redirect to `upi:`, `ftp:`… | redirect | 15 | |
+| `REDIRECT_CHAIN_TOO_LONG` | More than `REDIRECT_MAX_HOPS` redirects | redirect | 15 | |
+| `REDIRECT_HTTPS_DOWNGRADE` | https → http during redirects | redirect | 10 | |
+| `REDIRECT_BLOCKED_PORT` | Redirect to a non-80/443 port | redirect | 10 | |
+| `DOMAIN_NOT_RESOLVING` | Domain has no DNS record | redirect | 5 | |
+| `REDIRECT_CROSS_DOMAIN` | Leads to another site (which is then analysed too) | redirect | 0 (info) | |
+| `REDIRECT_CHECK_INCOMPLETE` | Timeout / TLS / connection error while checking | redirect | 0 (info), lowers confidence | |
 
-| ID | Condition | Weight |
-|---|---|---|
-| `HOST_NEW_DOMAIN` | RDAP registration < 30 days (20) or < 180 days (10) | 20 / 10 |
-| `HOST_LONG_REDIRECT_CHAIN` | > 3 redirects | 10 |
-| `HOST_REDIRECT_CROSS_DOMAIN` | Shortener resolves to a different domain, and the **final URL is re-analysed** | 0 (info) |
+Category caps: url_structure **45**, lexical **15**, brand **40**, redirect **40**.
 
-### Reputation (threat intelligence)
+**Brand rules that protect legitimate sites** (`app/data/brands.yaml`):
+- URLs on a brand's official domains are never flagged. Official domains are also trusted.
+- Short brand keywords (< 5 letters, e.g. `sbi`) only match whole words, so `sbicard.com` and
+  `sbilling.com` are not matched.
+- Typo distance applies only to long keywords: 1 edit for ≥ 6 letters, 2 edits for ≥ 9 letters.
+- A brand name alone (`BRAND_IN_DOMAIN_NAME`, `BRAND_IN_SUBDOMAIN`, `BRAND_NAME_UNOFFICIAL_DOMAIN`)
+  scores 20–25 points. That is below SUSPICIOUS on its own, so it needs other evidence.
+  Only structural deception (lookalike characters, or an official domain used as a disguise) carries
+  a floor.
 
-| ID | Condition | Effect |
-|---|---|---|
-| `TI_LISTED` | Any provider reports it as listed malicious/phishing | +60 **and score floor 90** |
-| `TI_PARTIAL` | e.g. VirusTotal 1–2 engines flag it | +20 |
-| `TI_UNAVAILABLE` | All enabled providers failed | 0, lowers confidence |
+### 3.2 Threat intelligence (`threat_intel`), interface implemented, providers later
 
-### QR payload (category cap 35)
+| ID | Condition | Category | Weight | Floor |
+|---|---|---|---|---|
+| `TI_LISTED` | Any provider returns `listed` | reputation | 100 | **90** |
+| `TI_PARTIAL` | Any provider returns `partial` (no `listed`) | reputation | 50 | |
 
-| ID | Condition | Weight |
-|---|---|---|
-| `QR_UPI_PAYMENT` | `upi://pay`. Explains that scanning this **sends** money. | 0 (info) |
-| `QR_UPI_PREFILLED_AMOUNT` | `am=` present | 10 |
-| `QR_UPI_RECEIVE_CONTEXT` | UPI QR plus text such as "scan to receive / refund / prize" | 30 |
-| `QR_UPI_NAME_MISMATCH` | `pn` claims a bank/government brand but the VPA is a personal handle | 15 |
-| `QR_WIFI_OPEN` | `WIFI:T:nopass` | 0 (info) |
-| `QR_SMS_PREFILLED` | `smsto:` with prefilled body to a short code | 10 |
+`not_listed`, `unavailable`, `disabled` and `error` produce **no indicator**. The module is then
+*not applicable*, so a clean lookup never pulls the score down toward "safe".
 
-### Message (category caps shown; negation-aware)
+### 3.3 Planned modules (next phases)
+
+**QR payload** (`url_qr`): `QR_UPI_PAYMENT` (info: scanning *sends* money), `QR_UPI_PREFILLED_AMOUNT` 10,
+`QR_UPI_RECEIVE_CONTEXT` 30 (floor 60), `QR_UPI_NAME_MISMATCH` 15, `QR_WIFI_OPEN` info, `QR_SMS_PREFILLED` 10.
+
+**Message** (`message`, negation-aware):
 
 | Category | Examples of patterns (normalised text) | Weight (cap) |
 |---|---|---|
-| `msg_urgency` | act now, within 24 hours, immediately, last chance, today only | 10 |
-| `msg_threat` | account blocked/suspended, legal action, police, electricity will be disconnected | 15 |
-| `msg_credential_request` | share/send/tell OTP, PIN, CVV, password, "verify with OTP" | 25 |
-| `msg_financial_request` | pay, transfer, registration/processing fee, refundable deposit | 15 |
-| `msg_reward` | you have won, lottery, prize, cashback, selected, gift | 15 |
-| `msg_impersonation` | bank/RBI/TRAI/customs/courier/KYC/government names | 10 |
-| `msg_job_scam` | work from home + earn ₹X/day, like videos, Telegram task, no interview | 15 |
-| `msg_investment` | guaranteed returns, double money, trading tips, crypto profit | 15 |
-| `msg_remote_access` | AnyDesk, TeamViewer, QuickSupport, "screen share" | 25 |
-| `msg_off_platform_contact` | "contact on WhatsApp/Telegram", personal mobile numbers | 5 |
-| `msg_style` | ≥ 3 `!!!`, ALL CAPS ratio > 30 % | 5 |
-| `msg_security_warning` (legit signal) | "never share your OTP", "bank will never ask" | −10, and suppresses `msg_credential_request` from the same sentence |
+| urgency | act now, within 24 hours, immediately, last chance | 10 |
+| threat | account blocked/suspended, legal action, police, electricity disconnected | 15 |
+| credential request | share/send OTP, PIN, CVV, password | 25 |
+| financial request | pay, transfer, registration/processing fee, refundable deposit | 15 |
+| reward | you have won, lottery, prize, cashback, selected | 15 |
+| impersonation | bank/RBI/TRAI/customs/courier/KYC/government names | 10 |
+| job scam | work from home + earn ₹X/day, like videos, Telegram task, no interview | 15 |
+| investment | guaranteed returns, double money, trading tips | 15 |
+| remote access | AnyDesk, TeamViewer, QuickSupport, screen share | 25 |
+| off-platform contact | "contact on WhatsApp/Telegram", personal numbers | 5 |
+| style | ≥ 3 `!!!`, ALL-CAPS ratio > 30 % | 5 |
+| security warning (legit signal) | "never share your OTP", "bank will never ask" | −10, and suppresses credential request in the same sentence |
 
-**Combination bonuses** (added once, shown as their own line in the "Why?" list):
+Combination bonuses (credential + impersonation, reward + fee, job + fee, threat + urgency + link,
+remote access + impersonation) will be separate indicators, so they appear in the "Why?" list.
 
-| Combination | Bonus |
-|---|---|
-| credential_request + impersonation | +20 |
-| reward + financial_request (advance-fee) | +20 |
-| job_scam + financial_request | +20 |
-| threat + urgency + link | +15 |
-| remote_access + impersonation | +20 |
+**OCR** (`ocr`): QR code inside the screenshot, obfuscated link text (`hxxp`, `[.]`). Poor OCR
+quality lowers confidence only.
 
-A single keyword cannot exceed its category cap (≤ 25). **No single message category alone can reach
-MALICIOUS**, so a MALICIOUS verdict always needs corroborating evidence.
-
-## 4. Combining modules (agreed model: normalised module weights)
-
-All weights and thresholds live in **one file**: `backend/app/scoring/scoring_config.yaml`.
+## 4. Combining modules (normalised module weights)
 
 ### 4.1 Module weights
 
-| Module | Weight | Produces a score when… |
+| Module | Weight | Applicable when… |
 |---|---|---|
-| `url_qr` | 0.35 | the input contains a URL or a QR payload |
-| `threat_intel` | 0.30 | at least one provider returns a **positive** finding (`listed` or partial) |
-| `message` | 0.20 | there is text to analyse (message input, OCR text, plain-text QR) |
-| `ocr` | 0.15 | the input is a screenshot (OCR-specific indicators, e.g. QR inside the screenshot, obfuscated link text) |
+| `url_qr` | 0.35 | the input contains a URL or QR payload (always, for `/api/analyze/url`) |
+| `threat_intel` | 0.30 | at least one provider returns a **positive** finding (`listed`/`partial`) |
+| `message` | 0.20 | there is text to analyse |
+| `ocr` | 0.15 | the input is a screenshot |
 
 ### 4.2 Formula
 
 ```
-applicable = modules that produced a score for this input
-module_score(m) = min(100, Σ capped category subtotals in m)      # 0..100
-
-weighted = Σ_{m ∈ applicable} w_m × module_score(m)  /  Σ_{m ∈ applicable} w_m
-score    = max(weighted, floors)                                   # see 4.3
-score    = round(clamp(score, 0, 100))
+Step 1  points(i)        = weight(i) × min(1, cap(category) / Σ positive weights in that category)
+                           (negative weights are not capped)
+Step 2  module_score(m)  = clamp(Σ points in m, 0, 100)
+Step 3  weighted         = Σ_{m applicable} w_m × module_score(m)  /  Σ_{m applicable} w_m
+Step 4  final            = round(max(weighted, highest floor among present indicators))
 ```
 
-Dividing by the weights of **applicable** modules only means that an input is never penalised,
-or made to look safer, because a module did not apply. A plain URL check is scored on URL evidence
-alone. It is not diluted by an absent message or OCR module.
+`score_contribution(i) = points(i) × (module_score / raw module sum) × (w_m / Σ applicable w)`,
+so the contributions add up to `weighted_score` (± rounding). A floor is reported separately as
+`floor_applied.points_added`.
 
-**Why `not_listed` does not count as threat-intel evidence:** if "not on a blacklist" were scored as
-0, it would pull every score down and quietly treat absence from a list as proof of safety, which we
-have promised not to claim. `not_listed`, `unavailable` and `disabled` therefore make the module
-*not applicable*. They are still shown to the user, and they affect **confidence** (section 6).
+### 4.3 Floors (configurable, `floor:` in the YAML)
 
-### 4.3 Floors (strong evidence cannot be averaged away)
-
-A weighted average can hide one decisive finding. Suppose a harmless-looking message contains a link
-to a known phishing site. Averaging the link with the harmless text would pull the score down. So a
-few **critical indicators** set a minimum score, and the result explains this in its own line:
-
-| Indicator | Floor |
-|---|---|
-| `TI_LISTED` (known malicious in any provider) | 90 |
-| `URL_DANGEROUS_SCHEME` (`javascript:`, `data:`…) | 80 |
-| `URL_APK_DOWNLOAD`, `BRAND_LOOKALIKE`, `QR_UPI_RECEIVE_CONTEXT` | 60 (= MALICIOUS threshold) |
-
-Floors are configured in `scoring_config.yaml` together with the indicator weights.
-
-### 4.4 Worked examples
-
-| Input | Module scores | Calculation | Result |
-|---|---|---|---|
-| URL only, TI `not_listed` | url_qr 48 | 0.35·48 / 0.35 = 48 | 48 → SUSPICIOUS |
-| URL, TI `listed` | url_qr 30, TI 100 | (0.35·30 + 0.30·100) / 0.65 = 62, then floor 90 | 90 → MALICIOUS |
-| Message with a link | message 40, url_qr 55 | (0.20·40 + 0.35·55) / 0.55 = 49.5 | 50 → SUSPICIOUS |
-| Genuine bank SMS, no link | message 0 | 0 / 0.20 = 0 | 0 → SAFE |
-| Screenshot: text + link + QR | message 50, url_qr 70, ocr 20 | (0.20·50 + 0.35·70 + 0.15·20) / 0.70 = 53.6 | 54 → SUSPICIOUS |
-| Nothing analysable (empty OCR) | none | no applicable module | error `OCR_FAILED`, not "SAFE" |
-
-### 4.5 Explaining the score
-
-Every result includes `score_breakdown`, which gives each applicable module's score, weight and
-weighted contribution, plus any floor that applied. The `indicators` list names every contributing
-indicator with its weight. The "Why?" list in the apps is built directly from these two fields.
-
-## 5. Levels and thresholds
-
-| Level | Default range | Configured in |
+| Indicator | Minimum score | Why |
 |---|---|---|
-| SAFE | 0 – 29 | `scoring_config.yaml` → `thresholds.suspicious: 30` |
-| SUSPICIOUS | 30 – 59 | `scoring_config.yaml` → `thresholds.malicious: 60` |
-| MALICIOUS | 60 – 100 | |
+| `TI_LISTED` | 90 | Confirmed by a threat database |
+| `URL_DANGEROUS_SCHEME`, `REDIRECT_DANGEROUS_SCHEME` | 80 | Can run code or open apps |
+| `BRAND_LOOKALIKE`, `OFFICIAL_DOMAIN_IN_SUBDOMAIN`, `OFFICIAL_DOMAIN_IN_USERINFO` | 60 | Structural impersonation of a known brand |
 
-The file is validated at startup: thresholds must be ordered and the weights must sum to 1.0.
-User-facing wording for SAFE is **"No major risks detected"**, always shown with the disclaimer.
+### 4.4 Worked examples (actual engine output)
 
-## 5a. Scam categories (multi-label)
+| Input | Indicators (points) | Calculation | Result |
+|---|---|---|---|
+| `https://en.wikipedia.org/wiki/QR_code` | TRUSTED_DOMAIN (−20) | url_qr = clamp(−20) = 0 → 0 | **0, SAFE** (verified) |
+| `https://www.example.com/` | none | 0 | **0, UNVERIFIED** (not verified) |
+| `http://8.8.8.8/secure/login` | IP 25, http 8, keywords secure+login 10 | 43 | **43, SUSPICIOUS** |
+| `https://hdfcbnak.com/netbanking` | BRAND_LOOKALIKE 40, keyword 5 | 45 → floor 60 | **60, MALICIOUS** |
+| `http://sbi.co.in.kyc-verify.xyz/login` | official-in-subdomain 40, .xyz 10, http 8, 3 keywords 15 | 73 (floor 60 not needed) | **73, MALICIOUS** |
+| `https://www.example.com/login` + TI `listed` | TI_LISTED 100 (threat_intel), keyword 5 (url_qr) | (0.35×5 + 0.30×100)/0.65 = 48.8 → floor 90 | **90, MALICIOUS** |
+| `http://8.8.8.8/` + TI `partial` | IP 25, http 8; TI_PARTIAL 50 | (0.35×33 + 0.30×50)/0.65 = 40.8 | **41, SUSPICIOUS** |
+| Same URL + TI `not_listed` | IP 25, http 8 | TI not applicable → 33 | **33, SUSPICIOUS** (unchanged) |
 
-One input can match **several** categories. Each category has its own rule set, and every category
-whose rules reach its minimum evidence level is reported, strongest first.
+## 5. Risk levels: SAFE vs UNVERIFIED vs SUSPICIOUS vs MALICIOUS
+
+| Level | Score | Meaning | Default wording |
+|---|---|---|---|
+| **MALICIOUS** | ≥ 60 | Strong or decisive evidence of harm | "Strong warning signs: this link is very likely malicious." |
+| **SUSPICIOUS** | 30–59 | Several warning signs; do not trust | "Several warning signs were found." |
+| **UNVERIFIED** | < 30 | No strong warning signs, **but not verified safe**. The normal result for an unknown site. | "No strong warning signs were found, but this link could not be verified as safe." |
+| **SAFE** | < 30 **and verified** | The destination is on the curated trusted list (`trusted_domains` + brand official domains), and there is **no medium-or-worse** finding | "This link belongs to a recognised domain and no warning signs were found." |
+
+**QRGUARD never labels a URL SAFE just because no suspicious indicator was found.** The rule is
+configured in `verification:` (`safe_requires_indicator: TRUSTED_DOMAIN`,
+`blocked_by_severity: medium`). A clean threat-intelligence lookup does not make a link SAFE
+either. It only raises confidence, because a blacklist cannot prove a link is safe.
+
+After a redirect to another site, trust is judged on the **final destination**: `bit.ly` →
+`wikipedia.org` keeps `URL_SHORTENER` (medium), so the result is UNVERIFIED rather than SAFE.
+
+## 6. Scam categories (multi-label, never scored)
+
+There are 14 labels (`scam_categories` in the YAML). An indicator can list the labels it supports.
+The result reports every label from contributing indicators, strongest first, **only when the
+level is SUSPICIOUS or MALICIOUS**. A lone weak signal therefore never gets a scary label.
 
 | ID | Label |
 |---|---|
@@ -212,52 +225,52 @@ whose rules reach its minimum evidence level is reported, strongest first.
 | `malicious_url` | Malicious / suspicious URL |
 | `social_engineering_other` | Other social-engineering scam |
 
-Categories are *labels that explain the result*. The score still comes from the weighted indicators,
-so a category is never assigned from a single keyword. Example: "Your SBI KYC expires today, share the
-OTP at http://sbi-kyc.example" → `kyc_account_suspension`, `otp_scam`, `impersonation`,
-`malicious_url`.
-
-## 6. Confidence
+## 7. Confidence
 
 | Confidence | Rule (first match wins) |
 |---|---|
-| HIGH | `TI_LISTED`; **or** score ≥ 60 with ≥ 3 independent categories; **or** score < 30, ≥ 1 TI provider checked, and no indicators with weight ≥ 10 |
-| LOW | All TI providers unavailable **and** score within ±10 of a threshold; **or** OCR quality `poor`; **or** message < 20 characters |
-| MEDIUM | everything else |
+| HIGH | `TI_LISTED` present; **or** a floor was applied; **or** MALICIOUS with ≥ 3 different positive categories |
+| LOW | Some check could not be completed (redirect timeout, DNS failure, TLS/connection error); **or** UNVERIFIED with no definitive threat-intel answer |
+| MEDIUM | everything else (e.g. SAFE from the trusted list, or UNVERIFIED after a clean TI lookup) |
 
-## 7. Recommended action
+## 8. Recommended action
 
-`recommendations.py` picks text by **level + dominant category**:
+`app/scoring/recommendations.py` combines:
 
-- MALICIOUS + credential → "Do not share OTP, PIN, CVV or passwords. Banks never ask for them. Block the sender."
-- Any UPI indicator → "Scanning a QR or entering your UPI PIN only **sends** money. You never need them to receive money."
-- MALICIOUS + URL → "Do not open this link. If you already entered details, change your password and contact your bank."
-- SUSPICIOUS → "Verify through the official app or website typed by hand, not via this link or number."
-- SAFE → "No major risks detected. Stay cautious: automated checks can miss new scams."
-- Always, for SUSPICIOUS/MALICIOUS in India: "Report financial fraud at **1930** or **cybercrime.gov.in**."
+- a base text per level (MALICIOUS: do not open, do not enter OTP/PIN/payment details, contact your
+  bank if you already did; SUSPICIOUS: use the official app or type the address yourself;
+  UNVERIFIED: only if you trust the sender, never enter OTPs/PINs from a received link; SAFE: stay
+  cautious),
+- one piece of extra advice for the strongest evidence type (brand impersonation, app download,
+  hidden destination),
+- for SUSPICIOUS/MALICIOUS: *"In India, report financial fraud at 1930 or https://cybercrime.gov.in."*
 
-## 8. Flowchart
+## 9. Flowchart
 
 ```mermaid
 flowchart TD
-  A[Indicators from all modules] --> B[Apply per-category caps]
-  B --> C[Module score per applicable module 0..100]
-  C --> D[Weighted average over APPLICABLE modules only<br/>weights from scoring_config.yaml]
-  A --> F{Critical indicator present?}
-  F -- yes --> G[Apply floor e.g. TI listed = 90]
-  F -- no --> H[No floor]
-  D & G & H --> I[score = max of weighted, floor]
-  I --> K{score >= malicious threshold?}
+  A[Indicators from analyzers + TI results] --> T{TI listed/partial?}
+  T -- yes --> TI[Add TI_LISTED / TI_PARTIAL<br/>threat_intel module applicable]
+  T -- no --> NA[threat_intel NOT applicable<br/>not_listed is not evidence]
+  A & TI & NA --> B[Per-category caps inside each module]
+  B --> C[Module score 0..100 per applicable module]
+  C --> D[Weighted average over APPLICABLE modules only]
+  A --> F{Indicator with floor present?}
+  F -- yes --> G[Minimum score = highest floor]
+  D & G --> I[final = max weighted, floor]
+  I --> K{final >= 60?}
   K -- yes --> M[MALICIOUS]
-  K -- no --> L{score >= suspicious threshold?}
+  K -- no --> L{final >= 30?}
   L -- yes --> S[SUSPICIOUS]
-  L -- no --> SA[SAFE]
-  M & S & SA --> CF[Confidence + scam categories + recommended action]
-  CF --> OUT[Result with score_breakdown and indicators]
+  L -- no --> V{Trusted domain AND no medium+ finding?}
+  V -- yes --> SA[SAFE]
+  V -- no --> UV[UNVERIFIED]
+  M & S & SA & UV --> CF[Confidence + categories + recommendation]
+  CF --> OUT[Response: indicators with score_contribution + score_breakdown]
 ```
 
-## 9. Future ML extension (not in MVP)
+## 10. Future ML extension (not in MVP)
 
-The indicator vector (one column per indicator ID) is already a feature vector. Later, a logistic
-regression or gradient-boosted model can be trained on it and its output added as one more indicator
-(`ML_PHISH_PROB`), so explainability is kept.
+The indicator vector (one column per indicator ID) is already a feature vector. A future model (for
+example logistic regression) can be trained on it and added as one more indicator
+(`ML_PHISH_PROB`) with its own configured weight, so explainability is kept.

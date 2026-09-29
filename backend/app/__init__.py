@@ -11,12 +11,16 @@ from flask import Flask
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from app.analyzers.redirect_resolver import RedirectSettings
+from app.analyzers.url_rules import load_url_rules
 from app.config import Config
 from app.errors import register_error_handlers
 from app.extensions import limiter
 from app.logging_setup import configure_logging
 from app.middleware import register_middleware
 from app.routes import register_blueprints
+from app.services.url_analysis_service import UrlAnalysisService
+from app.threat_intelligence.service import ThreatIntelService
 from app.version import __version__
 
 __all__ = ["create_app", "__version__"]
@@ -29,12 +33,12 @@ def create_app(config: Config | None = None) -> Flask:
     configure_logging(config.log_level)
 
     app = Flask(__name__)
+    app.json.sort_keys = False  # keep responses in their logical order (score first)
     app.config.update(
         QRGUARD=config,  # our validated settings object, read via current_app.config["QRGUARD"]
         DEBUG=config.debug,
         TESTING=config.app_env == "testing",
         MAX_CONTENT_LENGTH=config.max_content_length,
-        JSON_SORT_KEYS=False,
         RATELIMIT_STORAGE_URI=config.ratelimit_storage_uri,
         RATELIMIT_HEADERS_ENABLED=True,
     )
@@ -55,6 +59,21 @@ def create_app(config: Config | None = None) -> Flask:
         max_age=600,
     )
     limiter.init_app(app)
+
+    # Analysis services are created once per app (rule files are validated at startup).
+    # No threat-intelligence providers are configured yet (added in a later phase).
+    threat_intel = ThreatIntelService(providers=[])
+    app.extensions["qrguard.url_analysis"] = UrlAnalysisService(
+        rules=load_url_rules(),
+        scoring=config.scoring,
+        threat_intel=threat_intel,
+        redirect_mode=config.redirect_resolution,
+        redirect_settings=RedirectSettings(
+            max_hops=config.redirect_max_hops,
+            request_timeout=config.redirect_timeout_seconds,
+            total_timeout=config.redirect_total_timeout_seconds,
+        ),
+    )
 
     register_middleware(app)
     register_error_handlers(app)
