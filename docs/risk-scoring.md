@@ -425,6 +425,30 @@ double-counting guard now prevents that.
 This set is small and was written by us, so these numbers show consistency with the design, **not**
 real-world accuracy.
 
+### 11.8 Known limitations of the message detector
+
+- **English-first rules.** Patterns cover English (with common Indian terms such as KYC, UPI, PAN
+  and Aadhaar). Hindi, Marathi and other scripts get `MSG_LANGUAGE_NOT_SUPPORTED`, usually score
+  SAFE, and are reported with LOW confidence. Warning signs in those languages are missed.
+  Hinglish written in Latin script is only partly covered.
+- **Rule-based detection.** Only patterns written in `scam_rules.yaml` are recognised. Reworded or
+  brand-new scam scripts can be missed (false negatives). Unusual genuine wording can trigger
+  a rule (false positives). There is no machine learning in this version.
+- **Small demo dataset.** The 39 labelled messages in `demo-data/messages.yaml` were written by the
+  team. They check consistency with the design, not real-world accuracy. Three scams score
+  SUSPICIOUS where MALICIOUS was expected (section 11.7). They are deliberately not tuned.
+- **Threat-intelligence APIs are not connected yet.** Links in messages are judged by URL
+  structure only. The `threat_intel` block of every response states this. VERIFIED is therefore
+  not reachable for messages until providers are added.
+- **Negation limitations.** A request is only treated as negated when the negation word is within the
+  3 words before it (same clause) or inside the matched phrase, or when a
+  `MSG_SECURITY_ADVICE` pattern covers the sentence. Longer or indirect negations ("You should
+  never, under any circumstances, share …") may still be read as a request. Sarcasm and double
+  negatives are not understood.
+- **Presence of any link.** The "link call-to-action" and "threat + urgency + link" rules react to
+  there *being* a link to act on. So even a trusted link can add message-side points, but it can
+  never lower the score (section 11.1).
+
 ## 10. Future ML extension (not in MVP)
 
 The indicator vector (one column per indicator ID) is already a feature vector. A future model (for
