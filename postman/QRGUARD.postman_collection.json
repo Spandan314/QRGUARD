@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "QRGUARD API",
-    "description": "QRGUARD backend API. /api/analyze/url and /api/analyze/message are implemented; other analysis endpoints validate input and return 501 until their modules are built.",
+    "description": "QRGUARD backend API. /api/analyze/url, /message and /screenshot are implemented (screenshot needs Tesseract); /api/analyze/qr and /api/generate/qr validate input and return 501 until built. Run with: newman run QRGUARD.postman_collection.json --working-dir postman",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -1088,6 +1088,355 @@
       ]
     },
     {
+      "name": "Screenshot analysis (DEMO / TEST DATA)",
+      "description": "Uses the synthetic images in postman/fixtures (run newman with --working-dir postman). Requires Tesseract on the server.",
+      "item": [
+        {
+          "name": "MALICIOUS: fake KYC screenshot",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/scam-kyc.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('input_type is screenshot', () => pm.expect(pm.response.json().input_type).to.eql('screenshot'));",
+                  "pm.test('OCR block present', () => pm.expect(pm.response.json().analysis.ocr).to.have.property('extracted_text'));",
+                  "pm.test('verification reported separately', () => pm.expect(pm.response.json().verification).to.have.property('status'));",
+                  "pm.test('has indicator MSG_KYC_PRETEXT', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('MSG_KYC_PRETEXT'));",
+                  "pm.test('has indicator BRAND_IN_DOMAIN_NAME', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('BRAND_IN_DOMAIN_NAME'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SAFE: genuine OTP screenshot",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/genuine-otp.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
+                  "pm.test('input_type is screenshot', () => pm.expect(pm.response.json().input_type).to.eql('screenshot'));",
+                  "pm.test('OCR block present', () => pm.expect(pm.response.json().analysis.ocr).to.have.property('extracted_text'));",
+                  "pm.test('verification reported separately', () => pm.expect(pm.response.json().verification).to.have.property('status'));",
+                  "pm.test('no OTP request', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.not.include('MSG_OTP_REQUEST'));",
+                  "pm.test('SAFE + UNVERIFIED', () => pm.expect(pm.response.json().verification.status).to.eql('UNVERIFIED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS: dark-mode JPEG, UPI PIN to receive",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/upi-dark.jpg"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('input_type is screenshot', () => pm.expect(pm.response.json().input_type).to.eql('screenshot'));",
+                  "pm.test('OCR block present', () => pm.expect(pm.response.json().analysis.ocr).to.have.property('extracted_text'));",
+                  "pm.test('verification reported separately', () => pm.expect(pm.response.json().verification).to.have.property('status'));",
+                  "pm.test('has indicator MSG_UPI_PIN_TO_RECEIVE', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('MSG_UPI_PIN_TO_RECEIVE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS: look-alike link in screenshot",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/lookalike-link.png"
+                },
+                {
+                  "key": "save_to_history",
+                  "value": "false",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('input_type is screenshot', () => pm.expect(pm.response.json().input_type).to.eql('screenshot'));",
+                  "pm.test('OCR block present', () => pm.expect(pm.response.json().analysis.ocr).to.have.property('extracted_text'));",
+                  "pm.test('verification reported separately', () => pm.expect(pm.response.json().verification).to.have.property('status'));",
+                  "pm.test('has indicator BRAND_LOOKALIKE', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('BRAND_LOOKALIKE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "422 blank image (no text)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/blank.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 422', () => pm.response.to.have.status(422));",
+                  "pm.test('error code is NO_TEXT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('NO_TEXT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "415 not an image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/not-an-image.txt"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 415', () => pm.response.to.have.status(415));",
+                  "pm.test('error code is UNSUPPORTED_MEDIA_TYPE', () => pm.expect(pm.response.json().error.code).to.eql('UNSUPPORTED_MEDIA_TYPE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "422 truncated image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/truncated.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 422', () => pm.response.to.have.status(422));",
+                  "pm.test('error code is UNPROCESSABLE_IMAGE', () => pm.expect(pm.response.json().error.code).to.eql('UNPROCESSABLE_IMAGE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "413 decompression-bomb header",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/decompression-bomb.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 413', () => pm.response.to.have.status(413));",
+                  "pm.test('error code is IMAGE_TOO_LARGE', () => pm.expect(pm.response.json().error.code).to.eql('IMAGE_TOO_LARGE'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Analyze (contract stubs)",
       "item": [
         {
@@ -1125,47 +1474,6 @@
                   "pm.test('status is 501', () => pm.response.to.have.status(501));",
                   "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
                   "pm.test('error code is NOT_IMPLEMENTED', () => pm.expect(pm.response.json().error.code).to.eql('NOT_IMPLEMENTED'));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST /api/analyze/screenshot (choose a file)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{baseUrl}}/api/analyze/screenshot",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "api",
-                "analyze",
-                "screenshot"
-              ]
-            },
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": []
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
-                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
-                  "pm.test('error code is MISSING_FILE', () => pm.expect(pm.response.json().error.code).to.eql('MISSING_FILE'));"
                 ]
               }
             }
