@@ -1,0 +1,33 @@
+name: mobile-ci
+
+on:
+  pull_request:
+    paths: ["mobile/**", ".github/workflows/mobile-ci.yml"]
+  push:
+    branches: [main, develop]
+    paths: ["mobile/**", ".github/workflows/mobile-ci.yml"]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Tests with coverage
+        run: npm run coverage -- --ci
+      - name: Bundle Android JavaScript (Metro)
+        run: npx expo export --platform android --output-dir /tmp/qrguard-export
+        env:
+          EXPO_OFFLINE: "1"
