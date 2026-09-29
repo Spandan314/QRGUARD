@@ -49,6 +49,25 @@ def _get_choice(env: Mapping[str, str], name: str, default: str, choices: tuple[
     return value
 
 
+def _get_bool(env: Mapping[str, str], name: str, default: bool) -> bool:
+    raw = env.get(name, "").strip().lower()
+    if raw == "":
+        return default
+    if raw in ("1", "true", "yes", "on"):
+        return True
+    if raw in ("0", "false", "no", "off"):
+        return False
+    raise ConfigError(f"{name} must be true or false, got {raw!r}")
+
+
+def _get_secret(env: Mapping[str, str], name: str) -> str:
+    """An optional API key. The value itself is never part of an error message."""
+    value = env.get(name, "").strip()
+    if value and not re.fullmatch(r"[A-Za-z0-9._\-]{8,256}", value):
+        raise ConfigError(f"{name} has an invalid format (value not shown)")
+    return value
+
+
 def _get_ocr_languages(env: Mapping[str, str]) -> str:
     """Tesseract language codes such as "eng" or "eng+hin" (letters and "+" only)."""
     value = env.get("OCR_LANGUAGES", "").strip() or "eng"
@@ -85,6 +104,17 @@ class Config:
     ocr_languages: str = "eng"
     ocr_timeout_seconds: int = 20
     ocr_max_concurrent: int = 2
+    # Threat intelligence. API keys are optional; a provider without a key is disabled.
+    ti_local_feeds_enabled: bool = True
+    ti_feed_dir: str = ""
+    ti_timeout_seconds: int = 3
+    ti_budget_seconds: int = 6
+    ti_cache_listed_seconds: int = 86400
+    ti_cache_not_listed_seconds: int = 3600
+    urlhaus_auth_key: str = field(default="", repr=False)
+    google_safe_browsing_api_key: str = field(default="", repr=False)
+    virustotal_api_key: str = field(default="", repr=False)
+    phishtank_api_key: str = field(default="", repr=False)
     scoring: ScoringSettings = field(default_factory=load_scoring_settings)
 
     # ----- derived values -------------------------------------------------
@@ -147,5 +177,19 @@ class Config:
             ocr_languages=_get_ocr_languages(env),
             ocr_timeout_seconds=_get_int(env, "OCR_TIMEOUT_SECONDS", 20, 2, 60),
             ocr_max_concurrent=_get_int(env, "OCR_MAX_CONCURRENT", 2, 1, 8),
+            ti_local_feeds_enabled=_get_bool(env, "THREAT_INTEL_LOCAL_FEEDS_ENABLED", True),
+            ti_feed_dir=env.get("THREAT_INTEL_FEED_DIR", "").strip(),
+            ti_timeout_seconds=_get_int(env, "THREAT_INTEL_TIMEOUT_SECONDS", 3, 1, 10),
+            ti_budget_seconds=_get_int(env, "THREAT_INTEL_BUDGET_SECONDS", 6, 1, 20),
+            ti_cache_listed_seconds=_get_int(
+                env, "THREAT_INTEL_CACHE_LISTED_SECONDS", 86400, 0, 604800
+            ),
+            ti_cache_not_listed_seconds=_get_int(
+                env, "THREAT_INTEL_CACHE_NOT_LISTED_SECONDS", 3600, 0, 86400
+            ),
+            urlhaus_auth_key=_get_secret(env, "URLHAUS_AUTH_KEY"),
+            google_safe_browsing_api_key=_get_secret(env, "GOOGLE_SAFE_BROWSING_API_KEY"),
+            virustotal_api_key=_get_secret(env, "VIRUSTOTAL_API_KEY"),
+            phishtank_api_key=_get_secret(env, "PHISHTANK_API_KEY"),
             scoring=load_scoring_settings(scoring_path),
         )

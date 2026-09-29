@@ -24,6 +24,12 @@ def _ocr_status() -> str:
     return "available" if engine.available() else "not_installed"
 
 
+def _threat_intel_status() -> dict:
+    # Which reputation sources are active. Never includes API keys, only on/off.
+    service = current_app.extensions["qrguard.url_analysis"].threat_intel
+    return {"enabled": service.configured, "providers": service.status()}
+
+
 @health_bp.get("/health")
 @limiter.exempt
 def health():
@@ -42,6 +48,7 @@ def health():
                     "thresholds": config.scoring.thresholds.model_dump(),
                 },
                 "ocr_engine": _ocr_status(),
+                "threat_intel": _threat_intel_status(),
             },
         }
     )

@@ -330,8 +330,9 @@ def test_broken_provider_does_not_break_analysis(api):
     assert body["threat_intel"]["providers"] == [{"provider": "broken", "status": "unavailable"}]
 
 
-def test_threat_intel_not_configured_is_stated_honestly(api):
-    client, _ = api
+def test_threat_intel_not_configured_is_stated_honestly():
+    # Local feeds are on by default since the threat-intelligence phase; switch every source off.
+    client = make_app(THREAT_INTEL_LOCAL_FEEDS_ENABLED="false").test_client()
     _, body = post(client, "https://www.example.com/")
     assert body["threat_intel"]["checked"] is False
     assert "not enabled" in body["threat_intel"]["note"]

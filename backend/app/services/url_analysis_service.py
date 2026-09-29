@@ -246,11 +246,10 @@ class UrlAnalysisService:
             "threat_intel": {
                 "checked": ti_configured,
                 "providers": [r.to_public_dict() for r in analysis.ti_results],
-                "note": (
-                    "Not being listed in a threat database does not mean a link is safe."
-                    if ti_configured
-                    else "Threat-intelligence lookups are not enabled yet; this result is based "
-                    "on the link's structure only."
+                "note": self.threat_intel.note(
+                    analysis.ti_results,
+                    "Threat-intelligence lookups are not enabled; this result is based on the "
+                    "link's structure only.",
                 ),
             },
             "analysis": {
