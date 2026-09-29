@@ -1,0 +1,45 @@
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*service-account*.json
+firebase-adminsdk*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# Node / web
+node_modules/
+dist/
+build/
+*.log
+.vite/
+
+# Expo / mobile
+.expo/
+.expo-shared/
+android/
+ios/
+*.apk
+*.aab
+*.jks
+*.keystore
+
+# Firebase
+.firebase/
+firebase-debug.log
+firestore-debug.log
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
