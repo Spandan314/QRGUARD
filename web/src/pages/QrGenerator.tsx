@@ -1,4 +1,3 @@
-import QRCode from 'qrcode'
 import { useState, type FormEvent, type ReactNode } from 'react'
 import { buttonClass, inputClass } from '../components/CheckPage'
 import { buildPayload, PayloadError, type QrInput, type QrKind, type WifiSecurity } from '../utils/qrPayload'
@@ -41,6 +40,7 @@ export default function QrGenerator() {
     setGenerated(null)
     try {
       const payload = buildPayload(kind, input)
+      const { default: QRCode } = await import('qrcode') // loaded only when a code is made
       const options = { errorCorrectionLevel: 'M' as const, margin: 4, width: 512 }
       const [png, svg] = await Promise.all([
         QRCode.toDataURL(payload, options),

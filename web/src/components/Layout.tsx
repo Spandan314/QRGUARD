@@ -1,17 +1,25 @@
 import { NavLink, Outlet } from 'react-router'
+import { useAuth } from '../context/AuthContext'
 
 const LINKS = [
   { to: '/', label: 'Home', end: true },
   { to: '/check/url', label: 'Link' },
   { to: '/check/message', label: 'Message' },
   { to: '/check/screenshot', label: 'Screenshot' },
-  { to: '/check/qr', label: 'QR image' },
+  { to: '/check/qr', label: 'QR code' },
   { to: '/generate', label: 'Make a QR' },
   { to: '/tips', label: 'Safety tips' },
   { to: '/about', label: 'About' },
 ]
 
 export function Layout() {
+  const { client, user, profile } = useAuth()
+  const links = [
+    ...LINKS,
+    ...(user ? [{ to: '/history', label: 'History' }] : []),
+    ...(profile?.admin ? [{ to: '/admin', label: 'Admin' }] : []),
+    ...(client.mode !== 'off' ? [{ to: '/account', label: user ? 'Account' : 'Sign in' }] : []),
+  ]
   return (
     <div className="flex min-h-screen flex-col">
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:m-2 focus:rounded focus:bg-white focus:p-2">
@@ -25,11 +33,11 @@ export function Layout() {
           </NavLink>
           <nav aria-label="Main">
             <ul className="flex flex-wrap gap-1 text-sm">
-              {LINKS.map((link) => (
+              {links.map((link) => (
                 <li key={link.to}>
                   <NavLink
                     to={link.to}
-                    end={link.end ?? false}
+                    end={'end' in link ? link.end : false}
                     className={({ isActive }) =>
                       `inline-block min-h-11 rounded-lg px-3 py-2.5 ${
                         isActive
