@@ -336,31 +336,96 @@ text sent to `/api/analyze/message`):
   confidence), `none`.
 - `extracted_text` is returned **to the caller only**, so the user can see what was read. It is never
   logged or stored. At most 5000 characters are analysed (`OCR_TEXT_TRUNCATED` otherwise).
-- QR codes inside screenshots are not detected yet (QR phase).
+- QR codes inside screenshots are decoded as well (see `/api/analyze/qr` below).
 
-### `POST /api/analyze/qr`
+### `POST /api/analyze/qr` ✅ implemented
 Two accepted forms:
 
-1. JSON (camera scan, already decoded on device): `{ "content": "upi://pay?pa=abc@okaxis&pn=Shop&am=4999", "source": "camera", "save_to_history": true }` (`content` ≤ 4096 chars)
-2. Multipart: `file` = QR image (same limits as screenshot).
+1. JSON (camera scan, already decoded on the device):
+   `{ "content": "upi://pay?pa=abc@okaxis&pn=Shop", "source": "camera", "save_to_history": false }`
+   (`content` 1–4096 chars; `source` ∈ `camera | image`).
+2. `multipart/form-data`: `file` = an image containing one or more QR codes (same validation and
+   limits as `/api/analyze/screenshot`: PNG/JPEG/WEBP detected from content, ≤ 5 MB, ≤ 25 MP).
+   Decoded in memory with OpenCV; light-on-dark (inverted) codes are retried automatically.
 
-`details`:
-```json
-{ "decoded_content": "upi://pay?pa=abc@okaxis&pn=Shop&am=4999",
-  "content_type": "upi",
-  "parsed": { "payee_vpa": "abc@okaxis", "payee_name": "Shop", "amount": "4999", "currency": "INR", "note": null },
-  "url_analysis": null }
-```
-`content_type` ∈ `url | upi | wifi | email | phone | sms | geo | vcard | text | other`.
+What happens to the decoded content (nothing is ever opened, dialled, paid or connected to):
 
-### `POST /api/generate/qr`
-Utility only. It is **not** logged and **not** stored. Clients normally generate locally.
+| `content_type` | Example | Analysed by |
+|---|---|---|
+| `url` | `https://…`, `www.…` | **the URL analyzer** (same result as `/api/analyze/url`, incl. SSRF-safe redirect checks and TI) |
+| `dangerous` | `javascript:`, `data:`, `intent:` … | the URL analyzer (`URL_DANGEROUS_SCHEME`, floor 80) |
+| `upi` | `upi://pay?pa=…&pn=…&am=…` | UPI checks: `QR_UPI_MALFORMED`, `QR_UPI_PREFILLED_AMOUNT`, `QR_UPI_NAME_MISMATCH`, `QR_UPI_PRETEXT` |
+| `wifi` | `WIFI:T:WPA;S:…;P:…;;` | `QR_WIFI_OPEN`, `QR_WIFI_WEAK_SECURITY` (WEP). The password is **never** returned |
+| `text`, `vcard`, `sms` body, `email` body | free text | **the scam-message rules** (same as `/api/analyze/message`) |
+| `phone`, `email`, `geo`, `app_link` | `tel:`, `mailto:`, `geo:`, `market:`… | informational indicators (`QR_APP_LINK` +10) |
+
+QR payload indicators have `source: "qr"` (URL findings keep `source: "link"`). Several codes in one
+image: each is analysed and **the riskiest one decides**; all are listed in `analysis.qr_codes`.
+
+| Status | `code` | When |
+|---|---|---|
+| 200 | | Analysis result (common result object, `input_type: "qr"`) |
+| 400 | `VALIDATION_ERROR`, `MISSING_FILE`, `EMPTY_FILE` | Empty/too long content, unknown `source`, no file |
+| 413 / 415 / 422 | as for screenshots | Upload too large / not an image / corrupt image |
+| 422 | `NO_QR_FOUND` | No QR code could be read from the image |
+| 429 | `RATE_LIMITED` | Analysis rate limit |
+
+Real output for `upi://pay?pa=refund.desk9912@okdemo&pn=SBI%20Refund%20Desk&am=4999&tn=Refund`
+(40 SUSPICIOUS: a payment request dressed up as a bank refund; on its own a QR code cannot prove
+fraud, so it is not MALICIOUS; see risk-scoring §13):
+
 ```json
-{ "type": "wifi", "data": { "ssid": "HomeNet", "password": "…", "security": "WPA" }, "format": "png", "size": 512 }
+{
+  "input_type": "qr", "risk_score": 40, "risk_level": "SUSPICIOUS",
+  "verification": { "status": "UNVERIFIED", "source": null,
+    "message": "There is insufficient evidence to establish trust. A SAFE result does not guarantee that the QR code is safe." },
+  "categories": [ { "id": "upi_scam", "label": "UPI scam" }, { "id": "impersonation", "label": "Impersonation scam" } ],
+  "indicators": [ "QR_UPI_NAME_MISMATCH (+15)", "QR_UPI_PRETEXT (+15)", "QR_UPI_PREFILLED_AMOUNT (+10)", "QR_UPI_PAYMENT (0)" ],
+  "analysis": {
+    "qr": {
+      "source": "camera", "codes_found": 1, "content_type": "upi",
+      "decoded_content": "upi://pay?pa=refund.desk9912@okdemo&pn=SBI%20Refund%20Desk&am=4999&tn=Refund",
+      "parsed": { "action": "pay", "payee_vpa": "refund.desk9912@okdemo", "payee_name": "SBI Refund Desk",
+                  "amount": "4999", "currency": "INR", "note": "Refund", "merchant_code": null,
+                  "valid_vpa": true, "valid_amount": true }
+    }
+  }
+}
 ```
-`type` ∈ `text | url | wifi | email | phone`. Response:
-`{ "payload": "WIFI:T:WPA;S:HomeNet;P:…;;", "mime": "image/png", "image_base64": "iVBOR…" }`.
-Special characters (`\ ; , : "`) in Wi-Fi fields are escaped as the Wi-Fi QR format requires.
+(`indicators` abbreviated; each is a full indicator object with `source: "qr"`.)
+
+- For Wi-Fi codes `decoded_content` shows `P:***` and `parsed` has only `ssid`, `security`,
+  `hidden`, `has_password`.
+- Image uploads add `analysis.image` (format, size) and, with several codes, `analysis.qr_codes`
+  (`index`, `content_type`, `decoded_content`, `risk_score`, `risk_level`, `scored`).
+
+**QR codes inside screenshots** (`/api/analyze/screenshot`) are decoded too and listed in
+`analysis.qr_codes` with `used_as`: a link QR is analysed as one of the screenshot's links
+(`found_in: "qr"`); the first UPI QR adds its UPI indicators, and a UPI QR next to "receive money /
+prize / refund" text adds `QR_UPI_RECEIVE_CONTEXT` (+30, floor 60), because **scanning a UPI QR
+always sends money, it never receives it**. A screenshot with a QR code but no text is analysed as a
+QR code.
+
+### `POST /api/generate/qr` ✅ implemented
+Utility only, separate from analysis. Payloads are **not** logged and **not** stored. The apps can
+also generate codes locally.
+```json
+{ "type": "wifi", "data": { "ssid": "HomeNet", "password": "correcthorse1", "security": "WPA2" }, "format": "png", "size": 512 }
+```
+
+| `type` | `data` fields |
+|---|---|
+| `text` | `text` (1–1000 chars) |
+| `url` | `url` (complete `http://` or `https://` address; other schemes rejected) |
+| `wifi` | `ssid` (1–32), `password` (WPA/WPA3: 8–63), `security` (`WPA`, `WPA2`, `WPA3`, `WEP`, `nopass`), `hidden` (`"true"`/`"false"`) |
+| `email` | `to`, optional `subject` (≤ 200), `body` (≤ 1000) |
+| `phone` | `number` (digits, spaces, `+`, `-`, brackets) |
+
+`format` ∈ `png | svg`. Real response (image shortened):
+`{ "request_id": "…", "type": "wifi", "payload": "WIFI:T:WPA;S:HomeNet;P:***;;", "format": "png", "mime": "image/png", "image_base64": "iVBORw0KGgoA…" }`.
+SVG responses carry `svg` instead of `image_base64`. Special characters (`\ ; , : "`) in Wi-Fi fields
+are escaped as the Wi-Fi QR format requires; the password appears only inside the image, never in
+`payload`. Unknown fields or invalid values → `400 VALIDATION_ERROR`. Limit: 30/min.
 
 ### `GET /api/history?limit=20&cursor=<scanId>` (auth)
 ```json
