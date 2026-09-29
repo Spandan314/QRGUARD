@@ -1,4 +1,5 @@
 import { CameraView, useCameraPermissions, type BarcodeScanningResult } from 'expo-camera'
+import { SaveToHistory, useSaveOption } from '../../components/SaveToHistory'
 import { useFocusEffect } from 'expo-router'
 import { useCallback, useRef, useState } from 'react'
 import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
@@ -13,6 +14,7 @@ import { api } from '../../services/api'
 export default function CameraScan() {
   const [permission, requestPermission] = useCameraPermissions()
   const { loading, error, run } = useAnalysis(api.analyzeQrContent)
+  const saveOption = useSaveOption()
   const scanned = useRef(false)
   const [paused, setPaused] = useState(false)
 
@@ -29,14 +31,14 @@ export default function CameraScan() {
       if (scanned.current || !event.data) return
       scanned.current = true // debounce: the camera reports the same code many times per second
       setPaused(true)
-      void run(event.data.slice(0, 4096)).then((ok) => {
+      void run(event.data.slice(0, 4096), { save: saveOption.save }).then((ok) => {
         if (!ok) {
           scanned.current = false
           setPaused(false)
         }
       })
     },
-    [run],
+    [run, saveOption.save],
   )
 
   if (!permission) return <ActivityIndicator style={{ marginTop: 40 }} />
@@ -62,6 +64,7 @@ export default function CameraScan() {
       <View style={styles.overlay} pointerEvents="box-none">
         <View style={styles.frame} />
         <Card>
+          <SaveToHistory option={saveOption} />
           {loading ? (
             <Text style={ui.body}>Checking the QR code…</Text>
           ) : (

@@ -5,6 +5,7 @@ import type { AnalysisResult } from '../types/api'
 import { CONFIDENCE_TEXT, PROVIDER_NAME, TI_STATUS_TEXT } from '../utils/format'
 import { IndicatorList } from './IndicatorList'
 import { OpenLinkGuard } from './OpenLinkGuard'
+import { ReportForm } from './ReportForm'
 import { RiskBadge } from './RiskBadge'
 import { ScoreGauge } from './ScoreGauge'
 import { Card, styles as ui } from './ui'
@@ -134,12 +135,28 @@ export function ResultView({ result }: { result: AnalysisResult }) {
         <Text style={ui.small}>{result.threat_intel.note}</Text>
       </Section>
 
+      {result.history ? (
+        <Text style={ui.small} testID="history-notice">
+          {result.history.saved
+            ? '💾 Saved to your history (verdict only).'
+            : (HISTORY_REASON[result.history.reason ?? ''] ?? 'Not saved.')}
+        </Text>
+      ) : null}
+      <ReportForm scanId={result.history?.scan_id} />
+
       <Text style={[ui.small, { textAlign: 'center' }]}>
         {result.disclaimer}
         {'\n'}Request ID: {result.request_id}
       </Text>
     </View>
   )
+}
+
+const HISTORY_REASON: Record<string, string> = {
+  sign_in_required: 'Not saved: sign in to keep a history.',
+  history_disabled: 'Not saved: saving is switched off in your account.',
+  history_unavailable: 'Not saved: history is not available on this server.',
+  history_error: 'Not saved: history is temporarily unavailable. Your result is still valid.',
 }
 
 const styles = StyleSheet.create({

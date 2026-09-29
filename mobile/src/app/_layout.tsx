@@ -2,11 +2,13 @@ import { Stack } from 'expo-router'
 import { StatusBar } from 'expo-status-bar'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import { colors } from '../constants/theme'
+import { AuthProvider } from '../context/AuthContext'
 import { ResultProvider } from '../context/ResultContext'
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
+      <AuthProvider>
       <ResultProvider>
         <StatusBar style="auto" />
         <Stack
@@ -26,6 +28,7 @@ export default function RootLayout() {
           <Stack.Screen name="result" options={{ title: 'Result' }} />
         </Stack>
       </ResultProvider>
+      </AuthProvider>
     </SafeAreaProvider>
   )
 }
