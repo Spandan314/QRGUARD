@@ -47,7 +47,7 @@ MODULES = ("url_qr", "threat_intel", "message", "ocr")
 FALLBACK_CATEGORY = "social_engineering_other"
 
 # Where each piece of evidence came from, as shown in the API ("source" of an indicator).
-EVIDENCE_SOURCES = ("message", "link", "threat_intelligence", "combination", "ocr")
+EVIDENCE_SOURCES = ("message", "link", "qr", "threat_intelligence", "combination", "ocr")
 
 VERIFICATION_MESSAGES = {
     SOURCE_THREAT_INTEL: "A threat-intelligence source lists this as known malicious.",
@@ -95,9 +95,11 @@ def threat_intel_indicators(results: list[ProviderResult]) -> list[Indicator]:
 
 
 def evidence_source(definition: IndicatorDefinition) -> str:
-    """message / link / threat_intelligence / combination / ocr."""
+    """message / link / qr / threat_intelligence / combination / ocr."""
     if definition.category == "combination":
         return "combination"
+    if definition.category == "qr_payload":  # UPI, Wi-Fi, phone... read from a QR code
+        return "qr"
     return {"url_qr": "link", "threat_intel": "threat_intelligence"}.get(
         definition.module, definition.module
     )

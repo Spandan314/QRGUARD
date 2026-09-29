@@ -47,6 +47,7 @@ category_caps:
   style: 10
   combination: 40
   ocr_quality: 0      # OCR indicators are informational only: OCR never adds risk points
+  qr_payload: 40
 
 # Severity shown to users is derived from the weight (a floor always means "critical").
 severity_bands:   # minimum weight for each severity; weight <= 0 is "info"
@@ -622,3 +623,89 @@ indicators:
     weight: 0
     title: Only part of the text was analysed
     message: The screenshot contained more text than QRGUARD analyses at once; only the first part was checked.
+
+  # ---- QR payloads other than web links (module: url_qr). Web links in QR codes use the URL
+  # indicators above; text in QR codes uses the message rules. -------------------------------
+  QR_UPI_PAYMENT:
+    module: url_qr
+    category: qr_payload
+    weight: 0
+    title: This QR code makes a UPI payment
+    message: Scanning this QR code and entering your UPI PIN SENDS money from your account. You never need to scan a QR code or enter your PIN to RECEIVE money.
+  QR_UPI_MALFORMED:
+    module: url_qr
+    category: qr_payload
+    weight: 15
+    scam_categories: [upi_scam]
+    title: Malformed UPI payment request
+    message: The UPI payment details in this QR code are incomplete or invalid, which genuine payment QR codes from banks and apps do not produce.
+  QR_UPI_PREFILLED_AMOUNT:
+    module: url_qr
+    category: qr_payload
+    weight: 10
+    title: Amount is already filled in
+    message: The QR code already contains an amount to pay. That is normal for a bill you are paying, but not if someone claims they are sending you money.
+  QR_UPI_NAME_MISMATCH:
+    module: url_qr
+    category: qr_payload
+    weight: 15
+    scam_categories: [upi_scam, impersonation]
+    title: Payee name claims to be a bank or authority
+    message: The payee name mentions a bank, brand or authority, but the UPI ID it pays to does not belong to them.
+  QR_UPI_PRETEXT:
+    module: url_qr
+    category: qr_payload
+    weight: 15
+    scam_categories: [upi_scam]
+    title: Payment note uses a scam excuse
+    message: The payee name or payment note mentions a refund, prize, cashback, KYC or similar. Scammers use these to make a payment look like you are receiving money.
+  QR_UPI_RECEIVE_CONTEXT:
+    module: url_qr
+    category: qr_payload
+    weight: 30
+    floor: 60
+    scam_categories: [upi_scam]
+    title: UPI payment QR presented as a way to receive money
+    message: A UPI payment QR code is shown together with a promise of a refund, prize or money to receive. Scanning a UPI QR code only SENDS money, so this is a scam pattern.
+  QR_WIFI_OPEN:
+    module: url_qr
+    category: qr_payload
+    weight: 0
+    title: Joins an open Wi-Fi network
+    message: This QR code connects to a Wi-Fi network without a password. Others on an open network may be able to see unencrypted traffic.
+  QR_WIFI_WEAK_SECURITY:
+    module: url_qr
+    category: qr_payload
+    weight: 5
+    title: Wi-Fi uses outdated WEP security
+    message: This Wi-Fi network uses WEP, an outdated and easily broken security method.
+  QR_PHONE_NUMBER:
+    module: url_qr
+    category: qr_payload
+    weight: 0
+    title: Calls or messages a phone number
+    message: This QR code starts a call or message to a phone number. Check the number is genuine before calling.
+  QR_SMS_PREFILLED:
+    module: url_qr
+    category: qr_payload
+    weight: 10
+    title: Sends a pre-written SMS
+    message: This QR code prepares an SMS with text already filled in. Sending messages to unknown numbers can subscribe you to paid services or confirm you are a target.
+  QR_EMAIL:
+    module: url_qr
+    category: qr_payload
+    weight: 0
+    title: Writes an e-mail
+    message: This QR code prepares an e-mail to an address.
+  QR_GEO_LOCATION:
+    module: url_qr
+    category: qr_payload
+    weight: 0
+    title: Shows a map location
+    message: This QR code contains map coordinates.
+  QR_APP_LINK:
+    module: url_qr
+    category: qr_payload
+    weight: 10
+    title: Opens an app directly
+    message: This QR code opens an app directly instead of a web page. Make sure you trust the source before allowing it.

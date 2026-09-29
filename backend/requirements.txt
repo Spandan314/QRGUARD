@@ -16,3 +16,8 @@ certifi==2026.7.22        # CA certificates for TLS verification
 
 # Screenshot analysis (Tesseract itself is a system program: apt install tesseract-ocr)
 Pillow==12.3.0            # image validation and OCR preprocessing
+
+# QR codes
+opencv-python-headless==5.0.0.93  # QR detection/decoding (headless: no GUI libraries)
+numpy==2.4.6              # required by OpenCV
+qrcode==8.2               # QR generation (PNG via Pillow, SVG)
