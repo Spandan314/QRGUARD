@@ -103,8 +103,12 @@ export class FirebaseAuthClient implements AuthClient {
 
   private load() {
     this.loaded ??= (async () => {
-      const { initializeApp } = await import('firebase/app')
-      const sdk = await import('firebase/auth')
+      // Loaded only when Firebase sign-in is used. require() (not import()) because Metro bundles
+      // both the same way and Jest cannot run import() without experimental VM modules.
+      /* eslint-disable @typescript-eslint/no-require-imports */
+      const { initializeApp } = require('firebase/app') as typeof import('firebase/app')
+      const sdk = require('firebase/auth') as FirebaseAuthModule
+      /* eslint-enable @typescript-eslint/no-require-imports */
       const app = initializeApp({
         apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
         authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
