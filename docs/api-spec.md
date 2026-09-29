@@ -19,6 +19,11 @@ The example below is a real response for `http://sbi.co.in.kyc-verify.xyz/login`
   "risk_score": 73,
   "risk_level": "MALICIOUS",
   "confidence": "HIGH",
+  "verification": {
+    "status": "UNVERIFIED",
+    "source": null,
+    "message": "There is insufficient evidence to establish trust. A SAFE result does not guarantee that the website is safe."
+  },
   "summary": "Strong warning signs: this link is very likely malicious.",
   "categories": [
     { "id": "phishing", "label": "Phishing" },
@@ -63,7 +68,10 @@ The example below is a real response for `http://sbi.co.in.kyc-verify.xyz/login`
 
 | Field | Meaning |
 |---|---|
-| `risk_level` | `SAFE` · `UNVERIFIED` · `SUSPICIOUS` · `MALICIOUS` (see below) |
+| `risk_level` | `SAFE` · `SUSPICIOUS` · `MALICIOUS`, from the score only (see below) |
+| `verification.status` | `VERIFIED` · `UNVERIFIED`. Never changes the score or level. |
+| `verification.source` | `trusted_domain_list` · `threat_intelligence` · `null` |
+| `verification.message` | Plain-language explanation of the verification status |
 | `confidence` | `LOW` · `MEDIUM` · `HIGH`: how much evidence the verdict rests on |
 | `categories` | Scam categories (multi-label). Only for SUSPICIOUS/MALICIOUS. **They never add points.** |
 | `indicators[].severity` | `info` · `low` · `medium` · `high` · `critical` (derived from weight; any floor = critical) |
@@ -73,16 +81,37 @@ The example below is a real response for `http://sbi.co.in.kyc-verify.xyz/login`
 | `score_breakdown.floor_applied` | `{indicator, minimum_score, points_added}` when a critical finding raised the score |
 | `threat_intel.providers[].status` | `listed` · `partial` · `not_listed` · `unavailable` · `disabled` · `error` |
 
-### Risk levels
+### Risk levels and verification
 
 | Level | Score | Meaning |
 |---|---|---|
-| **MALICIOUS** | 60–100 | Strong or decisive evidence of harm (for example a known-malicious listing, a look-alike bank domain, or several independent warning signs). |
+| **SAFE** | 0–29 | No significant suspicious indicators detected. **Not a guarantee of safety.** |
 | **SUSPICIOUS** | 30–59 | Several warning signs; the link should not be trusted. |
-| **UNVERIFIED** | 0–29 | No strong warning signs were found, **but nothing positively verified the link either**. This is the normal result for an unknown website. |
-| **SAFE** | 0–29 | Low score **and** positively verified: the destination is on the curated trusted list, and no medium-or-worse warning sign was found. |
+| **MALICIOUS** | 60–100 | Strong or decisive evidence of harm. |
 
-A low score alone never produces SAFE.
+| `verification` | Meaning |
+|---|---|
+| `{"status": "VERIFIED", "source": "trusted_domain_list"}` | Domain on the curated trusted list and no medium-or-worse finding |
+| `{"status": "VERIFIED", "source": "threat_intelligence"}` | A threat-intelligence provider lists the input as malicious |
+| `{"status": "UNVERIFIED", "source": null}` | Insufficient evidence to establish trust. **SAFE + UNVERIFIED is valid** and must be shown to users as "not guaranteed safe". |
+
+"Not found in a threat database" never produces VERIFIED.
+
+Examples (real output):
+
+```json
+{ "risk_score": 0, "risk_level": "SAFE", "confidence": "MEDIUM",
+  "verification": { "status": "VERIFIED", "source": "trusted_domain_list",
+                    "message": "The domain is on QRGUARD's list of recognised legitimate websites." } }
+
+{ "risk_score": 0, "risk_level": "SAFE", "confidence": "LOW",
+  "verification": { "status": "UNVERIFIED", "source": null,
+                    "message": "There is insufficient evidence to establish trust. A SAFE result does not guarantee that the website is safe." } }
+
+{ "risk_score": 90, "risk_level": "MALICIOUS", "confidence": "HIGH",
+  "verification": { "status": "VERIFIED", "source": "threat_intelligence",
+                    "message": "A threat-intelligence source lists this as known malicious." } }
+```
 
 ## 2. Common error object
 

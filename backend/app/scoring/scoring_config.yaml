@@ -9,11 +9,13 @@
 #   3. Module scores (0-100) are combined with `module_weights`, averaged ONLY over modules
 #      that apply to this input.
 #   4. A `floor` on a critical indicator guarantees a minimum final score.
-#   5. The final score is mapped to a level with `thresholds` + the `verification` rule.
+#   5. The final score is mapped to a level with `thresholds` (score only).
+#   6. `verification` is reported separately and NEVER changes the score or level.
 
 version: 2
 
-# Score bands. SAFE additionally requires positive verification (see `verification`).
+# Score bands (the ONLY input to risk_level).
+# SAFE means "no significant suspicious indicators detected", not "guaranteed safe".
 thresholds:
   suspicious: 30   # score >= 30 -> SUSPICIOUS
   malicious: 60    # score >= 60 -> MALICIOUS
@@ -41,11 +43,16 @@ severity_bands:   # minimum weight for each severity; weight <= 0 is "info"
   high: 20
   critical: 40
 
-# SAFE is only shown when the result is positively verified. Otherwise a low score is
-# reported as UNVERIFIED ("no warning signs found, but not verified safe").
+# Verification: is there supporting evidence from a trusted source? Reported next to the
+# risk level; it does not change the score. "Not found in a threat database" never verifies.
+#   VERIFIED / threat_intelligence : a provider lists the input as malicious
+#   VERIFIED / trusted_domain_list : destination on the curated trusted list and no finding
+#                                    of `trusted_blocked_by_severity` or worse
+#   UNVERIFIED / null              : insufficient evidence to establish trust
 verification:
-  safe_requires_indicator: TRUSTED_DOMAIN   # destination is on a curated trusted list
-  blocked_by_severity: medium               # any finding this severe or worse prevents SAFE
+  threat_intel_indicator: TI_LISTED
+  trusted_domain_indicator: TRUSTED_DOMAIN
+  trusted_blocked_by_severity: medium
 
 # Labels for scam categories (multi-label). Categories EXPLAIN a result; they never add points.
 scam_categories:

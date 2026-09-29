@@ -11,19 +11,21 @@ recommended safe action.
 ## Project status
 
 **Phase 3: URL analysis + risk-scoring engine implemented.** `POST /api/analyze/url` is live and
-tested (263 automated tests, Postman collection). See [backend/README.md](backend/README.md).
+tested (266 automated tests, Postman collection). See [backend/README.md](backend/README.md).
 
-### Risk levels
+### Risk levels and verification
 
 | Level | Meaning |
 |---|---|
-| ⛔ **MALICIOUS** (60–100) | Strong or decisive evidence of harm |
+| ✅ **SAFE** (0–29) | No significant suspicious indicators detected. **Not a guarantee.** |
 | ⚠️ **SUSPICIOUS** (30–59) | Several warning signs |
-| ❔ **UNVERIFIED** (0–29) | No strong warning signs, but the link could **not be verified as safe** |
-| ✅ **SAFE** (0–29) | Low score **and** a recognised domain with no medium-or-worse warning sign |
+| ⛔ **MALICIOUS** (60–100) | Strong or decisive evidence of harm |
 
-QRGUARD never calls a link SAFE just because nothing suspicious was found, and it never treats
-"not found in a threat database" as proof of safety.
+Each result also has a separate `verification` field. It is **VERIFIED** only when a trusted
+source supports it (the curated trusted-domain list, or a threat-intelligence listing), and
+**UNVERIFIED** otherwise. SAFE + UNVERIFIED is a normal result and is shown as "not guaranteed
+safe". Verification never changes the score. "Not found in a threat database" never counts as
+verification.
 
 | Phase | Scope | Status |
 |---|---|---|

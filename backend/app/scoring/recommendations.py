@@ -2,13 +2,23 @@
 
 from __future__ import annotations
 
-from app.scoring.engine import MALICIOUS, SAFE, SUSPICIOUS, UNVERIFIED
+from app.scoring.engine import MALICIOUS, SAFE, SUSPICIOUS, VERIFIED
+
+# SAFE is split by verification status so users never read SAFE as "guaranteed safe".
+SAFE_VERIFIED = "SAFE_VERIFIED"
+SAFE_UNVERIFIED = "SAFE_UNVERIFIED"
 
 SUMMARIES = {
     MALICIOUS: "Strong warning signs: this link is very likely malicious.",
     SUSPICIOUS: "Several warning signs were found. Treat this link as suspicious.",
-    UNVERIFIED: "No strong warning signs were found, but this link could not be verified as safe.",
-    SAFE: "This link belongs to a recognised domain and no warning signs were found.",
+    SAFE_VERIFIED: (
+        "No significant suspicious indicators detected, and the domain is on QRGUARD's list of "
+        "recognised websites."
+    ),
+    SAFE_UNVERIFIED: (
+        "No significant suspicious indicators detected. The link could not be verified, so "
+        "this does not guarantee that the website is safe."
+    ),
 }
 
 RECOMMENDATIONS = {
@@ -20,11 +30,11 @@ RECOMMENDATIONS = {
         "Avoid opening this link. If you need the service, open the official app or type the "
         "official website address yourself instead of using this link."
     ),
-    UNVERIFIED: (
+    SAFE_UNVERIFIED: (
         "Open it only if you trust the sender and expected this link. Never enter OTPs, PINs, "
         "passwords or card details on a page reached from a link you received."
     ),
-    SAFE: (
+    SAFE_VERIFIED: (
         "No major risks detected. Automated checks can still miss new threats, so stay "
         "cautious before sharing personal or payment details."
     ),
@@ -58,13 +68,20 @@ REPORTING_ADVICE = "In India, report financial fraud at 1930 or https://cybercri
 DISCLAIMER = "This is an automated security assessment, not a guarantee."
 
 
-def summary_for(level: str) -> str:
-    return SUMMARIES[level]
-
-
-def recommendation_for(level: str, indicator_ids: set[str]) -> str:
-    parts = [RECOMMENDATIONS[level]]
+def _key(level: str, verification_status: str) -> str:
     if level != SAFE:
+        return level
+    return SAFE_VERIFIED if verification_status == VERIFIED else SAFE_UNVERIFIED
+
+
+def summary_for(level: str, verification_status: str) -> str:
+    return SUMMARIES[_key(level, verification_status)]
+
+
+def recommendation_for(level: str, verification_status: str, indicator_ids: set[str]) -> str:
+    key = _key(level, verification_status)
+    parts = [RECOMMENDATIONS[key]]
+    if key != SAFE_VERIFIED:
         for ids, advice in EXTRA_ADVICE:
             if ids & indicator_ids:
                 parts.append(advice)

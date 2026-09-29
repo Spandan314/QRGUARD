@@ -15,9 +15,10 @@
 2. **Configurable:** analyzers emit only indicator IDs and never points. All numbers are in one YAML
    file, which is validated at startup.
 3. **Robust to keyword stuffing:** per-category caps stop a single kind of evidence from dominating.
-4. **Honest:** a low score is **not** automatically "SAFE" (see the UNVERIFIED level), absence
-   from a threat database is not evidence of safety, and confidence drops when checks could not be
-   completed.
+4. **Honest:** SAFE means "no significant suspicious indicators detected", never "guaranteed
+   safe". Whether a result is backed by a trusted source is reported separately in `verification`.
+   Absence from a threat database is not evidence of safety, and confidence drops when checks could
+   not be completed.
 5. **Scam categories never add points:** they label the result. The score comes from the indicators.
 
 ## 2. The Indicator contract
@@ -176,31 +177,68 @@ so the contributions add up to `weighted_score` (± rounding). A floor is report
 
 | Input | Indicators (points) | Calculation | Result |
 |---|---|---|---|
-| `https://en.wikipedia.org/wiki/QR_code` | TRUSTED_DOMAIN (−20) | url_qr = clamp(−20) = 0 → 0 | **0, SAFE** (verified) |
-| `https://www.example.com/` | none | 0 | **0, UNVERIFIED** (not verified) |
+| `https://en.wikipedia.org/wiki/QR_code` | TRUSTED_DOMAIN (−20) | url_qr = clamp(−20) = 0 → 0 | **0, SAFE**, VERIFIED (trusted_domain_list) |
+| `https://www.example.com/` | none | 0 | **0, SAFE**, UNVERIFIED |
 | `http://8.8.8.8/secure/login` | IP 25, http 8, keywords secure+login 10 | 43 | **43, SUSPICIOUS** |
 | `https://hdfcbnak.com/netbanking` | BRAND_LOOKALIKE 40, keyword 5 | 45 → floor 60 | **60, MALICIOUS** |
 | `http://sbi.co.in.kyc-verify.xyz/login` | official-in-subdomain 40, .xyz 10, http 8, 3 keywords 15 | 73 (floor 60 not needed) | **73, MALICIOUS** |
-| `https://www.example.com/login` + TI `listed` | TI_LISTED 100 (threat_intel), keyword 5 (url_qr) | (0.35×5 + 0.30×100)/0.65 = 48.8 → floor 90 | **90, MALICIOUS** |
+| `https://www.example.com/login` + TI `listed` | TI_LISTED 100 (threat_intel), keyword 5 (url_qr) | (0.35×5 + 0.30×100)/0.65 = 48.8 → floor 90 | **90, MALICIOUS**, VERIFIED (threat_intelligence) |
 | `http://8.8.8.8/` + TI `partial` | IP 25, http 8; TI_PARTIAL 50 | (0.35×33 + 0.30×50)/0.65 = 40.8 | **41, SUSPICIOUS** |
 | Same URL + TI `not_listed` | IP 25, http 8 | TI not applicable → 33 | **33, SUSPICIOUS** (unchanged) |
 
-## 5. Risk levels: SAFE vs UNVERIFIED vs SUSPICIOUS vs MALICIOUS
+## 5. Risk levels and verification
 
-| Level | Score | Meaning | Default wording |
-|---|---|---|---|
-| **MALICIOUS** | ≥ 60 | Strong or decisive evidence of harm | "Strong warning signs: this link is very likely malicious." |
-| **SUSPICIOUS** | 30–59 | Several warning signs; do not trust | "Several warning signs were found." |
-| **UNVERIFIED** | < 30 | No strong warning signs, **but not verified safe**. The normal result for an unknown site. | "No strong warning signs were found, but this link could not be verified as safe." |
-| **SAFE** | < 30 **and verified** | The destination is on the curated trusted list (`trusted_domains` + brand official domains), and there is **no medium-or-worse** finding | "This link belongs to a recognised domain and no warning signs were found." |
+### 5.1 Three risk levels (from the score only)
 
-**QRGUARD never labels a URL SAFE just because no suspicious indicator was found.** The rule is
-configured in `verification:` (`safe_requires_indicator: TRUSTED_DOMAIN`,
-`blocked_by_severity: medium`). A clean threat-intelligence lookup does not make a link SAFE
-either. It only raises confidence, because a blacklist cannot prove a link is safe.
+| Level | Score | Meaning |
+|---|---|---|
+| **SAFE** | 0–29 | **No significant suspicious indicators detected.** This is *not* a guarantee of safety. |
+| **SUSPICIOUS** | 30–59 | Several warning signs; do not trust. |
+| **MALICIOUS** | 60–100 | Strong or decisive evidence of harm. |
 
-After a redirect to another site, trust is judged on the **final destination**: `bit.ly` →
-`wikipedia.org` keeps `URL_SHORTENER` (medium), so the result is UNVERIFIED rather than SAFE.
+Thresholds come from `thresholds:` in `scoring_config.yaml`. The level depends on the score
+**only**.
+
+### 5.2 Verification (separate field, never changes the score)
+
+```json
+"verification": { "status": "VERIFIED" | "UNVERIFIED",
+                  "source": "trusted_domain_list" | "threat_intelligence" | null,
+                  "message": "…" }
+```
+
+| Status / source | When | Meaning |
+|---|---|---|
+| VERIFIED / `threat_intelligence` | `TI_LISTED` present | A threat-intelligence source confirms the input is known malicious |
+| VERIFIED / `trusted_domain_list` | `TRUSTED_DOMAIN` present **and** no finding of `medium` severity or worse | The domain is on the curated trusted list (`trusted_domains` + brand official domains) |
+| UNVERIFIED / `null` | otherwise | Insufficient evidence to establish trust |
+
+Rules (configured in `verification:`):
+- "Not found in a threat database" (`not_listed`) **never** verifies anything.
+- `partial` threat-intel results do not verify either; they add points but are not a confirmation.
+- After a redirect, trust is judged on the **final destination**. For `bit.ly` → `wikipedia.org`,
+  the shortener is a medium finding, so the result is SAFE + UNVERIFIED.
+- Verification affects the wording and the confidence, never `risk_score` or `risk_level`.
+
+### 5.3 How the combinations are communicated
+
+| Result | Summary shown to the user |
+|---|---|
+| SAFE + VERIFIED | "No significant suspicious indicators detected, and the domain is on QRGUARD's list of recognised websites." |
+| SAFE + UNVERIFIED | "No significant suspicious indicators detected. The link could not be verified, so this does not guarantee that the website is safe." |
+| SUSPICIOUS (any) | "Several warning signs were found. Treat this link as suspicious." |
+| MALICIOUS + VERIFIED (threat_intelligence) | "Strong warning signs…" plus verification message "A threat-intelligence source lists this as known malicious." |
+
+Suggested UI:
+
+```
+✅ SAFE                         Risk Score: 0/100
+No significant suspicious indicators detected.
+Verification: UNVERIFIED — this does NOT guarantee that the website is safe.
+
+⛔ MALICIOUS                    Risk Score: 90/100
+Verification: THREAT INTELLIGENCE — known malicious indicator detected.
+```
 
 ## 6. Scam categories (multi-label, never scored)
 
@@ -230,8 +268,8 @@ level is SUSPICIOUS or MALICIOUS**. A lone weak signal therefore never gets a sc
 | Confidence | Rule (first match wins) |
 |---|---|
 | HIGH | `TI_LISTED` present; **or** a floor was applied; **or** MALICIOUS with ≥ 3 different positive categories |
-| LOW | Some check could not be completed (redirect timeout, DNS failure, TLS/connection error); **or** UNVERIFIED with no definitive threat-intel answer |
-| MEDIUM | everything else (e.g. SAFE from the trusted list, or UNVERIFIED after a clean TI lookup) |
+| LOW | Some check could not be completed (redirect timeout, DNS failure, TLS/connection error); **or** SAFE + UNVERIFIED with no definitive threat-intel answer |
+| MEDIUM | everything else (e.g. SAFE + VERIFIED by the trusted list, or SAFE + UNVERIFIED after a clean TI lookup) |
 
 ## 8. Recommended action
 
@@ -239,8 +277,8 @@ level is SUSPICIOUS or MALICIOUS**. A lone weak signal therefore never gets a sc
 
 - a base text per level (MALICIOUS: do not open, do not enter OTP/PIN/payment details, contact your
   bank if you already did; SUSPICIOUS: use the official app or type the address yourself;
-  UNVERIFIED: only if you trust the sender, never enter OTPs/PINs from a received link; SAFE: stay
-  cautious),
+  SAFE + UNVERIFIED: only if you trust the sender, never enter OTPs/PINs from a received link;
+  SAFE + VERIFIED: stay cautious),
 - one piece of extra advice for the strongest evidence type (brand impersonation, app download,
   hidden destination),
 - for SUSPICIOUS/MALICIOUS: *"In India, report financial fraud at 1930 or https://cybercrime.gov.in."*
@@ -262,10 +300,12 @@ flowchart TD
   K -- yes --> M[MALICIOUS]
   K -- no --> L{final >= 30?}
   L -- yes --> S[SUSPICIOUS]
-  L -- no --> V{Trusted domain AND no medium+ finding?}
-  V -- yes --> SA[SAFE]
-  V -- no --> UV[UNVERIFIED]
-  M & S & SA & UV --> CF[Confidence + categories + recommendation]
+  L -- no --> SA[SAFE]
+  M & S & SA --> VF{TI_LISTED? / trusted domain and no medium+ finding?}
+  VF -- TI_LISTED --> V1[VERIFIED: threat_intelligence]
+  VF -- trusted --> V2[VERIFIED: trusted_domain_list]
+  VF -- neither --> V3[UNVERIFIED]
+  V1 & V2 & V3 --> CF[Confidence + categories + recommendation<br/>verification never changes the score]
   CF --> OUT[Response: indicators with score_contribution + score_breakdown]
 ```
 

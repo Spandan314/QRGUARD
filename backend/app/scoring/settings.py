@@ -72,8 +72,9 @@ class SeverityBands(_Strict):
 
 
 class Verification(_Strict):
-    safe_requires_indicator: str
-    blocked_by_severity: Severity
+    threat_intel_indicator: str  # VERIFIED (source threat_intelligence) when present
+    trusted_domain_indicator: str  # VERIFIED (source trusted_domain_list) when present...
+    trusted_blocked_by_severity: Severity  # ...and no finding this severe or worse
 
 
 class IndicatorDefinition(_Strict):
@@ -106,8 +107,9 @@ class ScoringSettings(_Strict):
             for label in definition.scam_categories:
                 if label not in self.scam_categories:
                     raise ValueError(f"indicator {indicator_id}: unknown scam category '{label}'")
-        if self.verification.safe_requires_indicator not in self.indicators:
-            raise ValueError("verification.safe_requires_indicator must be a known indicator")
+        for key in ("threat_intel_indicator", "trusted_domain_indicator"):
+            if getattr(self.verification, key) not in self.indicators:
+                raise ValueError(f"verification.{key} must be a known indicator")
         return self
 
     # ----- helpers used by the scoring engine --------------------------------------------------

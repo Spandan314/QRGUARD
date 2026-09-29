@@ -63,6 +63,12 @@ def test_indicator_with_unknown_scam_category_rejected(tmp_path, valid):
         load_scoring_settings(_write(tmp_path, valid))
 
 
+def test_verification_indicators_must_exist(tmp_path, valid):
+    valid["verification"]["trusted_domain_indicator"] = "NOPE"
+    with pytest.raises(ScoringConfigError, match="trusted_domain_indicator"):
+        load_scoring_settings(_write(tmp_path, valid))
+
+
 def test_unknown_keys_rejected(tmp_path, valid):
     valid["thresholds"]["extreme"] = 90
     with pytest.raises(ScoringConfigError):

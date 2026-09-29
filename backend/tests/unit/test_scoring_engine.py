@@ -16,23 +16,37 @@ def contributions_total(result):
     return round(sum(i["score_contribution"] for i in result.indicators), 1)
 
 
-def test_no_indicators_is_unverified_not_safe():
+def test_no_indicators_is_safe_but_unverified():
     result = score([])
-    assert (result.risk_score, result.risk_level, result.confidence) == (0, "UNVERIFIED", "LOW")
+    assert (result.risk_score, result.risk_level, result.confidence) == (0, "SAFE", "LOW")
+    assert result.verification["status"] == "UNVERIFIED"
+    assert result.verification["source"] is None
+    assert "does not guarantee" in result.verification["message"]
 
 
-def test_trusted_domain_without_findings_is_safe():
+def test_trusted_domain_without_findings_is_safe_and_verified():
     result = score(["TRUSTED_DOMAIN"])
     assert result.risk_level == "SAFE" and result.risk_score == 0
+    assert result.verification["status"] == "VERIFIED"
+    assert result.verification["source"] == "trusted_domain_list"
 
 
-def test_medium_finding_prevents_safe_even_on_trusted_domain():
+def test_medium_finding_prevents_trusted_list_verification():
     result = score(["TRUSTED_DOMAIN", "URL_SHORTENER"])
-    assert result.risk_score == 0 and result.risk_level == "UNVERIFIED"
+    assert result.risk_score == 0 and result.risk_level == "SAFE"
+    assert result.verification["status"] == "UNVERIFIED"
 
 
-def test_low_finding_on_trusted_domain_can_still_be_safe():
-    assert score(["TRUSTED_DOMAIN", "URL_LONG"]).risk_level == "SAFE"
+def test_low_finding_on_trusted_domain_can_still_be_verified():
+    assert score(["TRUSTED_DOMAIN", "URL_LONG"]).verification["status"] == "VERIFIED"
+
+
+def test_verification_never_changes_score_or_level():
+    verified = score(["TRUSTED_DOMAIN", "URL_LONG"])  # -20 + 5
+    unverified = score(["URL_LONG"])  # 5
+    assert verified.verification["status"] != unverified.verification["status"]
+    assert verified.risk_level == unverified.risk_level == "SAFE"
+    assert verified.risk_score == 0 and unverified.risk_score == 5  # only the -20 weight differs
 
 
 def test_url_only_score_is_not_diluted_by_missing_modules():
@@ -71,8 +85,8 @@ def test_lookalike_floor_forces_malicious():
 
 
 def test_brand_name_alone_never_reaches_malicious():
-    assert score(["BRAND_IN_DOMAIN_NAME"]).risk_level == "UNVERIFIED"
-    assert score(["BRAND_NAME_UNOFFICIAL_DOMAIN"]).risk_level == "UNVERIFIED"
+    assert score(["BRAND_IN_DOMAIN_NAME"]).risk_level == "SAFE"
+    assert score(["BRAND_NAME_UNOFFICIAL_DOMAIN"]).risk_level == "SAFE"
 
 
 def test_threat_intel_listed_enforces_90():
@@ -80,6 +94,8 @@ def test_threat_intel_listed_enforces_90():
     result = score(["URL_NO_HTTPS"], ti=ti)
     assert result.risk_score == 90 and result.risk_level == "MALICIOUS"
     assert result.confidence == "HIGH"
+    assert result.verification["status"] == "VERIFIED"
+    assert result.verification["source"] == "threat_intelligence"
     ti_row = next(i for i in result.indicators if i["id"] == "TI_LISTED")
     assert ti_row["evidence"] == "Listed by: demo"
     assert {c["id"] for c in result.categories} >= {"malicious_url"}
@@ -92,7 +108,9 @@ def test_not_listed_is_not_evidence_of_safety():
     assert with_ti.risk_score == without.risk_score == 33
     modules = {m["module"]: m for m in with_ti.breakdown["modules"]}
     assert modules["threat_intel"]["applicable"] is False
-    assert score([], ti=ti).risk_level == "UNVERIFIED"  # clean lookup alone is not "SAFE"
+    clean = score([], ti=ti)
+    assert clean.risk_level == "SAFE"
+    assert clean.verification["status"] == "UNVERIFIED"  # a clean lookup is not verification
 
 
 def test_not_listed_raises_confidence_of_unverified_result():
@@ -103,10 +121,11 @@ def test_partial_threat_intel_is_weighted_with_url_module():
     ti = [ProviderResult("demo", TIStatus.PARTIAL)]
     result = score(["URL_IP_HOST"], ti=ti)  # (0.35*25 + 0.30*50) / 0.65 = 36.5
     assert result.risk_score == 37 and result.risk_level == "SUSPICIOUS"
+    assert result.verification["status"] == "UNVERIFIED"  # partial is not a confirmation
 
 
 def test_categories_only_for_suspicious_or_malicious():
-    assert score(["URL_MIXED_SCRIPT"]).categories == []  # 25 -> UNVERIFIED
+    assert score(["URL_MIXED_SCRIPT"]).categories == []  # 25 -> SAFE
     labels = {c["id"] for c in score(["URL_MIXED_SCRIPT", "URL_PUNYCODE"]).categories}
     assert labels == {"phishing", "impersonation"}
 

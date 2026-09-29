@@ -57,7 +57,7 @@ gunicorn -c gunicorn.conf.py wsgi:app
 - **curl:** `curl -i http://localhost:5000/api/health`
 - **Postman:** *Import* `postman/QRGUARD.postman_collection.json` and
   `postman/QRGUARD.local.postman_environment.json`, select the "QRGUARD local" environment,
-  then run the collection. All 24 requests (76 checks) should pass.
+  then run the collection. All 24 requests (80 checks) should pass.
 
 Expected response (`200 OK`):
 
@@ -102,7 +102,7 @@ error.
 ## 4. Run the tests and linter
 
 ```bash
-pytest                                   # expected: 263 passed (no internet needed)
+pytest                                   # expected: 266 passed (no internet needed)
 pytest --cov=app --cov-report=term-missing
 ruff check . && ruff format --check .    # expected: All checks passed!
 ```

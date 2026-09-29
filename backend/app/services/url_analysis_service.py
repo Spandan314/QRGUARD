@@ -213,10 +213,13 @@ class UrlAnalysisService:
             "risk_score": result.risk_score,
             "risk_level": result.risk_level,
             "confidence": result.confidence,
-            "summary": summary_for(result.risk_level),
+            "verification": result.verification,
+            "summary": summary_for(result.risk_level, result.verification["status"]),
             "categories": result.categories,
             "indicators": result.indicators,
-            "recommendation": recommendation_for(result.risk_level, result.indicator_ids),
+            "recommendation": recommendation_for(
+                result.risk_level, result.verification["status"], result.indicator_ids
+            ),
             "score_breakdown": result.breakdown,
             "threat_intel": {
                 "checked": ti_configured,

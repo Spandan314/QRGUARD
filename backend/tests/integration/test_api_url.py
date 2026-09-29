@@ -50,6 +50,7 @@ def test_response_contains_agreed_fields(api):
         "risk_score",
         "risk_level",
         "confidence",
+        "verification",
         "categories",
         "indicators",
         "recommendation",
@@ -77,26 +78,35 @@ def test_indicator_rows_are_explainable(api):
 
 
 # --- 1. legitimate HTTPS URL --------------------------------------------------------------------
-def test_1_legitimate_trusted_https_url_is_safe(api):
+def test_1_legitimate_trusted_https_url_is_safe_and_verified(api):
     client, _ = api
     _, body = post(client, "https://en.wikipedia.org/wiki/QR_code")
     assert body["risk_level"] == "SAFE" and body["risk_score"] == 0
+    assert body["verification"]["status"] == "VERIFIED"
+    assert body["verification"]["source"] == "trusted_domain_list"
     assert body["categories"] == []
 
 
-def test_1b_clean_but_unknown_https_url_is_unverified_not_safe(api):
+def test_1b_clean_but_unknown_https_url_is_safe_but_unverified(api):
     client, _ = api
     _, body = post(client, "https://www.example.com/about")
-    assert body["risk_level"] == "UNVERIFIED" and body["risk_score"] == 0
+    assert body["risk_level"] == "SAFE" and body["risk_score"] == 0
+    assert body["verification"] == {
+        "status": "UNVERIFIED",
+        "source": None,
+        "message": "There is insufficient evidence to establish trust. "
+        "A SAFE result does not guarantee that the website is safe.",
+    }
     assert body["confidence"] == "LOW"
-    assert "could not be verified" in body["summary"]
+    assert "does not guarantee" in body["summary"]
 
 
 # --- 2-9. structural indicators -----------------------------------------------------------------
 def test_2_http_url(api):
     client, _ = api
     _, body = post(client, "http://example.com/")
-    assert "URL_NO_HTTPS" in ids(body) and body["risk_level"] == "UNVERIFIED"
+    assert "URL_NO_HTTPS" in ids(body) and body["risk_level"] == "SAFE"
+    assert body["verification"]["status"] == "UNVERIFIED"
 
 
 def test_3_ip_address_url(api):
@@ -143,7 +153,8 @@ def test_8_url_shortener_is_followed_safely(api):
     redirects = body["analysis"]["redirects"]
     assert redirects["checked"] and redirects["status"] == "completed"
     assert redirects["final_url"] == "https://www.example.com/offer"
-    assert body["risk_level"] == "UNVERIFIED"
+    assert body["risk_level"] == "SAFE"
+    assert body["verification"]["status"] == "UNVERIFIED"
 
 
 def test_8b_shortener_to_lookalike_destination_is_malicious(api):
@@ -183,6 +194,7 @@ def test_10b_official_bank_domain_is_not_flagged(api):
     client, _ = api
     _, body = post(client, "https://netbanking.hdfcbank.com/netbanking/")
     assert body["risk_level"] == "SAFE"
+    assert body["verification"]["source"] == "trusted_domain_list"
     assert body["analysis"]["brand"]["match_type"] == "official"
 
 
@@ -286,6 +298,8 @@ def test_19_malicious_threat_intel_result(api):
     _, body = post(client, "https://www.example.com/login")
     assert body["risk_score"] == 90 and body["risk_level"] == "MALICIOUS"
     assert body["confidence"] == "HIGH"
+    assert body["verification"]["status"] == "VERIFIED"
+    assert body["verification"]["source"] == "threat_intelligence"
     assert body["threat_intel"]["providers"] == [
         {"provider": "demo-feed", "status": "listed", "threat_type": "phishing"}
     ]
@@ -297,7 +311,9 @@ def test_20_clean_url_not_in_threat_databases_is_not_called_safe(api):
     provider = FakeProvider("demo-feed", TIStatus.NOT_LISTED)
     service.threat_intel = ThreatIntelService([provider])
     _, body = post(client, "https://www.example.com/")
-    assert body["risk_level"] == "UNVERIFIED" and body["risk_score"] == 0
+    assert body["risk_level"] == "SAFE" and body["risk_score"] == 0
+    assert body["verification"]["status"] == "UNVERIFIED"
+    assert body["verification"]["source"] is None
     assert body["threat_intel"]["checked"] is True
     assert body["threat_intel"]["providers"] == [{"provider": "demo-feed", "status": "not_listed"}]
     assert "does not mean a link is safe" in body["threat_intel"]["note"]
@@ -333,3 +349,18 @@ def test_redirect_resolution_can_be_disabled():
         "reason": "disabled",
     }
     assert service.fetcher.requests == []
+
+
+def test_only_three_risk_levels_exist(api):
+    client, service = api
+    service.fetcher = FakeFetcher({"https://bit.ly/x": (302, "http://paypa1.com/")})
+    urls = [
+        "https://www.example.com/",
+        "http://8.8.8.8/secure/login",
+        "https://bit.ly/x",
+        "https://en.wikipedia.org/",
+        "javascript:alert(1)",
+        "http://intranet/",
+    ]
+    levels = {post(client, u)[1]["risk_level"] for u in urls}
+    assert levels == {"SAFE", "SUSPICIOUS", "MALICIOUS"}

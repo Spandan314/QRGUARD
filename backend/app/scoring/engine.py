@@ -11,8 +11,12 @@ Algorithm (all numbers come from scoring_config.yaml):
    A module is applicable if the caller analysed it or it produced an indicator. So a
    URL-only check is not diluted by missing message/OCR modules.
 4. Floors: the highest ``floor`` among present indicators is a minimum final score.
-5. Level: >= malicious -> MALICIOUS, >= suspicious -> SUSPICIOUS, otherwise SAFE only if
-   positively verified (trusted domain and nothing medium-or-worse), else UNVERIFIED.
+5. Level (from the score ONLY): >= malicious -> MALICIOUS, >= suspicious -> SUSPICIOUS,
+   otherwise SAFE. SAFE means "no significant suspicious indicators", not "guaranteed safe".
+6. Verification (reported separately, never changes the score or level):
+   VERIFIED by "threat_intelligence" when a provider lists the input as malicious, or by
+   "trusted_domain_list" when the domain is trusted and nothing medium-or-worse was found;
+   otherwise UNVERIFIED ("insufficient evidence to establish trust").
 
 Each indicator's ``score_contribution`` is the number of final-score points it added
 (after caps and module weighting), so the contributions add up to the weighted score.
@@ -28,7 +32,17 @@ from app.scoring.indicator import Indicator
 from app.scoring.settings import SEVERITY_ORDER, ScoringSettings
 from app.threat_intelligence.base import DEFINITIVE_STATUSES, ProviderResult, TIStatus
 
-SAFE, UNVERIFIED, SUSPICIOUS, MALICIOUS = "SAFE", "UNVERIFIED", "SUSPICIOUS", "MALICIOUS"
+SAFE, SUSPICIOUS, MALICIOUS = "SAFE", "SUSPICIOUS", "MALICIOUS"
+VERIFIED, UNVERIFIED = "VERIFIED", "UNVERIFIED"
+SOURCE_THREAT_INTEL = "threat_intelligence"
+SOURCE_TRUSTED_LIST = "trusted_domain_list"
+
+VERIFICATION_MESSAGES = {
+    SOURCE_THREAT_INTEL: "A threat-intelligence source lists this as known malicious.",
+    SOURCE_TRUSTED_LIST: "The domain is on QRGUARD's list of recognised legitimate websites.",
+    None: "There is insufficient evidence to establish trust. "
+    "A SAFE result does not guarantee that the website is safe.",
+}
 
 
 class UnknownIndicatorError(KeyError):
@@ -50,6 +64,7 @@ class ScoreResult:
     indicators: list[dict[str, Any]]
     categories: list[dict[str, str]]
     breakdown: dict[str, Any]
+    verification: dict[str, Any] = field(default_factory=dict)
     indicator_ids: set[str] = field(default_factory=set)
 
 
@@ -135,7 +150,7 @@ def score_indicators(
             "points_added": round(floor_value - weighted, 1),
         }
 
-    # ---- 4. level ----------------------------------------------------------------------------
+    # ---- 4. level (score only) ---------------------------------------------------------------
     severities = {ind.id: settings.severity_of(definitions[ind.id]) for ind in all_indicators}
     ids = {ind.id for ind in all_indicators}
     thresholds = settings.thresholds
@@ -144,15 +159,27 @@ def score_indicators(
     elif risk_score >= thresholds.suspicious:
         level = SUSPICIOUS
     else:
-        verification = settings.verification
-        blocking = SEVERITY_ORDER.index(verification.blocked_by_severity)
-        has_blocking = any(
-            SEVERITY_ORDER.index(severities[i.id]) >= blocking
-            for i in all_indicators
-            if definitions[i.id].weight > 0
-        )
-        verified = verification.safe_requires_indicator in ids and not has_blocking
-        level = SAFE if verified else UNVERIFIED
+        level = SAFE
+
+    # ---- 4b. verification (reported separately; never changes score or level) --------------
+    rule = settings.verification
+    blocking = SEVERITY_ORDER.index(rule.trusted_blocked_by_severity)
+    has_blocking = any(
+        SEVERITY_ORDER.index(severities[i.id]) >= blocking
+        for i in all_indicators
+        if definitions[i.id].weight > 0
+    )
+    if rule.threat_intel_indicator in ids:
+        source: str | None = SOURCE_THREAT_INTEL
+    elif rule.trusted_domain_indicator in ids and not has_blocking:
+        source = SOURCE_TRUSTED_LIST
+    else:
+        source = None
+    verification = {
+        "status": VERIFIED if source else UNVERIFIED,
+        "source": source,
+        "message": VERIFICATION_MESSAGES[source],
+    }
 
     # ---- 5. confidence -----------------------------------------------------------------------
     ti_definitive = any(r.status in DEFINITIVE_STATUSES for r in ti_results)
@@ -165,7 +192,7 @@ def score_indicators(
         or (level == MALICIOUS and len(positive_categories) >= 3)
     ):
         confidence = "HIGH"
-    elif context.incomplete_checks or (level == UNVERIFIED and not ti_definitive):
+    elif context.incomplete_checks or (level == SAFE and source is None and not ti_definitive):
         confidence = "LOW"
     else:
         confidence = "MEDIUM"
@@ -216,4 +243,6 @@ def score_indicators(
         "floor_applied": floor_applied,
         "final_score": risk_score,
     }
-    return ScoreResult(risk_score, level, confidence, rows, categories, breakdown, ids)
+    return ScoreResult(
+        risk_score, level, confidence, rows, categories, breakdown, verification, ids
+    )

@@ -50,7 +50,7 @@
       "description": "No request here makes the backend contact any website: none of these URLs is a link shortener, so redirects are not followed.",
       "item": [
         {
-          "name": "SAFE: trusted HTTPS site",
+          "name": "SAFE + VERIFIED: trusted HTTPS site",
           "request": {
             "method": "POST",
             "header": [
@@ -84,14 +84,15 @@
                   "pm.test('status is 200', () => pm.response.to.have.status(200));",
                   "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
                   "pm.test('every indicator is explained', () => pm.response.json().indicators.forEach(i => { pm.expect(i.message).to.be.a('string'); pm.expect(i).to.have.property('score_contribution'); }));",
-                  "pm.test('has indicator TRUSTED_DOMAIN', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('TRUSTED_DOMAIN'));"
+                  "pm.test('has indicator TRUSTED_DOMAIN', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('TRUSTED_DOMAIN'));",
+                  "pm.test('verified by trusted list', () => pm.expect(pm.response.json().verification.source).to.eql('trusted_domain_list'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "UNVERIFIED: unknown but clean site",
+          "name": "SAFE + UNVERIFIED: unknown but clean site",
           "request": {
             "method": "POST",
             "header": [
@@ -123,15 +124,16 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status is 200', () => pm.response.to.have.status(200));",
-                  "pm.test('risk level is UNVERIFIED', () => pm.expect(pm.response.json().risk_level).to.eql('UNVERIFIED'));",
-                  "pm.test('every indicator is explained', () => pm.response.json().indicators.forEach(i => { pm.expect(i.message).to.be.a('string'); pm.expect(i).to.have.property('score_contribution'); }));"
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
+                  "pm.test('every indicator is explained', () => pm.response.json().indicators.forEach(i => { pm.expect(i.message).to.be.a('string'); pm.expect(i).to.have.property('score_contribution'); }));",
+                  "pm.test('verification is UNVERIFIED', () => pm.expect(pm.response.json().verification.status).to.eql('UNVERIFIED'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "UNVERIFIED: plain HTTP",
+          "name": "SAFE + UNVERIFIED: plain HTTP",
           "request": {
             "method": "POST",
             "header": [
@@ -163,9 +165,10 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status is 200', () => pm.response.to.have.status(200));",
-                  "pm.test('risk level is UNVERIFIED', () => pm.expect(pm.response.json().risk_level).to.eql('UNVERIFIED'));",
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
                   "pm.test('every indicator is explained', () => pm.response.json().indicators.forEach(i => { pm.expect(i.message).to.be.a('string'); pm.expect(i).to.have.property('score_contribution'); }));",
-                  "pm.test('has indicator URL_NO_HTTPS', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('URL_NO_HTTPS'));"
+                  "pm.test('has indicator URL_NO_HTTPS', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('URL_NO_HTTPS'));",
+                  "pm.test('verification is UNVERIFIED', () => pm.expect(pm.response.json().verification.status).to.eql('UNVERIFIED'));"
                 ]
               }
             }
@@ -418,7 +421,7 @@
           ]
         },
         {
-          "name": "SAFE: official bank domain",
+          "name": "SAFE + VERIFIED: official bank domain",
           "request": {
             "method": "POST",
             "header": [
@@ -451,7 +454,8 @@
                 "exec": [
                   "pm.test('status is 200', () => pm.response.to.have.status(200));",
                   "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
-                  "pm.test('every indicator is explained', () => pm.response.json().indicators.forEach(i => { pm.expect(i.message).to.be.a('string'); pm.expect(i).to.have.property('score_contribution'); }));"
+                  "pm.test('every indicator is explained', () => pm.response.json().indicators.forEach(i => { pm.expect(i.message).to.be.a('string'); pm.expect(i).to.have.property('score_contribution'); }));",
+                  "pm.test('verified by trusted list', () => pm.expect(pm.response.json().verification.source).to.eql('trusted_domain_list'));"
                 ]
               }
             }
