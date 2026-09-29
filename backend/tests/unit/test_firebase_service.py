@@ -88,3 +88,46 @@ def test_delete_auth_user(monkeypatch):
 
     monkeypatch.setattr(auth, "delete_user", broken)
     assert fs.delete_auth_user(object(), "u1") is False
+
+
+class _User:
+    def __init__(self, claims):
+        self.custom_claims = claims
+
+
+def _cli_app(**env):
+    from app import create_app
+
+    return create_app(Config.from_env({"APP_ENV": "testing", **env}))
+
+
+def test_set_admin_requires_firebase():
+    result = _cli_app().test_cli_runner().invoke(args=["set-admin", "u1"])
+    assert result.exit_code != 0 and "not configured" in result.output
+
+
+def test_set_admin_grants_and_revokes_keeping_other_claims(monkeypatch):
+    stored = {"u1": {"team": "blue"}}
+    monkeypatch.setattr(auth, "get_user", lambda uid, app: _User(stored[uid]))
+    monkeypatch.setattr(
+        auth, "set_custom_user_claims", lambda uid, claims, app: stored.__setitem__(uid, claims)
+    )
+    runner = _cli_app(FIREBASE_PROJECT_ID="qrguard-cli", HISTORY_STORE="off").test_cli_runner()
+
+    result = runner.invoke(args=["set-admin", "u1"])
+    assert result.exit_code == 0, result.output
+    assert stored["u1"] == {"team": "blue", "admin": True}
+
+    result = runner.invoke(args=["set-admin", "u1", "--revoke"])
+    assert result.exit_code == 0
+    assert stored["u1"] == {"team": "blue"}
+
+
+def test_set_admin_rejects_unknown_or_malformed_uids(monkeypatch):
+    def missing(uid, app):
+        raise auth.UserNotFoundError("gone")
+
+    monkeypatch.setattr(auth, "get_user", missing)
+    runner = _cli_app(FIREBASE_PROJECT_ID="qrguard-cli2", HISTORY_STORE="off").test_cli_runner()
+    assert "No user" in runner.invoke(args=["set-admin", "nobody"]).output
+    assert "does not look like" in runner.invoke(args=["set-admin", "a b"]).output
