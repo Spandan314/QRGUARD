@@ -4,8 +4,24 @@ A thin client for the QRGUARD backend: **every security decision is made by the 
 (`docs/architecture.md` D1). The web app sends the user's input and displays the explained result.
 
 Pages: Home (with live backend status), Check a link, Check a message, Check a screenshot,
-Check a QR image, Make a QR (generated **in the browser**, so Wi-Fi passwords never leave the
-device), Safety tips, About. History, login and admin pages arrive with Firebase (Phase 10).
+Check a QR code (upload **or live camera scan**: the browser only decodes the code, the backend
+analyses it), Make a QR (generated **in the browser**, so Wi-Fi passwords never leave the device),
+Safety tips, About, and with sign-in: **Account & privacy** (save-history switch, delete my data),
+**History** (verdicts only; details, delete one/all, pagination), **report a wrong result** (on
+every result) and **Admin** (anonymous daily statistics, provider status, review user reports; the
+backend enforces the admin claim).
+
+## Sign-in modes (`VITE_AUTH_MODE`)
+
+| Mode | Use | Backend |
+|---|---|---|
+| `firebase` | Production: anonymous ("Continue without an e-mail") or e-mail/password via Firebase Auth | `FIREBASE_PROJECT_ID` set |
+| `dev` | Local demo without a Firebase project: "Demo sign-in" with any name (tick "administrator" for the admin page) | `AUTH_DEV_TOKENS=true HISTORY_STORE=memory` (refused in production) |
+| `off` | No sign-in; all checks still work, history is hidden | — |
+
+For a full local stack with real Firebase sign-in but no Google account, use the Firebase emulators
+(see `docs/testing.md`): `VITE_FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099` and a
+`demo-*` project id.
 
 ## Requirements
 
