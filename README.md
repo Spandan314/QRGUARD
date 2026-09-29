@@ -10,9 +10,10 @@ recommended safe action.
 
 ## Project status
 
-**URL analysis, risk-scoring engine and scam-message detector implemented.**
-`POST /api/analyze/url` and `POST /api/analyze/message` are live and tested (445 automated tests,
-Postman collection with 35 requests). See [backend/README.md](backend/README.md).
+**URL analysis, risk-scoring engine, scam-message detector and screenshot OCR implemented.**
+`POST /api/analyze/url`, `/message` and `/screenshot` are live and tested (515 automated tests,
+Postman collection with 42 requests). Screenshot analysis needs Tesseract OCR installed. See
+[backend/README.md](backend/README.md) and [docs/testing.md](docs/testing.md).
 
 ### Risk levels and verification
 
@@ -34,7 +35,7 @@ verification.
 | 2 | Backend foundation | ✅ Done |
 | 3a | URL analysis, SSRF-safe redirect checking, risk-scoring engine | ✅ Done (awaiting review) |
 | 3b | Scam message detector | ✅ Done (awaiting review) |
-| 3c | OCR / screenshot analyzer | ⏳ |
+| 3c | OCR / screenshot analyzer | ✅ Done (PR open) |
 | 4 | Threat intelligence | ⏳ |
 | 5 | React web application | ⏳ |
 | 6 | React Native (Expo) mobile application | ⏳ |

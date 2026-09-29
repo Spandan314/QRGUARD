@@ -449,6 +449,54 @@ real-world accuracy.
   there *being* a link to act on. So even a trusted link can add message-side points, but it can
   never lower the score (section 11.1).
 
+## 12. Screenshots / OCR (implemented)
+
+Files: `app/utils/image_validation.py`, `app/analyzers/ocr.py`,
+`app/services/screenshot_analysis_service.py`.
+
+### 12.1 No separate screenshot score
+
+A screenshot is scored **exactly like its text pasted as a message**: same rules, same
+`primary_evidence` rule for links, same floors and verification (only threat intelligence can
+VERIFY). Tests check that a screenshot and the identical message get identical scores,
+indicators and categories.
+
+OCR only contributes informational indicators in the `ocr` module (`source: "ocr"`, weight 0,
+group cap 0), so **OCR can never make anything suspicious or malicious by itself**:
+
+| ID | When | Effect |
+|---|---|---|
+| `OCR_LOW_CONFIDENCE` | Average word confidence < 60 % | Explains possible misreads; confidence LOW |
+| `OCR_TEXT_TRUNCATED` | More than 5000 characters read | Only the first 5000 are analysed |
+
+### 12.2 Turning OCR output into text
+
+Words are joined per paragraph, and consecutive paragraphs/blocks are joined with a space unless
+the previous one ends a sentence (`. ! ? :`). A line wrap on a phone screen ("Please share the /
+OTP you received") therefore stays one sentence for the rules. Preprocessing before OCR: flatten
+transparency, grayscale, invert dark mode (average brightness < 110), upscale small images 2× (max
+4000 px), autocontrast.
+
+### 12.3 Known limitations of screenshot analysis
+
+- **OCR misreads change the evidence.** Measured example: Tesseract read `hdfcbnak.com` as
+  `ndfcbnak.com` in one font, which hides the look-alike from the domain rules. Misreads can also
+  turn a look-alike into the real domain (`paypa1` → `paypal`). The extracted text is shown to
+  the user so they can compare.
+- **Small, blurred, stylised or low-contrast text** is read poorly. Such results are marked
+  `OCR_LOW_CONFIDENCE` / LOW confidence, but warning signs may still be missed.
+- **English-first:** OCR runs with `OCR_LANGUAGES=eng`, and the message rules are English. Hindi or
+  Marathi screenshots are not reliably read or analysed.
+- **Layout:** chat bubbles, timestamps, sender names and UI labels are read as text and may be
+  joined into sentences. The sender's identity (a verified business badge, a phone number shown
+  in the app header) is not evaluated.
+- **QR codes, logos and images inside screenshots are ignored** (QR detection comes in the QR
+  phase).
+- **Tesseract is a system dependency.** Without it the endpoint answers `503 OCR_UNAVAILABLE`
+  (never a fake result), and `/api/health` shows `ocr_engine: not_installed`.
+- **Cost:** OCR takes about 0.2–2 s per image and uses CPU, hence the stricter rate limit and the
+  concurrency cap.
+
 ## 10. Future ML extension (not in MVP)
 
 The indicator vector (one column per indicator ID) is already a feature vector. A future model (for
