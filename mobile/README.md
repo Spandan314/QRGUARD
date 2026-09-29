@@ -18,7 +18,13 @@ Screens (Expo Router, `src/app/`):
 | Make a QR code | `/generate` | **Utility**, visually separate, generated on the phone, share/save |
 | Result | `/result` | Level (icon + word + colour), score, verification, "why", advice, TI status, `OpenLinkGuard` |
 
-History and sign-in arrive with Firebase (Phase 10).
+| History (tab) | `/(tabs)/history` | Signed-in users: saved verdicts (never content), details, load more, delete one / all |
+| Account & about (tab) | `/(tabs)/settings` | Sign-in (Firebase anonymous or e-mail, or demo), save-history switch, delete my data, sign out, about |
+
+Every check has a **"Save the result to my history"** switch (signed-in users; only the verdict is
+saved) and every result a **"Is this result wrong? Report it"** form. Sign-in modes
+(`EXPO_PUBLIC_AUTH_MODE`): `firebase` (session kept in AsyncStorage), `dev` (demo accounts for a
+backend with `AUTH_DEV_TOKENS=true`) or `off`. See `.env.example`.
 
 ## Run it
 
