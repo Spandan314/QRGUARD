@@ -22,7 +22,7 @@ describe('api client', () => {
     const [url, init] = fetchMock.mock.calls[0] ?? []
     expect(String(url)).toMatch(/\/api\/analyze\/url$/)
     expect(init?.credentials).toBe('omit')
-    expect(init?.body).toBe(JSON.stringify({ url: 'http://x.test' }))
+    expect(init?.body).toBe(JSON.stringify({ url: 'http://x.test', save_to_history: false }))
   })
 
   it('uploads a picked image as multipart form data', async () => {
@@ -36,7 +36,7 @@ describe('api client', () => {
   it('sends camera content with source camera', async () => {
     const fetchMock = stubFetch(async () => jsonResponse(maliciousUrl))
     await api.analyzeQrContent('upi://pay?pa=a@b')
-    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ content: 'upi://pay?pa=a@b', source: 'camera' }))
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ content: 'upi://pay?pa=a@b', source: 'camera', save_to_history: false }))
   })
 
   it('maps the error envelope, non-JSON errors and unreadable bodies', async () => {
@@ -74,7 +74,7 @@ describe('api client', () => {
         }),
     )
     const controller = new AbortController()
-    const pending = api.analyzeUrl('x', controller.signal)
+    const pending = api.analyzeUrl('x', {}, controller.signal)
     controller.abort()
     await expect(pending).rejects.not.toBeInstanceOf(ApiError)
   })
