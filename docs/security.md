@@ -110,3 +110,16 @@ Implementation: `app/utils/net_safety.py` and `app/analyzers/redirect_resolver.p
 | Privacy | Decoded content is returned to the caller only, never logged or stored. Parsing errors never echo the content. |
 | Generator abuse | Strict per-type field allow-list (unknown fields → 400), length limits, `http(s)` only for URLs (a `javascript:` code cannot be generated), Wi-Fi special characters escaped, limit 30/min. |
 
+## Threat intelligence (implemented)
+
+| Concern | Control |
+|---|---|
+| API keys | Only from environment variables (never in code, docs, Postman or fixtures). Format-checked at startup with an error that never shows the value; excluded from the Config `repr` and provider `repr`; never logged, never in responses or `/api/health` (which shows only on/off). Tests check responses, health, logs and repr with fake keys. |
+| Keys inside error text | The HTTP client re-raises network errors `from None`, so exception text that contains the request URL (Safe Browsing puts its key in the query string) can never reach logs or responses. |
+| Data sent to providers | Only the normalised URL (VirusTotal: its base64 URL id). Never message/OCR text, IP addresses, user ids or request ids. Local feeds (default) send nothing. VirusTotal is lookup-only: URLs are never submitted. |
+| SSRF | Providers contact only fixed, hard-coded HTTPS endpoints with certificate verification, no redirects and no retries. User input only appears in the request body/path, never as the host. |
+| Availability | Per-request timeout (3 s), overall budget (6 s), parallel lookups; a slow, failing or crashing provider becomes `unavailable` and local analysis continues. A 1 MB response cap prevents memory abuse. The VirusTotal guard (4 lookups/min) avoids quota bans. |
+| Integrity of verdicts | Malformed or unexpected answers become `unavailable`, never `not_listed`. `not_listed` never lowers a score; one confirmed `listed` is enough (floor 90). |
+| Feed files | Loaded at startup only, 50 MB cap per file, unparseable lines skipped. `ti-update-feeds` downloads only the two fixed feed URLs, caps size and writes atomically. The demo list holds only reserved `.example`/`.test` names. |
+| Privacy of results | The cache key is a SHA-256 of provider + URL (no clear-text URLs), in memory only, with TTLs. URLs are not logged by TI code. |
+
