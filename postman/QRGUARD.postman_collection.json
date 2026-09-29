@@ -2193,6 +2193,252 @@
       ]
     },
     {
+      "name": "Threat intelligence (DEMO / TEST DATA)",
+      "item": [
+        {
+          "name": "Health: TI providers listed without secrets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('threat_intel component present', () => pm.expect(pm.response.json().components.threat_intel.enabled).to.eql(true));",
+                  "pm.test('providers only report enabled/external', () => pm.response.json().components.threat_intel.providers.forEach(p => pm.expect(Object.keys(p).sort()).to.eql(['enabled','external','provider'])));",
+                  "pm.test('local feed enabled', () => pm.expect(pm.response.json().components.threat_intel.providers.find(p => p.provider === 'local_feed').enabled).to.eql(true));",
+                  "pm.test('no API key material in response', () => { const t = pm.response.text(); ['Auth-Key','x-apikey','api_key','app_key','?key='].forEach(k => pm.expect(t).to.not.include(k)); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS + VERIFIED: URL on the demo blocklist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"http://secure-sbi-kyc-update.example/login\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('score is 90 MALICIOUS', () => { const b = pm.response.json(); pm.expect(b.risk_score).to.eql(90); pm.expect(b.risk_level).to.eql('MALICIOUS'); });",
+                  "pm.test('verified by threat intelligence', () => pm.expect(pm.response.json().verification.source).to.eql('threat_intelligence'));",
+                  "pm.test('TI_LISTED from source threat_intelligence', () => pm.expect(pm.response.json().indicators.find(i => i.id === 'TI_LISTED').source).to.eql('threat_intelligence'));",
+                  "pm.test('local feed listed it (demo coverage)', () => { const p = pm.response.json().threat_intel.providers[0]; pm.expect(p.provider).to.eql('local_feed'); pm.expect(p.status).to.eql('listed'); pm.expect(p.limited_coverage).to.eql(true); });",
+                  "pm.test('no API key material in response', () => { const t = pm.response.text(); ['Auth-Key','x-apikey','api_key','app_key','?key='].forEach(k => pm.expect(t).to.not.include(k)); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS + VERIFIED: subdomain of a blocklisted host",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://pay.upi-refund-desk.example/refund\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('score is 90 MALICIOUS', () => { const b = pm.response.json(); pm.expect(b.risk_score).to.eql(90); pm.expect(b.risk_level).to.eql('MALICIOUS'); });",
+                  "pm.test('verified by threat intelligence', () => pm.expect(pm.response.json().verification.source).to.eql('threat_intelligence'));",
+                  "pm.test('TI_LISTED from source threat_intelligence', () => pm.expect(pm.response.json().indicators.find(i => i.id === 'TI_LISTED').source).to.eql('threat_intelligence'));",
+                  "pm.test('local feed listed it (demo coverage)', () => { const p = pm.response.json().threat_intel.providers[0]; pm.expect(p.provider).to.eql('local_feed'); pm.expect(p.status).to.eql('listed'); pm.expect(p.limited_coverage).to.eql(true); });",
+                  "pm.test('no API key material in response', () => { const t = pm.response.text(); ['Auth-Key','x-apikey','api_key','app_key','?key='].forEach(k => pm.expect(t).to.not.include(k)); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Not listed never lowers the score (look-alike stays 60)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://flipkrat.com/rewards\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('still MALICIOUS 60', () => { const b = pm.response.json(); pm.expect(b.risk_score).to.eql(60); pm.expect(b.risk_level).to.eql('MALICIOUS'); });",
+                  "pm.test('not verified', () => pm.expect(pm.response.json().verification.status).to.eql('UNVERIFIED'));",
+                  "pm.test('local feed not_listed', () => pm.expect(pm.response.json().threat_intel.providers[0].status).to.eql('not_listed'));",
+                  "pm.test('external providers without keys are disabled', () => pm.response.json().threat_intel.providers.slice(1).forEach(p => pm.expect(p.status).to.eql('disabled')));",
+                  "pm.test('honest note', () => pm.expect(pm.response.json().threat_intel.note).to.include('does not mean a link is safe'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS + VERIFIED: message containing a blocklisted link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "message"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hi, the photos from yesterday are here: http://secure-sbi-kyc-update.example/login\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('verified by threat intelligence', () => pm.expect(pm.response.json().verification.source).to.eql('threat_intelligence'));",
+                  "pm.test('no API key material in response', () => { const t = pm.response.text(); ['Auth-Key','x-apikey','api_key','app_key','?key='].forEach(k => pm.expect(t).to.not.include(k)); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 malformed IPv6 link (no server error)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"http://[::1\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error code is INVALID_URL', () => pm.expect(pm.response.json().error.code).to.eql('INVALID_URL'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Error handling",
       "item": [
         {
