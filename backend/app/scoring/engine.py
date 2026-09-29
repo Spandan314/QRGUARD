@@ -229,7 +229,8 @@ def score_indicators(
     }
 
     # ---- 5. confidence -----------------------------------------------------------------------
-    ti_definitive = any(r.status in DEFINITIVE_STATUSES for r in ti_results)
+    # A demo-only blocklist saying "not listed" is not a real reputation check.
+    ti_definitive = any(r.status in DEFINITIVE_STATUSES and not r.limited for r in ti_results)
     positive_categories = {
         definitions[i.id].category for i in all_indicators if definitions[i.id].weight > 0
     }

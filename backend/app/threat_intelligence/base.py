@@ -1,8 +1,9 @@
-"""Threat-intelligence interface.
+"""Threat-intelligence interface shared by every reputation source.
 
-Phase 3 defines only the interface. Real providers (URLhaus, Google Safe Browsing,
-VirusTotal, local feeds) are added in the threat-intelligence phase. Until then no
-provider is configured, and results clearly say that no reputation check was done.
+Providers: local feeds (offline, default), URLhaus, Google Safe Browsing and VirusTotal
+(lookup only). External providers are enabled only when their API key is set. A provider
+never raises for network problems: it reports UNAVAILABLE or ERROR, and local analysis
+continues. "not_listed" only means "not in that database"; it never lowers a score.
 """
 
 from __future__ import annotations
@@ -10,6 +11,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Any
 
 
 class TIStatus(StrEnum):
@@ -30,12 +32,23 @@ class ProviderResult:
     provider: str
     status: TIStatus
     threat_type: str | None = None  # e.g. "phishing", "malware_download"
+    detail: str | None = None  # short and safe to show, e.g. "timeout", "5/94 engines"
+    # True for a source with very small coverage (the demo blocklist only). Its "not_listed"
+    # answer does not count as a real reputation check when judging confidence.
+    limited: bool = False
+    cached: bool = False
 
-    def to_public_dict(self) -> dict[str, str]:
-        """What users see: provider name and outcome only (no raw provider data)."""
-        data = {"provider": self.provider, "status": self.status.value}
+    def to_public_dict(self) -> dict[str, Any]:
+        """What users see: provider name and outcome only (no raw provider data, no keys)."""
+        data: dict[str, Any] = {"provider": self.provider, "status": self.status.value}
         if self.threat_type and self.status in (TIStatus.LISTED, TIStatus.PARTIAL):
             data["threat_type"] = self.threat_type
+        if self.detail:
+            data["detail"] = self.detail
+        if self.limited:
+            data["limited_coverage"] = True
+        if self.cached:
+            data["cached"] = True
         return data
 
 
@@ -43,6 +56,7 @@ class ThreatIntelProvider(ABC):
     """Base class every reputation source implements."""
 
     name: str = "provider"
+    external: bool = False  # sends the URL to a third party (shown in /api/health)
 
     def is_enabled(self) -> bool:
         return True
