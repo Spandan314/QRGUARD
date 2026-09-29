@@ -22,7 +22,7 @@ RULES = load_url_rules()
         (
             "wifi",
             {"ssid": "A;B", "password": "p:ss,word\\1", "hidden": "true"},
-            "WIFI:T:WPA;S:A\;B;P:p\\:ss\\,word\\\\1;H:true;;",
+            "WIFI:T:WPA;S:A\\;B;P:p\\:ss\\,word\\\\1;H:true;;",
         ),
         (
             "wifi",
@@ -67,8 +67,8 @@ def test_invalid_inputs(kind, data):
 
 
 def test_escape_and_mask():
-    assert escape_wifi('a\\b;c,d:e"f') == 'a\\\\b\;c\\,d\\:e\\"f'
-    assert mask_payload("wifi", "WIFI:T:WPA;S:Home;P:se\;cret;;") == "WIFI:T:WPA;S:Home;P:***;;"
+    assert escape_wifi('a\\b;c,d:e"f') == 'a\\\\b\\;c\\,d\\:e\\"f'
+    assert mask_payload("wifi", "WIFI:T:WPA;S:Home;P:se\\;cret;;") == "WIFI:T:WPA;S:Home;P:***;;"
     assert mask_payload("text", "P:not-a-password") == "P:not-a-password"
 
 
