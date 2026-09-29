@@ -138,6 +138,7 @@ _UNIT_WORDS = {
 class ExtractedLink:
     text: str  # as found (after de-obfuscation)
     deobfuscated: bool
+    source: str = "text"  # "text" (found in the text) or "qr" (decoded from a QR code)
 
 
 @dataclass
