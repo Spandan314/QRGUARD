@@ -1,4 +1,13 @@
-# Proposal: Scam Message Detector (for approval, not implemented yet)
+# Proposal: Scam Message Detector
+
+> **Status: APPROVED and IMPLEMENTED.** The authoritative description is now
+> `docs/risk-scoring.md` section 11. Differences from this proposal:
+> - `MSG_COMBO_THREAT_URGENCY_LINK` became `MSG_COMBO_THREAT_URGENCY_ACTION`: a link **or** a
+>   phone-number call-to-action completes it (electricity-disconnection scams use a phone number).
+> - `MSG_SECURITY_ADVICE` also recognises "you don't need to pay any fee" style statements.
+> - The overlap rule (one piece of text supports one indicator) was added to prevent double
+>   counting. As a result the lottery example scores 50 (SUSPICIOUS), not the 65 predicted below.
+> - Responses add `source` per indicator and `score_breakdown.sources`.
 
 Same philosophy as the URL module: explainable, rule-based, configurable, multi-label categories,
 and no single keyword can make a message MALICIOUS. Indicators produce the score; categories only

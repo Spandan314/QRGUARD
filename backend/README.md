@@ -1,8 +1,9 @@
 # QRGUARD Backend (Flask REST API)
 
-**Status:** the backend foundation and **URL analysis + risk scoring** are working
-(`POST /api/analyze/url`). The message, screenshot and QR endpoints validate requests against the
-API contract and answer `501 NOT_IMPLEMENTED` until their modules are built. No threat-intelligence
+**Status:** the backend foundation, **URL analysis + risk scoring** (`POST /api/analyze/url`) and
+the **scam-message detector** (`POST /api/analyze/message`) are working. The screenshot and QR
+endpoints validate requests against the API contract and answer `501 NOT_IMPLEMENTED` until their
+modules are built. No threat-intelligence
 provider is connected yet; responses say so explicitly.
 
 ## Requirements
@@ -57,7 +58,7 @@ gunicorn -c gunicorn.conf.py wsgi:app
 - **curl:** `curl -i http://localhost:5000/api/health`
 - **Postman:** *Import* `postman/QRGUARD.postman_collection.json` and
   `postman/QRGUARD.local.postman_environment.json`, select the "QRGUARD local" environment,
-  then run the collection. All 24 requests (80 checks) should pass.
+  then run the collection. All 35 requests (134 checks) should pass.
 
 Expected response (`200 OK`):
 
@@ -90,19 +91,35 @@ curl -s -X POST http://localhost:5000/api/analyze/url \
 # → 400 {"error": {"code": "UNSUPPORTED_PROTOCOL", ...}}
 ```
 
+Analyse a message (DEMO / TEST DATA):
+
+```bash
+curl -s -X POST http://localhost:5000/api/analyze/message \
+     -H "Content-Type: application/json" \
+     -d '{"text": "Dear customer, your SBI account will be BLOCKED today. Update your KYC immediately: http://sbi-kyc-update.xyz/login"}'
+# → 200 {"risk_score": 65, "risk_level": "MALICIOUS", "verification": {"status": "UNVERIFIED", ...},
+#        "indicators": [{"id": "MSG_KYC_PRETEXT", "source": "message", ...}, ...]}
+
+curl -s -X POST http://localhost:5000/api/analyze/message \
+     -H "Content-Type: application/json" \
+     -d '{"text": "482913 is your OTP for login. Never share your OTP with anyone."}'
+# → 200 {"risk_score": 0, "risk_level": "SAFE", "verification": {"status": "UNVERIFIED", ...}}
+```
+
 Only link shorteners (bit.ly, tinyurl.com…) are contacted, to see where they redirect, and only through
 the SSRF-protected checker (see `docs/security.md`). Set `REDIRECT_RESOLUTION=off` in `.env` to
 never contact any link.
 
 Tuning: weights, caps, floors and thresholds are in `app/scoring/scoring_config.yaml`. Shorteners,
-TLDs, keywords and trusted domains are in `app/data/url_rules.yaml`, and brands in
-`app/data/brands.yaml`. Restart the server after editing; invalid files stop startup with a clear
+TLDs, keywords and trusted domains are in `app/data/url_rules.yaml`, brands in
+`app/data/brands.yaml`, and scam-message patterns in `app/data/scam_rules.yaml` (their order
+matters: strongest rules first). Restart the server after editing; invalid files stop startup with a clear
 error.
 
 ## 4. Run the tests and linter
 
 ```bash
-pytest                                   # expected: 266 passed (no internet needed)
+pytest                                   # expected: 445 passed (no internet needed)
 pytest --cov=app --cov-report=term-missing
 ruff check . && ruff format --check .    # expected: All checks passed!
 ```
@@ -128,12 +145,14 @@ backend/
 │   ├── logging_setup.py   JSON logs with secret redaction
 │   ├── schemas.py         Pydantic request models (the API contract)
 │   ├── routes/            health, analyze, generate, history blueprints
-│   ├── analyzers/         url_normalizer, url_features, lookalike, redirect_resolver, url_rules
-│   ├── services/          url_analysis_service (pipeline: normalise → features → redirects → TI → score)
+│   ├── analyzers/         url_normalizer, url_features, lookalike, redirect_resolver, url_rules,
+│   │                      text_preprocessor, message_analyzer, scam_rules
+│   ├── services/          url_analysis_service (normalise → features → redirects → TI → score),
+│   │                      message_analysis_service (preprocess → rules → links → score)
 │   ├── scoring/           scoring_config.yaml (ONE place for weights/floors/thresholds),
 │   │                      settings (validation), engine, indicator, recommendations
 │   ├── threat_intelligence/  provider interface + service (providers come later)
-│   ├── data/              url_rules.yaml, brands.yaml (editable rule lists)
+│   ├── data/              url_rules.yaml, brands.yaml, scam_rules.yaml (editable rules)
 │   └── utils/             validation.py, net_safety.py (SSRF checks, DNS with timeout)
 ├── tests/{unit,integration}
 ├── wsgi.py  gunicorn.conf.py  Dockerfile  requirements*.txt  pyproject.toml  .env.example
@@ -154,4 +173,6 @@ backend/
 | `ScoringConfigError: indicator X: unknown category` | Every indicator's `category` must be listed in `category_caps`. |
 | `UrlRulesError` at startup | A YAML list in `app/data/` is malformed; the message names the field. |
 | Shortened links show `redirects.status: "timeout"` | The server could not reach the shortener within 3 s (offline laptop, firewall). The result is still returned, with LOW confidence. |
+| `ScamRulesError: pattern has a nested quantifier` | A pattern in `scam_rules.yaml` could backtrack catastrophically; rewrite it without `(…+)+`. |
+| A genuine message is flagged | Find the indicator in the response (`matched_phrases` shows the words), then add a near-miss test and tighten that pattern in `scam_rules.yaml`. |
 | A legitimate site is flagged as a lookalike | Add its domain to the brand's `official_domains` in `app/data/brands.yaml`. |

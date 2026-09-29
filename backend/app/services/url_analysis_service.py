@@ -64,7 +64,14 @@ class UrlAnalysisService:
     # ----- public API ---------------------------------------------------------------------------
     def analyze(self, raw_url: str) -> dict[str, Any]:
         """Analyse one URL and return the API response body (without request_id)."""
-        analysis = self.collect(raw_url)
+        analysis, result = self.analyze_link(raw_url)
+        return self._response(analysis, result)
+
+    def analyze_link(
+        self, raw_url: str, resolve_redirects: bool = True
+    ) -> tuple[UrlAnalysis, ScoreResult]:
+        """Analyse and score one link on its own (also used for links inside messages)."""
+        analysis = self.collect(raw_url, resolve_redirects=resolve_redirects)
         result = score_indicators(
             self.scoring,
             analysis.indicators,
@@ -72,9 +79,9 @@ class UrlAnalysisService:
             ti_results=analysis.ti_results,
             context=ScoringContext(incomplete_checks=analysis.incomplete_checks),
         )
-        return self._response(analysis, result)
+        return analysis, result
 
-    def collect(self, raw_url: str) -> UrlAnalysis:
+    def collect(self, raw_url: str, resolve_redirects: bool = True) -> UrlAnalysis:
         """Run every URL check and gather indicators (no scoring). Raises URLValidationError."""
         parsed = normalize_url(raw_url, self.rules)
         if parsed.is_dangerous_scheme:
@@ -88,7 +95,14 @@ class UrlAnalysisService:
         brand, brand_indicators = detect_lookalikes(parsed, self.rules)
         analysis = UrlAnalysis(parsed, features, brand, [*indicators, *brand_indicators])
 
-        self._check_redirects(analysis)
+        if resolve_redirects:
+            self._check_redirects(analysis)
+        else:
+            analysis.redirects = {
+                "checked": False,
+                "status": rr.NOT_ATTEMPTED,
+                "reason": "redirect-check limit for this request reached",
+            }
         urls_to_check = [parsed.normalized]
         final_url = analysis.redirects.get("final_url")
         if final_url and final_url != parsed.normalized:

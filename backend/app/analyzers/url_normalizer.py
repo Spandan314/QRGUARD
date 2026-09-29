@@ -72,7 +72,7 @@ class ParsedURL:
 
 
 @lru_cache(maxsize=1)
-def _extractor() -> tldextract.TLDExtract:
+def domain_extractor() -> tldextract.TLDExtract:
     # suffix_list_urls=() -> use the Public Suffix List snapshot bundled with tldextract.
     # No network access and no cache files. Private suffixes (github.io, web.app, ...) are
     # included, so "evil.github.io" is its own registrable domain, not "github.io".
@@ -198,7 +198,7 @@ def normalize_url(raw: str, rules: UrlRules) -> ParsedURL:
     if ip is not None:
         subdomain, domain_name, suffix, registrable, has_suffix = "", "", "", host, False
     else:
-        extracted = _extractor()(host)
+        extracted = domain_extractor()(host)
         has_suffix = bool(extracted.suffix) and bool(extracted.domain)
         if has_suffix:
             subdomain, domain_name, suffix = extracted.subdomain, extracted.domain, extracted.suffix

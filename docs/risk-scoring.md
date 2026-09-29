@@ -1,8 +1,8 @@
 # Risk-Scoring Architecture
 
-> **Status (v0.1.0):** the scoring engine and the URL module are implemented
-> (`backend/app/scoring/engine.py`). The message, OCR and QR-payload indicators in section 3.3 are
-> the **planned** design for the next phases.
+> **Status (v0.1.0):** the scoring engine, the URL module and the **scam-message module** are
+> implemented (`backend/app/scoring/engine.py`). The OCR and QR-payload indicators in section 3.3
+> are the **planned** design for the next phases.
 >
 > **Single source of truth:** every weight, cap, floor, threshold, category label and indicator
 > text lives in `backend/app/scoring/scoring_config.yaml`. The tables below describe the defaults. If
@@ -112,30 +112,14 @@ Category caps: url_structure **45**, lexical **15**, brand **40**, redirect **40
 `not_listed`, `unavailable`, `disabled` and `error` produce **no indicator**. The module is then
 *not applicable*, so a clean lookup never pulls the score down toward "safe".
 
-### 3.3 Planned modules (next phases)
+### 3.3 Scam-message module (`message`), implemented
+
+See **section 11** for the full catalogue, the matching rules and the scoring design for messages.
+
+### 3.4 Planned modules (next phases)
 
 **QR payload** (`url_qr`): `QR_UPI_PAYMENT` (info: scanning *sends* money), `QR_UPI_PREFILLED_AMOUNT` 10,
 `QR_UPI_RECEIVE_CONTEXT` 30 (floor 60), `QR_UPI_NAME_MISMATCH` 15, `QR_WIFI_OPEN` info, `QR_SMS_PREFILLED` 10.
-
-**Message** (`message`, negation-aware):
-
-| Category | Examples of patterns (normalised text) | Weight (cap) |
-|---|---|---|
-| urgency | act now, within 24 hours, immediately, last chance | 10 |
-| threat | account blocked/suspended, legal action, police, electricity disconnected | 15 |
-| credential request | share/send OTP, PIN, CVV, password | 25 |
-| financial request | pay, transfer, registration/processing fee, refundable deposit | 15 |
-| reward | you have won, lottery, prize, cashback, selected | 15 |
-| impersonation | bank/RBI/TRAI/customs/courier/KYC/government names | 10 |
-| job scam | work from home + earn ₹X/day, like videos, Telegram task, no interview | 15 |
-| investment | guaranteed returns, double money, trading tips | 15 |
-| remote access | AnyDesk, TeamViewer, QuickSupport, screen share | 25 |
-| off-platform contact | "contact on WhatsApp/Telegram", personal numbers | 5 |
-| style | ≥ 3 `!!!`, ALL-CAPS ratio > 30 % | 5 |
-| security warning (legit signal) | "never share your OTP", "bank will never ask" | −10, and suppresses credential request in the same sentence |
-
-Combination bonuses (credential + impersonation, reward + fee, job + fee, threat + urgency + link,
-remote access + impersonation) will be separate indicators, so they appear in the "Why?" list.
 
 **OCR** (`ocr`): QR code inside the screenshot, obfuscated link text (`hxxp`, `[.]`). Poor OCR
 quality lowers confidence only.
@@ -308,6 +292,138 @@ flowchart TD
   V1 & V2 & V3 --> CF[Confidence + categories + recommendation<br/>verification never changes the score]
   CF --> OUT[Response: indicators with score_contribution + score_breakdown]
 ```
+
+## 11. Scam messages (implemented)
+
+Files: `app/data/scam_rules.yaml` (patterns, order, combinations), `app/scoring/scoring_config.yaml`
+(`MSG_*` weights, groups, categories, text), `app/analyzers/text_preprocessor.py`,
+`app/analyzers/message_analyzer.py`, `app/services/message_analysis_service.py`.
+
+### 11.1 Design decision: the message text is primary evidence, links are additional evidence
+
+> **A link inside a message may increase the risk score, but it can never reduce it.**
+
+```
+final_score = max( text_score,                              # message module alone
+                   applicable_weighted_score,               # message 0.20 + link 0.35 (+ TI 0.30)
+                   minimum_score_rules )                    # floors, e.g. TI listed 90, look-alike 60
+```
+
+Why: with a plain weighted average, a clearly scammy text (message = 80) containing an ordinary
+link (link = 0) would score (0.20×80 + 0.35×0) / 0.55 = **29 → SAFE**. That would treat "no
+evidence in the link" as evidence of safety, the same mistake we ruled out for threat intelligence.
+
+| Case | Text | Link | Weighted | Final | Rule used |
+|---|---|---|---|---|---|
+| Scam text, clean link | 80 | 0 | 29.1 | **80** | `primary_evidence` |
+| Fake KYC (demo) | 65 | 58 | 60.5 | **65** | `primary_evidence` |
+| "Reward points expire today. Redeem: https://hdfcbnak.com/…" | 20 | 45 (+ floor 60) | 35.9 | **60** | `weighted_with_additional_evidence` + floor |
+| Text 40, link 75 | 40 | 75 | 62.3 | **62** | `weighted_with_additional_evidence` |
+| Any text + TI-listed link | — | — | — | **≥ 90** | floor |
+
+The module weights are unchanged. They decide how much a *risky* link can raise the score, and
+never let a clean link lower it. `score_breakdown` shows `primary_score`, `weighted_score`,
+`rule_used`, `floor_applied`, and the points per evidence source.
+
+### 11.2 Four kinds of evidence, shown separately
+
+Every indicator in the response has a `source`, and `score_breakdown.sources` sums the points per
+source:
+
+| `source` | What it is | Examples |
+|---|---|---|
+| `message` | Phrases in the text | `MSG_OTP_REQUEST`, `MSG_ACCOUNT_THREAT`, `MSG_BANK_REFERENCE` |
+| `link` | Findings from the URL analyzer for the riskiest link | `BRAND_LOOKALIKE`, `URL_SUSPICIOUS_TLD` |
+| `threat_intelligence` | Reputation results | `TI_LISTED`, `TI_PARTIAL` |
+| `combination` | Rules that need several kinds of message evidence together | `MSG_COMBO_ADVANCE_FEE` |
+
+When the text score wins, link indicators are still listed (for explanation) with
+`score_contribution: 0`. Their scam categories are then not reported, because they did not
+count.
+
+### 11.3 How double counting is prevented
+
+1. **Links are removed from the text** before the message rules run (they become the word
+   `qrglink`). A word inside a URL is judged only by the URL analyzer.
+2. **One piece of text supports one indicator.** Rules are tried in priority order (strongest first
+   in `scam_rules.yaml`). A later match that overlaps words already used is ignored. For example,
+   "pay processing fee ₹12,500" counts as `MSG_UPFRONT_FEE` only, not also as `MSG_PAYMENT_REQUEST`,
+   and "enter your UPI PIN to receive" counts as `MSG_UPI_PIN_TO_RECEIVE` only, not also as
+   `MSG_CREDENTIAL_REQUEST`.
+3. **Each indicator counts once**, however many times its words appear ("urgent urgent urgent" = 10).
+4. **Only the riskiest link is scored.** Up to 3 links are analysed; the others are listed but add
+   nothing.
+5. **Links combine with `max`, never `+`** (section 11.1).
+6. **Threat intelligence becomes one indicator** (`TI_LISTED` or `TI_PARTIAL`), whatever the number
+   of providers.
+7. **Group caps** limit each kind of evidence (pressure 20, credential 40, financial 30, pretext 20,
+   lure 25, impersonation 20, contact 10, link 10, style 10, combination 40).
+
+Combination indicators are deliberate *interaction* evidence: "OTP request + bank" is more
+dangerous than either alone. They are separate lines in the "Why?" list, fire at most once each,
+and are capped at 40 in total.
+
+### 11.4 Keyword safety and negation
+
+- The largest single message indicator is 30 and the largest group cap is 40, so **no single keyword
+  or group can make a message MALICIOUS**. The message module has no floors. Only explicit requests
+  (OTP, password/PIN/CVV, UPI PIN to receive) reach SUSPICIOUS on their own. Tests check this for
+  every indicator.
+- **Negation:** a request is ignored when "never / do not / don't / not / won't …" appears in the 3
+  words before it (same clause) or inside it. Genuine advice ("Never share your OTP", "Bank will
+  never ask for your PIN", "If not done by you, call…", "You don't need to pay any fee") is matched
+  first by `MSG_SECURITY_ADVICE` (−10), which claims those words. Negation does **not** leak across
+  sentences or clauses: "Do not delay. Share the OTP now." and "Don't worry, just share the OTP" are
+  still requests.
+
+### 11.5 Text preprocessing
+
+1. Control characters removed; invisible characters (zero-width, bidirectional controls, soft
+   hyphen) counted and removed. Their presence → `MSG_HIDDEN_CHARACTERS`.
+2. Unicode NFKC (`ＯＴＰ`, `𝐎𝐓𝐏` → `OTP`).
+3. De-obfuscation of defanged links (`hxxps://`, `[.]`, `(dot)`, `[:]`), then link extraction:
+   `http(s)://`, `www.`, and bare domains validated against the bundled Public Suffix List.
+4. Entities replaced by placeholders: e-mails, UPI IDs (`name@handle`), amounts (`₹`, `Rs`,
+   `INR`, lakh/crore), Indian mobile and toll-free numbers (masked in the response).
+5. Look-alike letters folded, lower-cased, leetspeak folded only *inside* words (`0TP` → `otp`,
+   `p@ssw0rd` → `password`, while `OTP 482913`, `24hrs`, `3pm` stay unchanged).
+6. Repeated letters collapsed (`urgentttt` → `urgentt`), spaces normalised, split into sentences.
+7. More than 30 % non-Latin letters → `MSG_LANGUAGE_NOT_SUPPORTED` (info) and LOW confidence.
+
+### 11.6 Verification and confidence for messages
+
+- A message is **VERIFIED only by threat intelligence** (a link in it is listed as malicious). A
+  trusted-domain link is evidence about the domain, not proof that the message is genuine, so it
+  never verifies a message.
+- SAFE + UNVERIFIED is the normal result for a genuine message: "No significant suspicious
+  indicators detected. This does not guarantee that the message is genuine."
+- Confidence is LOW for very short messages (< 20 characters), unsupported languages, or when a
+  link's destination could not be checked. SAFE + UNVERIFIED alone does not make a message LOW
+  confidence (unlike a URL check).
+
+### 11.7 Evaluation on the labelled demo set (`demo-data/messages.yaml`)
+
+39 messages (DEMO / TEST DATA): 14 genuine, 25 scams, covering all 13 specific categories.
+
+| Result | Count |
+|---|---|
+| Genuine messages scored SAFE | **14 / 14** (highest score 15) |
+| Scams scored SUSPICIOUS or MALICIOUS | **25 / 25** |
+| Scams matching the expected level (after the 3 calibration notes below) | 25 / 25 |
+
+**Calibration candidates (honest note):** before running, I expected MALICIOUS for 3 scams that
+the rules score as SUSPICIOUS. The rules were **not** bent to fit them; they are recorded in the file
+with `calibration_note` for Week 8 tuning on a larger set:
+- `scam-job-wfh` (55): one lure + fee + combination.
+- `scam-credentials` (45): credential request + threat, no brand named.
+- `scam-defanged-link` (48): brand-in-domain link, no KYC pretext.
+
+The lottery-with-fee example scores 50 (SUSPICIOUS), not the 65 predicted in the proposal. The
+proposal had counted "pay processing fee" as both a fee and a payment request, and the
+double-counting guard now prevents that.
+
+This set is small and was written by us, so these numbers show consistency with the design, **not**
+real-world accuracy.
 
 ## 10. Future ML extension (not in MVP)
 

@@ -1,8 +1,10 @@
 """POST /api/analyze/*: analysis endpoints.
 
-``/analyze/url`` is implemented. The other endpoints validate requests against the
-API contract and answer 501 NOT_IMPLEMENTED until their analyzers are built, so the
-web and mobile teams can already use the real request/response/error shapes.
+``/analyze/url`` and ``/analyze/message`` are implemented. The other endpoints validate
+requests against the API contract and answer 501 NOT_IMPLEMENTED until their analyzers are
+built, so the web and mobile teams can already use the real request/response/error shapes.
+
+Privacy: submitted text is never logged (the access log records only method, path, status).
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ from app.analyzers.url_normalizer import URLValidationError
 from app.errors import APIError
 from app.extensions import analyze_rate_limit, limiter
 from app.schemas import AnalyzeMessageRequest, AnalyzeQrContentRequest, AnalyzeUrlRequest
+from app.services.message_analysis_service import TextNotAnalyzableError
 from app.utils.validation import parse_json_body, require_multipart_file
 from app.version import __version__
 
@@ -43,8 +46,13 @@ def analyze_url():
 @analyze_bp.post("/analyze/message")
 @limiter.limit(analyze_rate_limit)
 def analyze_message():
-    parse_json_body(AnalyzeMessageRequest)
-    raise _not_implemented("Scam message analysis", "scam-message analysis phase")
+    body = parse_json_body(AnalyzeMessageRequest)
+    service = current_app.extensions["qrguard.message_analysis"]
+    try:
+        result = service.analyze(body.text)
+    except TextNotAnalyzableError as exc:
+        raise APIError(422, "TEXT_NOT_ANALYZABLE", str(exc)) from exc
+    return jsonify({"request_id": g.request_id, **result, "engine_version": __version__})
 
 
 @analyze_bp.post("/analyze/screenshot")

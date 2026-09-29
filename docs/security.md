@@ -74,3 +74,13 @@ Implementation: `app/utils/net_safety.py` and `app/analyzers/redirect_resolver.p
 - The normalised URL masks any password (`user:***@host`) and drops the `#fragment`.
 - Rule files (`app/data/*.yaml`) and `scoring_config.yaml` are loaded with `yaml.safe_load` and
   strictly validated at startup.
+
+## Scam-message analysis (implemented)
+
+| Concern | Control |
+|---|---|
+| Privacy of message text | The text is never logged (the access log records only method, path, status and duration; a test checks this with `caplog`) and never stored. The response returns only short matched phrases (≤ 60 characters), with amounts, UPI IDs, e-mails and links replaced by markers. Phone numbers are masked (`******3210`). |
+| ReDoS (regex denial of service) | Patterns are validated at startup: anything with a nested quantifier such as `(a+)+` is rejected. The "words in between" gap is a fixed, bounded construct (`\W+(?:\w+\W+){0,4}?`). Matching runs per sentence on at most 5000 characters. Tests check that adversarial inputs (5000 × "!", "share share …", one huge link) finish in well under 0.5 s. |
+| Abuse through links in messages | At most 3 links are analysed and at most 2 redirect checks made per message. Every check goes through the same SSRF-protected redirect checker as `/api/analyze/url`. |
+| Obfuscation | Invisible characters, full-width/styled letters, look-alike letters, leetspeak and defanged links (`hxxp`, `[.]`) are normalised before matching, and their presence is reported. |
+| Rule-file tampering / mistakes | `scam_rules.yaml` is loaded with `yaml.safe_load` and strictly validated (unknown keys, bad IDs, invalid regex, unknown combination members → startup error). |

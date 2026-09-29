@@ -1,0 +1,220 @@
+# QRGUARD scam-message rules (DATA, not code).
+#
+# Patterns decide WHICH indicator is found; weights, caps, categories and user-facing text for
+# each indicator live in app/scoring/scoring_config.yaml (the one place for scoring).
+#
+# How matching works (details: docs/risk-scoring.md, section "Scam messages"):
+#   * Patterns run on the pre-processed, lower-case "detection text", one sentence at a time.
+#   * Links, amounts, phone numbers, UPI IDs and e-mails are replaced by placeholder words:
+#       qrglink  qrgamount  qrgphone  qrgupi  qrgemail
+#     so link words are never counted here (the URL analyzer handles links).
+#   * {gap} means "up to 4 words in between" (safe, bounded; see REDOS NOTE below).
+#   * ORDER MATTERS: rules are tried top to bottom. A piece of text supports only ONE
+#     indicator; if a later rule matches words already used by an earlier rule, the later
+#     match is ignored. Keep the strongest / most specific rules first.
+#   * negatable: true -> the match is ignored when a negation word ("never", "do not",
+#     "don't", "not", ...) appears in the 3 words before it (same clause) or inside it.
+#     This is how "Never share your OTP" is NOT treated as a request for the OTP.
+#   * Each indicator counts once per message, no matter how often it matches.
+#
+# REDOS NOTE: patterns are checked at startup and rejected if they contain a quantified group
+# followed by another quantifier (e.g. "(a+)+"), the classic catastrophic-backtracking shape.
+# Input is also limited to 5000 characters and matched sentence by sentence.
+
+settings:
+  max_links_analyzed: 3          # links analysed by the URL pipeline (the rest are listed only)
+  max_links_redirect_checked: 2  # of those, how many may be followed (shorteners only)
+  min_letters: 3                 # fewer letters (and no link) -> 422 TEXT_NOT_ANALYZABLE
+  short_text_chars: 20           # shorter messages get LOW confidence
+  unsupported_script_ratio: 0.3  # more non-Latin letters than this -> language not supported
+  caps_min_letters: 20
+  caps_ratio: 0.30
+  exclamation_run: 3             # "!!!" or more
+  exclamation_total: 4           # or at least this many "!" in total
+  evidence_max_chars: 60
+
+# Words that negate a request when they appear just before it (or inside the matched phrase).
+negation_pattern: '\b(?:never|not|no|dont|don''t|do not|won''t|wont|will not|cannot|can''t|cant|nobody|no one|neither|nor|avoid)\b'
+
+# Verbs that turn a link into a call to action when they appear in the same sentence.
+link_action_pattern: '\b(?:click|tap|visit|open|update|verify|login|log in|sign in|signin|claim|register|apply|complete|fill|download|install|check|pay|redeem|activate)\b'
+
+# Verbs that turn a phone number into a call to action (WhatsApp/Telegram are counted as
+# off-platform contact instead, so the same words are never counted twice).
+phone_action_pattern: '\b(?:call|dial|ring|contact|missed call)\b'
+
+# Indicators that make a phone call-to-action meaningful (pressure, lure or pretext present).
+phone_action_requires: [MSG_ACCOUNT_THREAT, MSG_LEGAL_THREAT, MSG_URGENCY, MSG_PRIZE_REWARD,
+                        MSG_JOB_LURE, MSG_TASK_EARNING, MSG_INTERNSHIP_LURE,
+                        MSG_UNREALISTIC_RETURNS, MSG_KYC_PRETEXT, MSG_REFUND_PRETEXT]
+
+rules:
+  # ---- legitimacy signal first: it "claims" the words of genuine security advice ---------------
+  - id: MSG_SECURITY_ADVICE
+    patterns:
+      - '\b(?:never|do not|don''t|dont|please do not|pls do not|not to)\W+(?:share|disclose|give|tell|send|reveal)\b{gap}(?:otp|pin|mpin|cvv|password|passcode|code|it|this|details|credentials)\b'
+      - '\b(?:bank|we|rbi|npci|company|our (?:staff|employees|executives))\W+(?:will )?never\W+(?:ask|call|request|message|sms)\w*\b'
+      - '\bnever\W+(?:ask|call|request)\w*\b{gap}(?:otp|pin|mpin|cvv|password|details)\b'
+      - '\bif (?:this|it) (?:was|is) not (?:you|done by you)\b'
+      - '\bif not (?:done|initiated|requested) by you\b'
+      - '\b(?:never|don''t|dont|do not|doesn''t|does not|will not|won''t)\b{gap}(?:pay|charge|ask for|collect)\w*\b{gap}(?:fee|fees|charges|money|deposit|payment)\b'
+
+  # ---- credential and payment-authorisation requests ------------------------------------------
+  - id: MSG_UPI_PIN_TO_RECEIVE
+    patterns:
+      - '\b(?:enter|type|put|use|input)\b{gap}(?:pin(?!\s?code)|mpin)\b{gap}(?:receive|get|claim|credit|accept|collect)\w*'
+      - '\b(?:receive|get|claim|credit)\w*\b{gap}(?:enter|type|input)\b{gap}(?:pin(?!\s?code)|mpin)\b'
+      - '\b(?:accept|approve)\b{gap}(?:collect|payment|money) request\b{gap}(?:receive|get|claim|refund)\w*'
+      - '\b(?:scan|use)\b{gap}(?:qr|qr code)\b{gap}(?:receive|get|claim)\w*'
+    negatable: true
+
+  - id: MSG_OTP_REQUEST
+    patterns:
+      - '\b(?:share|send|tell|forward|give|provide|confirm|disclose|read out|reply with|reply)\b{gap}(?:otp|one\W?time\W?password|verification code|security code|\d\W?digit code)\b'
+      - '\b(?:otp|verification code|security code)\b{gap}(?:share|send|tell|forward|give)\w*\b'
+    negatable: true
+
+  - id: MSG_CREDENTIAL_REQUEST
+    patterns:
+      - '\b(?:share|send|tell|give|provide|enter|type|update|confirm|verify|submit|disclose|reply with|fill)\b{gap}(?:password|passcode|pin(?!\s?code)|mpin|upi pin|atm pin|cvv|cvv2|card number|card details|expiry date|net ?banking (?:id|password|credentials|login|details)|login (?:details|credentials|id)|user ?id and password|aadhaar number|aadhar number|pan number|bank details|account details|account number)\b'
+      - '\b(?:password|pin(?!\s?code)|mpin|cvv|card number)\b{gap}(?:share|send|tell|give|provide)\w*\b'
+    negatable: true
+
+  - id: MSG_REMOTE_ACCESS
+    patterns:
+      - '\b(?:anydesk|any desk|teamviewer|team viewer|quicksupport|quick support|rustdesk|airdroid|ammyy|ultraviewer|alpemix|supremo)\b'
+      - '\b(?:screen ?share|share (?:your |the )?screen|screen sharing|remote access|remote control)\b'
+      - '\b(?:install|download)\b{gap}(?:app|apk|application|software)\b{gap}(?:verify|verification|update|kyc|refund|complete|activate|support)\w*'
+    negatable: true
+
+  # ---- pressure --------------------------------------------------------------------------------
+  - id: MSG_ACCOUNT_THREAT
+    patterns:
+      - '\b(?:account|a/c|acct|card|sim|wallet|upi|mobile number|number|service|services|connection|profile|net ?banking|netbanking)\b{gap}(?:blocked|suspended|deactivated|closed|disabled|frozen|locked|restricted|terminated|on hold|barred)\b'
+      - '\b(?:will|shall|going to|may)\W+(?:be\W+)?(?:block|suspend|deactivate|close|disable|freeze|lock|terminate)\w*\b{gap}(?:account|card|sim|wallet|upi|number|service)\b'
+
+  - id: MSG_LEGAL_THREAT
+    patterns:
+      - '\b(?:legal action|arrest warrant|arrest|arrested|fir|police case|court case|court notice|summons|case (?:has been )?(?:filed|registered)|digital arrest|money laundering|drug parcel|illegal (?:items|parcel|package|goods))\b'
+      - '\b(?:electricity|power supply|electric connection|light connection|power connection)\b{gap}(?:disconnect\w*|cut off|cut)\b'
+      - '\bdisconnect\w*\b{gap}(?:electricity|power|connection)\b'
+
+  - id: MSG_URGENCY
+    patterns:
+      - '\b(?:urgent|urgently|immediately|asap|right away|at the earliest|without delay)\b'
+      - '\bwithin\W+(?:\d+|one|two|few)\W+(?:hours?|hrs?|minutes?|mins?|days?)\b'
+      - '\b(?:today only|only today|last chance|last date|final notice|final reminder|final warning|act now|hurry|expires? (?:today|tonight|soon)|before midnight|limited time|last day)\b'
+      - '\b(?:24|48)\s?(?:hours?|hrs?)\b'
+
+  # ---- financial requests ----------------------------------------------------------------------
+  - id: MSG_UPFRONT_FEE
+    patterns:
+      - '\b(?:registration|processing|verification|joining|application|security|documentation|clearance|release|activation|onboarding|training|kit|customs|courier|redelivery|re-delivery|unlock) (?:fee|fees|charge|charges|deposit)\b'
+      - '\brefundable (?:security )?(?:deposit|amount|fee)\b'
+      - '\b(?:pay|deposit)\b{gap}(?:claim|release|receive|unlock|activate|process)\b'
+    negatable: true
+
+  - id: MSG_PAYMENT_REQUEST
+    patterns:
+      - '\b(?:pay|transfer|send|deposit|remit)\b{gap}(?:qrgamount|money|amount|payment|rupees)\b'
+      - '\b(?:pay|transfer|deposit|send)\b{gap}(?:to|on|via|using)\b{gap}(?:qrgupi|qrgphone|upi id|paytm|phonepe|gpay|google pay|this account|account number)\b'
+      - '\bqrgamount\b{gap}(?:to be paid|payable|must be paid|needs to be paid)\b'
+    negatable: true
+
+  # ---- pretexts --------------------------------------------------------------------------------
+  - id: MSG_KYC_PRETEXT
+    patterns:
+      - '\b(?:e-?kyc|re-?kyc|kyc)\b{gap}(?:update|updation|verify|verification|expired|expire|expiring|pending|incomplete|blocked|suspended|mandatory|required|not (?:done|updated|completed))\w*'
+      - '\b(?:update|complete|verify|do)\b{gap}(?:e-?kyc|re-?kyc|kyc)\b'
+      - '\b(?:pan|aadhaar|aadhar)\b{gap}(?:not linked|link|linking|update|updation|expired)\w*'
+
+  - id: MSG_REFUND_PRETEXT
+    patterns:
+      - '\b(?:refund|tax refund|it refund|income tax refund)\b{gap}(?:initiated|approved|pending|processed|credited|ready|eligible|claim)\w*'
+      - '\b(?:excess|extra|wrong|wrongly|mistakenly|accidentally) (?:amount|money|payment)\b{gap}(?:credited|sent|transferred)\b'
+      - '\b(?:claim|get) (?:your )?refund\b'
+
+  # ---- lures -----------------------------------------------------------------------------------
+  - id: MSG_UNREALISTIC_RETURNS
+    patterns:
+      - '\b(?:guaranteed|assured|fixed|sure shot|sureshot)\b{gap}(?:returns?|profits?|income|earnings?)\b'
+      - '\b(?:double|triple|2x|3x|10x)\b{gap}(?:money|investment|amount|capital)\b'
+      - '\b\d{1,3}\s?%\W{0,3}(?:daily|per day|a day|every day|weekly|per week)\b'
+      - '\b(?:daily|weekly)\W+\d{1,3}\s?%'
+      - '\b(?:risk free|risk-free|no risk|zero risk)\b{gap}(?:investment|returns?|profits?|trading|income)\b'
+
+  - id: MSG_PRIZE_REWARD
+    patterns:
+      - '\b(?:you|u)\b{gap}(?:won|win|winner)\b'
+      - '\b(?:lottery|lucky draw|jackpot|bumper prize|kbc|kaun banega crorepati|lucky winner|prize money|scratch card|spin the wheel)\b'
+      - '\b(?:selected|chosen|eligible)\b{gap}(?:gift|prize|reward|cash prize)\b'
+      - '\bcashback\b{gap}qrgamount\b'
+      - '\bqrgamount\b{gap}cashback\b'
+
+  - id: MSG_JOB_LURE
+    patterns:
+      - '\b(?:work from home|wfh|part time job|part-time job|part time work|part-time work|home based job|online job|data entry job|typing job)\b'
+      - '\b(?:earn|income|salary|payout|make)\b{gap}qrgamount\W{0,3}(?:per|a|each|every)?\W{0,3}(?:day|daily|hour|hr|task)\b'
+      - '\b(?:daily income|daily earning|daily earnings|daily payout|earn daily|no experience needed|no experience required|no interview|without interview)\b'
+
+  - id: MSG_TASK_EARNING
+    patterns:
+      - '\b(?:liking|subscribing|rating|reviewing|following|like|subscribe|rate)\b{gap}(?:youtube|videos?|posts?|products?|hotels?|restaurants?|pages?|channels?|reviews?)\b'
+      - '\b(?:telegram|prepaid|online|simple|easy) tasks?\b'
+
+  - id: MSG_INTERNSHIP_LURE
+    patterns:
+      - '\binternship\b{gap}(?:stipend|offer letter|certificate|selected|confirmed|guaranteed)\b'
+      - '\b(?:stipend|offer letter|certificate)\b{gap}internship\b'
+      - '\b(?:selected|shortlisted)\b{gap}internship\b'
+
+  - id: MSG_INVESTMENT_TOPIC
+    patterns:
+      - '\b(?:crypto|bitcoin|btc|usdt|forex|stock tips|trading tips|intraday|options trading|ipo allotment|vip group|premium group|investment plan|investment scheme|investment opportunity)\b'
+
+  # ---- contact ---------------------------------------------------------------------------------
+  - id: MSG_OFF_PLATFORM_CONTACT
+    patterns:
+      - '\b(?:whatsapp|telegram|signal)\b{gap}(?:me|us|now|qrgphone|group|channel|contact|message|msg|chat|join|dm)\b'
+      - '\b(?:contact|message|msg|chat|join|dm|ping|text)\b{gap}(?:whatsapp|telegram|signal|instagram)\b'
+
+  # ---- context references (low weight; they matter mainly through combination rules) ----------
+  - id: MSG_AUTHORITY_REFERENCE
+    patterns:
+      - '\b(?:police|cbi|enforcement directorate|narcotics|ncb|customs|income tax department|income tax dept|income tax officer|it department|trai|department of telecom|court|magistrate|cyber cell|cybercell|cyber crime department|cyber crime branch|government of india|govt of india|ministry|electricity board|electricity department|electricity office|fedex|dhl|courier company)\b'
+
+  - id: MSG_SUPPORT_REFERENCE
+    patterns:
+      - '\b(?:customer care|customer support|customer service|helpline|help line|helpdesk|help desk|support team|technical support|tech support|executive|care number|service centre|service center|complaint number)\b'
+
+  - id: MSG_BANK_REFERENCE
+    # Brand keywords from brands.yaml are added automatically as whole words.
+    patterns:
+      - '\b(?:your bank|bank account|rbi|reserve bank|npci|net ?banking|debit card|credit card|a/c|upi)\b'
+
+combinations:
+  MSG_COMBO_CREDENTIAL_IMPERSONATION:
+    all_of:
+      - [MSG_OTP_REQUEST, MSG_CREDENTIAL_REQUEST, MSG_UPI_PIN_TO_RECEIVE]
+      - [MSG_BANK_REFERENCE, MSG_AUTHORITY_REFERENCE, MSG_SUPPORT_REFERENCE, MSG_KYC_PRETEXT]
+  MSG_COMBO_ADVANCE_FEE:
+    all_of:
+      - [MSG_PRIZE_REWARD, MSG_JOB_LURE, MSG_TASK_EARNING, MSG_INTERNSHIP_LURE]
+      - [MSG_UPFRONT_FEE, MSG_PAYMENT_REQUEST]
+  MSG_COMBO_REWARD_CREDENTIAL:
+    all_of:
+      - [MSG_PRIZE_REWARD, MSG_REFUND_PRETEXT]
+      - [MSG_OTP_REQUEST, MSG_CREDENTIAL_REQUEST, MSG_UPI_PIN_TO_RECEIVE]
+  MSG_COMBO_THREAT_URGENCY_ACTION:
+    all_of:
+      - [MSG_ACCOUNT_THREAT, MSG_LEGAL_THREAT]
+      - [MSG_URGENCY]
+      - ["@link", MSG_PHONE_CALL_TO_ACTION]
+  MSG_COMBO_REMOTE_SUPPORT:
+    all_of:
+      - [MSG_REMOTE_ACCESS]
+      - [MSG_SUPPORT_REFERENCE, MSG_REFUND_PRETEXT]
+  MSG_COMBO_RETURNS_PRIVATE_GROUP:
+    all_of:
+      - [MSG_UNREALISTIC_RETURNS]
+      - [MSG_OFF_PLATFORM_CONTACT]

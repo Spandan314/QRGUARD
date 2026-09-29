@@ -10,8 +10,9 @@ recommended safe action.
 
 ## Project status
 
-**Phase 3: URL analysis + risk-scoring engine implemented.** `POST /api/analyze/url` is live and
-tested (266 automated tests, Postman collection). See [backend/README.md](backend/README.md).
+**URL analysis, risk-scoring engine and scam-message detector implemented.**
+`POST /api/analyze/url` and `POST /api/analyze/message` are live and tested (445 automated tests,
+Postman collection with 35 requests). See [backend/README.md](backend/README.md).
 
 ### Risk levels and verification
 
@@ -32,7 +33,8 @@ verification.
 | 1 | Architecture, folder structure, DB design, API design, roadmap | ✅ Approved |
 | 2 | Backend foundation | ✅ Done |
 | 3a | URL analysis, SSRF-safe redirect checking, risk-scoring engine | ✅ Done (awaiting review) |
-| 3b | Scam message detector, OCR/screenshot analyzer | ⏳ |
+| 3b | Scam message detector | ✅ Done (awaiting review) |
+| 3c | OCR / screenshot analyzer | ⏳ |
 | 4 | Threat intelligence | ⏳ |
 | 5 | React web application | ⏳ |
 | 6 | React Native (Expo) mobile application | ⏳ |

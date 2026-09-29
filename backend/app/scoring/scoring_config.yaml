@@ -35,6 +35,17 @@ category_caps:
   redirect: 40
   trust: 100
   reputation: 100
+  # scam-message groups
+  pressure: 20
+  credential: 40
+  financial: 30
+  pretext: 20
+  lure: 25
+  impersonation: 20
+  contact: 10
+  link: 10
+  style: 10
+  combination: 40
 
 # Severity shown to users is derived from the weight (a floor always means "critical").
 severity_bands:   # minimum weight for each severity; weight <= 0 is "info"
@@ -361,3 +372,237 @@ indicators:
     scam_categories: [malicious_url]
     title: Flagged by some security vendors
     message: Some, but not all, security sources flag this link as harmful.
+
+  # ---- Scam messages (module: message). Patterns live in app/data/scam_rules.yaml ----------
+  # No single indicator is above 30 and no group cap above 40, so no single keyword or group
+  # can make a message MALICIOUS (>= 60). The message module has no floors.
+  MSG_SECURITY_ADVICE:
+    module: message
+    category: trust
+    weight: -10
+    title: Contains genuine security advice
+    message: The message contains standard security advice such as "never share your OTP", which genuine banks and services include.
+  MSG_UPI_PIN_TO_RECEIVE:
+    module: message
+    category: credential
+    weight: 30
+    scam_categories: [upi_scam]
+    title: Asks for your UPI PIN (or a QR scan) to "receive" money
+    message: You never need to enter your UPI PIN, approve a request or scan a QR code to RECEIVE money. These actions only send money from your account.
+  MSG_OTP_REQUEST:
+    module: message
+    category: credential
+    weight: 30
+    scam_categories: [otp_scam, credential_theft]
+    title: Asks you to share an OTP
+    message: The message asks you to share a one-time password (OTP) or verification code. Anyone with your OTP can take over your account or approve payments.
+  MSG_CREDENTIAL_REQUEST:
+    module: message
+    category: credential
+    weight: 30
+    scam_categories: [credential_theft]
+    title: Asks for passwords, PINs or card details
+    message: The message asks for a password, PIN, CVV, card number or login details. Genuine organisations never ask for these by message.
+  MSG_REMOTE_ACCESS:
+    module: message
+    category: credential
+    weight: 25
+    scam_categories: [fake_customer_support, credential_theft]
+    title: Asks you to install a screen-sharing or remote-control app
+    message: Apps like AnyDesk or TeamViewer let a stranger see and control your phone, including your banking apps and OTPs.
+  MSG_ACCOUNT_THREAT:
+    module: message
+    category: pressure
+    weight: 15
+    scam_categories: [kyc_account_suspension]
+    title: Threatens to block or suspend your account
+    message: The message threatens that an account, card, SIM or service will be blocked or suspended, a common way to rush people into acting without thinking.
+  MSG_LEGAL_THREAT:
+    module: message
+    category: pressure
+    weight: 15
+    scam_categories: [impersonation]
+    title: Threatens legal action, arrest or disconnection
+    message: The message threatens police action, arrest, a court case or disconnection of a service. Scammers use fear to stop victims from checking.
+  MSG_URGENCY:
+    module: message
+    category: pressure
+    weight: 10
+    title: Creates urgency
+    message: The message pushes you to act immediately ("urgent", "within 24 hours", "last chance"), leaving no time to verify it.
+  MSG_UPFRONT_FEE:
+    module: message
+    category: financial
+    weight: 15
+    title: Asks for a fee in advance
+    message: The message asks for a registration, processing, release or similar fee before you receive something. Genuine prizes, jobs and refunds do not require this.
+  MSG_PAYMENT_REQUEST:
+    module: message
+    category: financial
+    weight: 15
+    scam_categories: [banking_payment]
+    title: Asks you to pay or transfer money
+    message: The message asks you to pay or transfer money.
+  MSG_KYC_PRETEXT:
+    module: message
+    category: pretext
+    weight: 15
+    scam_categories: [kyc_account_suspension]
+    title: Uses a KYC / PAN / Aadhaar update as an excuse
+    message: The message says your KYC, PAN or Aadhaar needs updating. This is one of the most common excuses used in banking scams.
+  MSG_REFUND_PRETEXT:
+    module: message
+    category: pretext
+    weight: 10
+    scam_categories: [banking_payment]
+    title: Mentions a refund or money sent by mistake
+    message: The message talks about a refund or money credited by mistake, a common excuse to get you to "return" money or share details.
+  MSG_UNREALISTIC_RETURNS:
+    module: message
+    category: lure
+    weight: 20
+    scam_categories: [investment]
+    title: Promises unrealistic or guaranteed returns
+    message: Guaranteed profits, "double your money" or daily percentage returns are classic signs of investment fraud.
+  MSG_PRIZE_REWARD:
+    module: message
+    category: lure
+    weight: 15
+    scam_categories: [lottery_prize]
+    title: Claims you have won a prize or reward
+    message: The message claims you have won a prize, lottery or cashback. Unexpected winnings are a common scam lure.
+  MSG_JOB_LURE:
+    module: message
+    category: lure
+    weight: 15
+    scam_categories: [fake_job]
+    title: Offers easy work-from-home income
+    message: The message offers easy part-time or work-from-home income, a common fake-job lure.
+  MSG_TASK_EARNING:
+    module: message
+    category: lure
+    weight: 15
+    scam_categories: [fake_job]
+    title: Pays you for simple online tasks
+    message: Paying people to like videos, rate products or complete "tasks" is a well-known scam that later asks for deposits.
+  MSG_INTERNSHIP_LURE:
+    module: message
+    category: lure
+    weight: 15
+    scam_categories: [fake_internship]
+    title: Offers an internship, stipend or certificate
+    message: The message offers an internship, stipend or certificate. This is only a concern when combined with fees or other warning signs.
+  MSG_INVESTMENT_TOPIC:
+    module: message
+    category: lure
+    weight: 5
+    scam_categories: [investment]
+    title: Mentions crypto, trading or investment groups
+    message: The message is about crypto, trading tips or investment groups, topics often used in investment scams.
+  MSG_OFF_PLATFORM_CONTACT:
+    module: message
+    category: contact
+    weight: 5
+    title: Moves the conversation to WhatsApp or Telegram
+    message: The message asks you to continue on WhatsApp, Telegram or similar, where scammers are harder to trace.
+  MSG_PHONE_CALL_TO_ACTION:
+    module: message
+    category: contact
+    weight: 5
+    title: Pushes you to call a phone number
+    message: The message pressures you to call a number it provides. Always use the official number from the organisation's website or card.
+  MSG_AUTHORITY_REFERENCE:
+    module: message
+    category: impersonation
+    weight: 10
+    scam_categories: [impersonation]
+    title: Mentions police, government or an official agency
+    message: The message mentions police, a court, customs, a government department or a courier company. Scammers often pretend to be these.
+  MSG_SUPPORT_REFERENCE:
+    module: message
+    category: impersonation
+    weight: 5
+    scam_categories: [fake_customer_support]
+    title: Mentions customer care or a support team
+    message: The message refers to customer care, a helpline or a support executive.
+  MSG_BANK_REFERENCE:
+    module: message
+    category: impersonation
+    weight: 5
+    scam_categories: [banking_payment]
+    title: Mentions a bank, payment app or well-known brand
+    message: The message mentions a bank, payment service or well-known company. Genuine messages do this too, so this only matters together with other warning signs.
+  MSG_LINK_CALL_TO_ACTION:
+    module: message
+    category: link
+    weight: 10
+    scam_categories: [phishing]
+    title: Asks you to act through a link
+    message: The message asks you to click, update, verify or log in through a link. The link itself is analysed separately.
+  MSG_EXCESSIVE_PUNCTUATION:
+    module: message
+    category: style
+    weight: 5
+    title: Excessive exclamation marks
+    message: Many exclamation marks are typical of scam and spam messages.
+  MSG_EXCESSIVE_CAPS:
+    module: message
+    category: style
+    weight: 5
+    title: Excessive capital letters
+    message: A large share of the message is in CAPITAL letters, typical of attention-grabbing scam messages.
+  MSG_HIDDEN_CHARACTERS:
+    module: message
+    category: style
+    weight: 10
+    title: Hidden or disguised characters
+    message: The message contains invisible characters or words mixing different alphabets, techniques used to evade filters.
+  MSG_LANGUAGE_NOT_SUPPORTED:
+    module: message
+    category: style
+    weight: 0
+    title: Language not fully supported
+    message: Most of this message is not in English. QRGUARD's scam rules currently cover English only, so warning signs may be missed.
+
+  # ---- Combination rules (module: message, shown as their own reasons) ------------------------
+  MSG_COMBO_CREDENTIAL_IMPERSONATION:
+    module: message
+    category: combination
+    weight: 20
+    scam_categories: [credential_theft, impersonation]
+    title: "Combination: asks for credentials while posing as an organisation"
+    message: Asking for an OTP, PIN or password while claiming to be a bank, authority or support team is the classic account-takeover scam.
+  MSG_COMBO_ADVANCE_FEE:
+    module: message
+    category: combination
+    weight: 20
+    title: "Combination: reward or job that requires paying first"
+    message: A prize, job, task or internship that requires you to pay first is an advance-fee scam.
+  MSG_COMBO_REWARD_CREDENTIAL:
+    module: message
+    category: combination
+    weight: 20
+    scam_categories: [credential_theft]
+    title: "Combination: reward or refund that needs your OTP or PIN"
+    message: A prize, cashback or refund that requires your OTP, PIN or password is a scam; receiving money never needs them.
+  MSG_COMBO_THREAT_URGENCY_ACTION:
+    module: message
+    category: combination
+    weight: 15
+    scam_categories: [phishing]
+    title: "Combination: threat + urgency + a link or number to act on"
+    message: A threat, a deadline and a link or phone number to act on immediately is the typical structure of a phishing or scam message.
+  MSG_COMBO_REMOTE_SUPPORT:
+    module: message
+    category: combination
+    weight: 20
+    scam_categories: [fake_customer_support]
+    title: "Combination: support or refund + remote-access app"
+    message: A "support" or "refund" contact asking you to install a remote-access app is a well-known fake customer-support scam.
+  MSG_COMBO_RETURNS_PRIVATE_GROUP:
+    module: message
+    category: combination
+    weight: 15
+    scam_categories: [investment]
+    title: "Combination: guaranteed returns in a private group"
+    message: Guaranteed returns offered through WhatsApp or Telegram groups are a common investment-fraud pattern.

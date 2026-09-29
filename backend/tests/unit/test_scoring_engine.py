@@ -158,3 +158,104 @@ def test_unknown_indicator_is_a_programming_error():
 def test_indicators_are_sorted_by_contribution():
     result = score(["URL_NO_HTTPS", "URL_IP_HOST"])
     assert [i["id"] for i in result.indicators] == ["URL_IP_HOST", "URL_NO_HTTPS"]
+
+
+# --- primary evidence (messages): links may raise the score, never lower it --------------------
+def message_score(message_ids, link_ids=(), ti=None, **ctx):
+    indicators = [Indicator(i) for i in [*message_ids, *link_ids]]
+    modules = {"message"} | ({"url_qr"} if link_ids else set())
+    return score_indicators(
+        S, indicators, modules, ti, ScoringContext(**ctx), primary_modules={"message"}
+    )
+
+
+STRONG_MESSAGE = [  # OTP 30 + combination 20 + account threat 15 + KYC 15 = 80
+    "MSG_OTP_REQUEST",
+    "MSG_COMBO_CREDENTIAL_IMPERSONATION",
+    "MSG_ACCOUNT_THREAT",
+    "MSG_KYC_PRETEXT",
+]
+
+
+def test_clean_link_never_dilutes_strong_message_evidence():
+    alone = message_score(STRONG_MESSAGE)
+    with_clean_link = message_score(STRONG_MESSAGE, ["TRUSTED_DOMAIN"])
+    assert alone.risk_score == with_clean_link.risk_score == 80  # not (0.2*80+0.35*0)/0.55=29
+    assert with_clean_link.breakdown["rule_used"] == "primary_evidence"
+    assert with_clean_link.breakdown["weighted_score"] == 29.1
+    link_rows = [r for r in with_clean_link.indicators if r["source"] == "link"]
+    assert all(r["score_contribution"] == 0 for r in link_rows)
+
+
+def test_trusted_link_does_not_make_suspicious_message_safe_or_verified():
+    result = message_score(
+        ["MSG_OTP_REQUEST"], ["TRUSTED_DOMAIN"], allow_trusted_domain_verification=False
+    )
+    assert result.risk_level == "SUSPICIOUS"
+    assert result.verification["status"] == "UNVERIFIED"
+
+
+def test_risky_link_raises_message_score():
+    # message 40 (OTP 30 + bank 5 + urgency... ) and link 70-ish
+    msg = ["MSG_OTP_REQUEST", "MSG_URGENCY"]  # 40
+    link = [
+        "URL_IP_HOST",
+        "URL_USERINFO_AT",
+        "URL_SUSPICIOUS_TLD",
+        "BRAND_IN_SUBDOMAIN",
+        "URL_PHISHING_KEYWORD",
+    ]  # 45 (capped) + 25 + 5 = 75
+    result = message_score(msg, link)
+    assert result.breakdown["primary_score"] == 40.0
+    # (0.20*40 + 0.35*75) / 0.55 = 62.3
+    assert result.risk_score == 62 and result.risk_level == "MALICIOUS"
+    assert result.breakdown["rule_used"] == "weighted_with_additional_evidence"
+    total = sum(r["score_contribution"] for r in result.indicators)
+    assert total == pytest.approx(result.breakdown["weighted_score"], abs=0.3)
+
+
+def test_link_floor_and_threat_intel_floor_apply_to_messages():
+    assert message_score(["MSG_URGENCY"], ["BRAND_LOOKALIKE"]).risk_score == 60
+    ti = [ProviderResult("demo", TIStatus.LISTED)]
+    result = message_score(["MSG_URGENCY"], ["URL_NO_HTTPS"], ti=ti)
+    assert result.risk_score == 90
+    assert result.verification["source"] == "threat_intelligence"
+
+
+def test_sources_separate_message_link_ti_and_combination_evidence():
+    ti = [ProviderResult("demo", TIStatus.PARTIAL)]
+    result = message_score(STRONG_MESSAGE[:2], ["URL_IP_HOST"], ti=ti)
+    by_source = {s["source"]: s for s in result.breakdown["sources"]}
+    assert set(by_source) == {"message", "combination", "link", "threat_intelligence"}
+    assert by_source["combination"]["indicator_ids"] == ["MSG_COMBO_CREDENTIAL_IMPERSONATION"]
+    assert {r["source"] for r in result.indicators if r["id"] == "TI_PARTIAL"} == {
+        "threat_intelligence"
+    }
+
+
+def test_link_categories_are_only_reported_when_the_link_evidence_counted():
+    weak_link = message_score(STRONG_MESSAGE, ["URL_IP_HOST"])  # primary wins -> link adds 0
+    assert "malicious_url" not in {c["id"] for c in weak_link.categories}
+
+
+def test_fallback_category_when_no_specific_category_applies():
+    # urgency 10 + fee 15 + contact 10 + style 10 = 45, none of these carry a category
+    result = message_score(
+        [
+            "MSG_URGENCY",
+            "MSG_UPFRONT_FEE",
+            "MSG_OFF_PLATFORM_CONTACT",
+            "MSG_PHONE_CALL_TO_ACTION",
+            "MSG_EXCESSIVE_CAPS",
+            "MSG_EXCESSIVE_PUNCTUATION",
+        ]
+    )
+    assert result.risk_level == "SUSPICIOUS"
+    assert [c["id"] for c in result.categories] == ["social_engineering_other"]
+
+
+def test_low_confidence_reasons():
+    assert (
+        message_score(["MSG_URGENCY"], low_confidence_reasons=["very short message"]).confidence
+        == "LOW"
+    )

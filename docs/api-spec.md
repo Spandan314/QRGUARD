@@ -128,7 +128,7 @@ Examples (real output):
 | 405 | `METHOD_NOT_ALLOWED` | |
 | 413 | `FILE_TOO_LARGE`, `PAYLOAD_TOO_LARGE` | Above `MAX_UPLOAD_MB` or the JSON limit |
 | 415 | `UNSUPPORTED_MEDIA_TYPE` | Not PNG/JPEG/WEBP, or wrong Content-Type |
-| 422 | `UNPROCESSABLE_IMAGE`, `OCR_FAILED` | Corrupt image, OCR produced nothing |
+| 422 | `TEXT_NOT_ANALYZABLE`, `UNPROCESSABLE_IMAGE`, `OCR_FAILED` | No analysable text; corrupt image; OCR produced nothing |
 | 429 | `RATE_LIMITED` | Includes a `Retry-After` header |
 | 501 | `NOT_IMPLEMENTED` | Endpoint validated the request, but its analyzer is not built yet |
 | 500 | `INTERNAL_ERROR` | Generic message only. The stack trace goes to server logs, never to the client. |
@@ -203,20 +203,87 @@ Input rules:
   `blocked_private_address`, `blocked_dangerous_scheme`, `blocked_scheme`, `blocked_port`,
   `dns_failure`, `timeout`, `connection_error`, `tls_error`, `invalid_redirect`.
 
-### `POST /api/analyze/message`
-```json
-{ "text": "Dear customer your SBI account will be BLOCKED today. Update KYC: http://sbi-kyc.example/login", "save_to_history": false }
-```
-Rules: `text` has 1–5000 characters. Control characters are stripped. The text is **not logged and
-not stored**.
+### `POST /api/analyze/message` ✅ implemented
 
-`details`:
+Request:
 ```json
-{ "matched_categories": ["kyc_account_suspension", "impersonation", "malicious_url"],
-  "matched_phrases": [{ "category": "threat", "phrase": "account will be BLOCKED" }, { "category": "urgency", "phrase": "today" }],
-  "urls": [ { "url": "http://sbi-kyc.example/login", "risk_score": 70, "risk_level": "MALICIOUS", "indicators": [ ] } ],
-  "phone_numbers": [], "language": "en" }
+{ "text": "Dear customer, your SBI account will be BLOCKED today. Update your KYC immediately: http://sbi-kyc-update.xyz/login",
+  "save_to_history": false }
 ```
+
+| Status | When |
+|---|---|
+| 200 | Analysis result (common result object) |
+| 400 `VALIDATION_ERROR` | Missing / empty / whitespace-only / > 5000 characters / not a string / unknown field |
+| 422 `TEXT_NOT_ANALYZABLE` | Fewer than 3 letters and no link (e.g. only emojis or numbers) |
+| 413 / 415 / 429 | As for all endpoints |
+
+Real response (shortened; the redirect check was not needed because the link is not a shortener):
+
+```json
+{
+  "input_type": "message",
+  "risk_score": 65,
+  "risk_level": "MALICIOUS",
+  "confidence": "HIGH",
+  "verification": { "status": "UNVERIFIED", "source": null,
+                    "message": "There is insufficient evidence to establish trust. A SAFE result does not guarantee that the message is genuine." },
+  "summary": "Strong warning signs: this message is very likely a scam.",
+  "categories": [ { "id": "kyc_account_suspension", "label": "KYC / account suspension scam" },
+                  { "id": "phishing", "label": "Phishing" },
+                  { "id": "banking_payment", "label": "Banking / payment scam" } ],
+  "indicators": [
+    { "id": "MSG_KYC_PRETEXT", "source": "message", "severity": "medium", "evidence": "update your kyc", "weight": 15, "score_contribution": 15.0 },
+    { "id": "MSG_COMBO_THREAT_URGENCY_ACTION", "source": "combination", "severity": "medium", "evidence": "account threat + urgency + link", "weight": 15, "score_contribution": 15.0 },
+    { "id": "MSG_ACCOUNT_THREAT", "source": "message", "severity": "medium", "evidence": "account will be blocked", "weight": 15, "score_contribution": 12.0 },
+    { "id": "MSG_LINK_CALL_TO_ACTION", "source": "message", "severity": "medium", "evidence": "update … [link]", "weight": 10, "score_contribution": 10.0 },
+    { "id": "MSG_URGENCY", "source": "message", "severity": "medium", "evidence": "immediately", "weight": 10, "score_contribution": 8.0 },
+    { "id": "MSG_BANK_REFERENCE", "source": "message", "severity": "low", "evidence": "sbi", "weight": 5, "score_contribution": 5.0 },
+    { "id": "BRAND_IN_DOMAIN_NAME", "source": "link", "severity": "high", "evidence": "sbi-kyc-update.xyz: State Bank of India", "weight": 25, "score_contribution": 0.0 },
+    { "id": "URL_SUSPICIOUS_TLD", "source": "link", "severity": "medium", "evidence": "sbi-kyc-update.xyz: .xyz", "weight": 10, "score_contribution": 0.0 }
+  ],
+  "recommendation": "Do not reply, call back, click links, pay, or share any OTP, PIN, password or card details. Block and report the sender. … In India, report financial fraud at 1930 or https://cybercrime.gov.in. Suspected fraud calls and messages can be reported through Chakshu on https://sancharsaathi.gov.in.",
+  "score_breakdown": {
+    "modules": [ { "module": "url_qr", "applicable": true, "module_score": 58.0, "weight": 0.35, "effective_weight": 0.0 },
+                 { "module": "message", "applicable": true, "module_score": 65.0, "weight": 0.2, "effective_weight": 1.0 }, "…" ],
+    "primary_score": 65.0,
+    "weighted_score": 60.5,
+    "rule_used": "primary_evidence",
+    "floor_applied": null,
+    "final_score": 65,
+    "sources": [ { "source": "message", "points": 50.0, "indicator_ids": ["MSG_KYC_PRETEXT", "MSG_ACCOUNT_THREAT", "MSG_LINK_CALL_TO_ACTION", "MSG_URGENCY", "MSG_BANK_REFERENCE"] },
+                 { "source": "link", "points": 0.0, "indicator_ids": ["BRAND_IN_DOMAIN_NAME", "URL_SUSPICIOUS_TLD", "…"] },
+                 { "source": "combination", "points": 15.0, "indicator_ids": ["MSG_COMBO_THREAT_URGENCY_ACTION"] } ]
+  },
+  "threat_intel": { "checked": false, "providers": [], "note": "Threat-intelligence lookups are not enabled yet; links were analysed by their structure only." },
+  "analysis": {
+    "text_length": 115,
+    "language": { "script": "latin", "supported": true },
+    "preprocessing": { "hidden_characters_removed": 0, "links_found": 1, "links_deobfuscated": 0 },
+    "low_confidence_reasons": [],
+    "matched_phrases": [ { "indicator": "MSG_ACCOUNT_THREAT", "phrase": "account will be blocked", "sentence": 1 },
+                         { "indicator": "MSG_URGENCY", "phrase": "immediately", "sentence": 2 }, "…" ],
+    "links": [ { "url": "http://sbi-kyc-update.xyz/login", "scored": true, "normalized_url": "http://sbi-kyc-update.xyz/login",
+                 "domain": "sbi-kyc-update.xyz", "risk_score": 58, "risk_level": "SUSPICIOUS",
+                 "indicator_ids": ["BRAND_IN_DOMAIN_NAME", "URL_SUSPICIOUS_TLD", "URL_NO_HTTPS", "URL_PHISHING_KEYWORD"],
+                 "redirects": { "checked": false, "status": "not_attempted", "reason": "only shortened links are followed" } } ],
+    "entities": { "emails": [], "upi_ids": [], "amounts": [], "phone_numbers": [] }
+  },
+  "disclaimer": "This is an automated security assessment, not a guarantee.",
+  "engine_version": "0.1.0"
+}
+```
+
+Notes:
+- `indicators[].source` ∈ `message` · `link` · `threat_intelligence` · `combination`.
+  `score_breakdown.sources` gives the points per source.
+- `rule_used`: `primary_evidence` (the text alone gave the highest score) or
+  `weighted_with_additional_evidence` (the link raised it). A floor, if any, is in `floor_applied`.
+- `links[].scored` marks the one link whose findings were scored. At most 3 links are analysed
+  and at most 2 redirect checks are made per message. Extra links show `"error": "not analysed
+  (limit reached)"`.
+- `entities.phone_numbers` are masked (`******3210`). The text itself is never echoed except as
+  short matched phrases, and never logged or stored.
 
 ### `POST /api/analyze/screenshot`
 `multipart/form-data`: `file` (PNG/JPEG/WEBP, ≤ 5 MB, ≤ 25 MP), plus the optional form field `save_to_history`.

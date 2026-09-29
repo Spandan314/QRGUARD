@@ -1,0 +1,167 @@
+# DEMO / TEST DATA: every message below is written for testing QRGUARD.
+# No real people's data. Phone numbers are fictitious (98765 43210 / 1800-123-4567 style),
+# links use reserved (.example, .test) or clearly fake domains. Do NOT send these to anyone.
+#
+# expected_level: the level QRGUARD should give.
+# expected_categories: categories that MUST be present (others may appear too).
+# genuine: true for legitimate messages (the target is that none of these is MALICIOUS).
+
+messages:
+  # ---------------- genuine messages -------------------------------------------------------------
+  - id: genuine-otp-1
+    genuine: true
+    text: "482913 is your OTP for login to HDFC Bank NetBanking. OTP valid for 5 mins. Never share your OTP with anyone. -HDFC Bank"
+    expected_level: SAFE
+  - id: genuine-otp-2
+    genuine: true
+    text: "Dear Customer, 736152 is the OTP for your transaction of Rs 1,250.00 at AMAZON. Do not share this OTP with anyone, bank never asks for OTP."
+    expected_level: SAFE
+  - id: genuine-debit-alert
+    genuine: true
+    text: "Rs 2,000.00 debited from A/c XX1234 on 29-09-26 to VPA shop@okaxis. Avl Bal Rs 10,540.25. If not done by you, call 1800-123-4567. -SBI"
+    expected_level: SAFE
+  - id: genuine-credit-alert
+    genuine: true
+    text: "Your A/c XX5678 is credited with Rs 25,000.00 on 30-09-26 by NEFT from ACME PVT LTD. Avl Bal Rs 31,220.00 - ICICI Bank"
+    expected_level: SAFE
+  - id: genuine-interview
+    genuine: true
+    text: "Thank you for applying to Example Technologies. Your interview is scheduled on 12 Oct at 11 AM at our Pune office. Please bring a government ID."
+    expected_level: SAFE
+  - id: genuine-internship-interview
+    genuine: true
+    text: "You have been shortlisted for the internship interview at Example Labs on Monday 10 AM. No fee is charged at any stage."
+    expected_level: SAFE
+  - id: genuine-delivery
+    genuine: true
+    text: "Your order #40213 has been shipped and will be delivered by Friday. Track it at https://track.example.com/40213"
+    expected_level: SAFE
+  - id: genuine-bill-reminder
+    genuine: true
+    text: "Your electricity bill of Rs 1,340 for Sept is due on 15 Oct. Pay via the official app or at the nearest office to avoid a late fee."
+    expected_level: SAFE
+  - id: genuine-refund
+    genuine: true
+    text: "Refund of Rs 499 for order #88231 has been initiated and will reach your original payment method in 5-7 working days."
+    expected_level: SAFE
+  - id: genuine-security-advice
+    genuine: true
+    text: "Beware of fraud: our bank will never ask for your OTP, PIN or CVV. Never share them with anyone, even if the caller claims to be from the bank."
+    expected_level: SAFE
+  - id: genuine-kyc-completed
+    genuine: true
+    text: "Your KYC has been successfully updated. Thank you for banking with us. - Axis Bank"
+    expected_level: SAFE
+  - id: genuine-friend
+    genuine: true
+    text: "Hey! Are we still meeting at 6 today? Let me know, I'll book the tickets."
+    expected_level: SAFE
+  - id: genuine-college
+    genuine: true
+    text: "Reminder: Project review for final-year students is on Thursday at 2 PM in Lab 3. Bring your report and slides."
+    expected_level: SAFE
+  - id: genuine-job-offer
+    genuine: true
+    text: "Congratulations! We are pleased to offer you the role of Junior Developer. Your offer letter has been emailed. Joining date: 3 Nov."
+    expected_level: SAFE
+
+  # ---------------- scams ------------------------------------------------------------------------
+  - id: scam-kyc-link
+    text: "Dear customer, your SBI account will be BLOCKED today. Update your KYC immediately: http://sbi-kyc-update.xyz/login"
+    expected_level: MALICIOUS
+    expected_categories: [kyc_account_suspension, phishing]
+  - id: scam-kyc-pan
+    text: "Your PAN is not linked with your bank account. Your account will be suspended within 24 hours. Update now: https://pan-update.example/verify"
+    expected_level: MALICIOUS
+    expected_categories: [kyc_account_suspension]
+  - id: scam-otp-bank
+    text: "This is HDFC Bank customer care. Your account is locked due to suspicious activity. Please share the OTP sent to your mobile to unlock it."
+    expected_level: MALICIOUS
+    expected_categories: [otp_scam, credential_theft]
+  - id: scam-otp-simple
+    text: "Hi, I sent an OTP to your number by mistake. Please forward the OTP to me."
+    expected_level: SUSPICIOUS
+    expected_categories: [otp_scam]
+  - id: scam-credentials
+    text: "Dear user, your net banking will be deactivated. Reply with your user id and password to continue services."
+    expected_level: SUSPICIOUS
+    calibration_note: "Predicted MALICIOUS before testing; scores 45 (credential request + threat, no brand named). Candidate for Week 8 tuning."
+    expected_categories: [credential_theft]
+  - id: scam-upi-cashback
+    text: "Congratulations! You received Rs 5000 cashback on PhonePe. Enter your UPI PIN to receive the amount."
+    expected_level: MALICIOUS
+    expected_categories: [upi_scam]
+  - id: scam-upi-qr
+    text: "I have sent you a QR code for the refund of your OLX payment. Scan the QR code to receive Rs 15,000."
+    expected_level: SUSPICIOUS
+    expected_categories: [upi_scam]
+  - id: scam-lottery
+    text: "Congratulations! You won Rs 25 lakh in KBC lucky draw. Pay processing fee Rs 12,500 to claim your prize."
+    expected_level: SUSPICIOUS
+    expected_categories: [lottery_prize]
+  - id: scam-lottery-otp
+    text: "You have won an iPhone in our lucky draw! Share the OTP received on your phone to claim the prize!!!"
+    expected_level: MALICIOUS
+    expected_categories: [lottery_prize, otp_scam]
+  - id: scam-job-task
+    text: "Part-time job! Earn Rs 3000/day liking YouTube videos. Registration fee Rs 499 only. WhatsApp 9876543210"
+    expected_level: MALICIOUS
+    expected_categories: [fake_job]
+  - id: scam-job-wfh
+    text: "Work from home opportunity. Daily income Rs 2,000-5,000. No interview. Joining fee Rs 999 refundable. Contact on Telegram."
+    expected_level: SUSPICIOUS
+    expected_categories: [fake_job]
+    calibration_note: "Predicted MALICIOUS before testing; scores 55 (one lure + fee + combination). Candidate for Week 8 tuning."
+  - id: scam-internship
+    text: "You are selected for our internship with stipend and certificate. Pay the registration fee of Rs 1,500 within 24 hours to confirm your seat."
+    expected_level: MALICIOUS
+    expected_categories: [fake_internship]
+  - id: scam-investment
+    text: "Join our VIP Telegram group. Guaranteed 30% daily returns on crypto trading!"
+    expected_level: SUSPICIOUS
+    expected_categories: [investment]
+  - id: scam-investment-double
+    text: "Double your money in 7 days! Risk-free investment plan. Guaranteed profit. WhatsApp us now to join."
+    expected_level: SUSPICIOUS
+    expected_categories: [investment]
+  - id: scam-remote-support
+    text: "Your Amazon account is locked. Call our customer care and install AnyDesk to verify your refund."
+    expected_level: MALICIOUS
+    expected_categories: [fake_customer_support]
+  - id: scam-refund-remote
+    text: "Refund of Rs 3,999 approved. Our support team will help you. Download QuickSupport app to complete the refund."
+    expected_level: MALICIOUS
+    expected_categories: [fake_customer_support]
+  - id: scam-electricity
+    text: "Dear consumer, your electricity power will be disconnected tonight at 9.30 PM because your previous month bill was not updated. Please immediately call our officer 9876543210."
+    expected_level: SUSPICIOUS
+  - id: scam-digital-arrest
+    text: "This is Mumbai cyber cell. A parcel with illegal items was booked in your name. An arrest warrant is issued. Transfer Rs 50,000 as security to avoid arrest."
+    expected_level: SUSPICIOUS
+    expected_categories: [impersonation]
+  - id: scam-courier
+    text: "FedEx: your parcel is on hold due to unpaid customs charges. Pay Rs 49 now at http://fedex-redelivery.example/pay or it will be returned."
+    expected_level: SUSPICIOUS
+  - id: scam-lookalike-link
+    text: "Your HDFC credit card reward points expire today. Redeem now: https://hdfcbnak.com/rewards"
+    expected_level: MALICIOUS
+    expected_categories: [phishing]
+  - id: scam-hidden-chars
+    text: "Your acc​ount will be sus​pended. Ver​ify your KYC immediately at http://kyc-help.example/v"
+    expected_level: MALICIOUS
+    expected_categories: [kyc_account_suspension]
+  - id: scam-refund-excess
+    text: "Sorry, Rs 10,000 was credited to your account by mistake. Please transfer the excess amount to my UPI 9876543210@ybl urgently."
+    expected_level: SUSPICIOUS
+  - id: scam-sim-block
+    text: "TRAI notice: your mobile number will be blocked in 2 hours due to illegal activity. Press 9 or call 9876543210 to speak to the officer."
+    expected_level: SUSPICIOUS
+  - id: scam-otp-leetspeak
+    text: "Sh@re y0ur 0TP with our executive to activate your c@shback of Rs 5000"
+    expected_level: MALICIOUS
+    expected_categories: [otp_scam]
+  - id: scam-defanged-link
+    text: "Your account is suspended. Verify immediately at hxxps://secure-login-sbi[.]xyz/verify"
+    expected_level: SUSPICIOUS
+    calibration_note: "Predicted MALICIOUS before testing; scores 48 (brand-in-domain link, no KYC pretext). Candidate for Week 8 tuning."
+    expected_categories: [phishing]

@@ -12,6 +12,7 @@ from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from app.analyzers.redirect_resolver import RedirectSettings
+from app.analyzers.scam_rules import load_scam_rules
 from app.analyzers.url_rules import load_url_rules
 from app.config import Config
 from app.errors import register_error_handlers
@@ -19,6 +20,7 @@ from app.extensions import limiter
 from app.logging_setup import configure_logging
 from app.middleware import register_middleware
 from app.routes import register_blueprints
+from app.services.message_analysis_service import MessageAnalysisService
 from app.services.url_analysis_service import UrlAnalysisService
 from app.threat_intelligence.service import ThreatIntelService
 from app.version import __version__
@@ -63,8 +65,9 @@ def create_app(config: Config | None = None) -> Flask:
     # Analysis services are created once per app (rule files are validated at startup).
     # No threat-intelligence providers are configured yet (added in a later phase).
     threat_intel = ThreatIntelService(providers=[])
-    app.extensions["qrguard.url_analysis"] = UrlAnalysisService(
-        rules=load_url_rules(),
+    url_rules = load_url_rules()
+    url_service = UrlAnalysisService(
+        rules=url_rules,
         scoring=config.scoring,
         threat_intel=threat_intel,
         redirect_mode=config.redirect_resolution,
@@ -73,6 +76,10 @@ def create_app(config: Config | None = None) -> Flask:
             request_timeout=config.redirect_timeout_seconds,
             total_timeout=config.redirect_total_timeout_seconds,
         ),
+    )
+    app.extensions["qrguard.url_analysis"] = url_service
+    app.extensions["qrguard.message_analysis"] = MessageAnalysisService(
+        rules=load_scam_rules(url_rules), url_service=url_service
     )
 
     register_middleware(app)
