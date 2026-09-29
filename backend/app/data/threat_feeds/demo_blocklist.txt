@@ -1,0 +1,10 @@
+# QRGUARD demo blocklist (DEMO / TEST DATA).
+# Only reserved names (RFC 2606 / RFC 6761: .example, .test, .invalid) are listed, so no entry can
+# ever point to a real website. Used to demonstrate a threat-intelligence hit without live
+# malicious URLs. Format: one full URL (exact match) or one host name (host and its subdomains)
+# per line; "#" starts a comment.
+http://secure-sbi-kyc-update.example/login
+https://hdfc-netbanking-verify.example/
+http://paytm-cashback-claim.test/redeem
+upi-refund-desk.example
+fake-courier-redelivery.test
