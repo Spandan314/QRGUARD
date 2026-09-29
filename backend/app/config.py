@@ -11,6 +11,7 @@ build a configuration without touching the real ``os.environ``.
 from __future__ import annotations
 
 import os
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
@@ -48,6 +49,14 @@ def _get_choice(env: Mapping[str, str], name: str, default: str, choices: tuple[
     return value
 
 
+def _get_ocr_languages(env: Mapping[str, str]) -> str:
+    """Tesseract language codes such as "eng" or "eng+hin" (letters and "+" only)."""
+    value = env.get("OCR_LANGUAGES", "").strip() or "eng"
+    if not re.fullmatch(r"[a-z_]{3,}(?:\+[a-z_]{3,})*", value):
+        raise ConfigError(f"OCR_LANGUAGES must look like 'eng' or 'eng+hin', got {value!r}")
+    return value
+
+
 def _get_list(env: Mapping[str, str], name: str, default: str) -> list[str]:
     raw = env.get(name, default)
     return [item.strip().rstrip("/") for item in raw.split(",") if item.strip()]
@@ -70,6 +79,12 @@ class Config:
     redirect_max_hops: int = 5
     redirect_timeout_seconds: int = 3
     redirect_total_timeout_seconds: int = 8
+    ratelimit_screenshot: str = "6 per minute;60 per day"
+    max_image_megapixels: int = 25
+    tesseract_cmd: str = "tesseract"
+    ocr_languages: str = "eng"
+    ocr_timeout_seconds: int = 20
+    ocr_max_concurrent: int = 2
     scoring: ScoringSettings = field(default_factory=load_scoring_settings)
 
     # ----- derived values -------------------------------------------------
@@ -125,5 +140,12 @@ class Config:
             redirect_total_timeout_seconds=_get_int(
                 env, "REDIRECT_TOTAL_TIMEOUT_SECONDS", 8, 1, 30
             ),
+            ratelimit_screenshot=env.get("RATELIMIT_SCREENSHOT", "").strip()
+            or "6 per minute;60 per day",
+            max_image_megapixels=_get_int(env, "MAX_IMAGE_MEGAPIXELS", 25, 1, 50),
+            tesseract_cmd=env.get("TESSERACT_CMD", "").strip() or "tesseract",
+            ocr_languages=_get_ocr_languages(env),
+            ocr_timeout_seconds=_get_int(env, "OCR_TIMEOUT_SECONDS", 20, 2, 60),
+            ocr_max_concurrent=_get_int(env, "OCR_MAX_CONCURRENT", 2, 1, 8),
             scoring=load_scoring_settings(scoring_path),
         )
