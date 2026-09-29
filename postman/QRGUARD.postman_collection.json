@@ -1437,10 +1437,10 @@
       ]
     },
     {
-      "name": "Analyze (contract stubs)",
+      "name": "QR analysis (DEMO / TEST DATA)",
       "item": [
         {
-          "name": "POST /api/analyze/qr (decoded content)",
+          "name": "SAFE + VERIFIED: trusted link (camera)",
           "request": {
             "method": "POST",
             "header": [
@@ -1462,7 +1462,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"upi://pay?pa=demo@upi&pn=Demo&am=1\",\n  \"source\": \"camera\"\n}"
+              "raw": "{\n  \"content\": \"https://www.wikipedia.org/\",\n  \"source\": \"camera\"\n}"
             }
           },
           "event": [
@@ -1471,16 +1471,606 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is 501', () => pm.response.to.have.status(501));",
-                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
-                  "pm.test('error code is NOT_IMPLEMENTED', () => pm.expect(pm.response.json().error.code).to.eql('NOT_IMPLEMENTED'));"
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
+                  "pm.test('verification is VERIFIED', () => pm.expect(pm.response.json().verification.status).to.eql('VERIFIED'));",
+                  "pm.test('content_type is url', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('url'));",
+                  "pm.test('input_type is qr', () => pm.expect(pm.response.json().input_type).to.eql('qr'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "POST /api/generate/qr",
+          "name": "MALICIOUS: look-alike link (camera)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"https://flipkrat.com/rewards\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('has indicator BRAND_LOOKALIKE', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('BRAND_LOOKALIKE'));",
+                  "pm.test('verification is UNVERIFIED', () => pm.expect(pm.response.json().verification.status).to.eql('UNVERIFIED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS: javascript: payload",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"javascript:alert(1)\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('has indicator URL_DANGEROUS_SCHEME', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('URL_DANGEROUS_SCHEME'));",
+                  "pm.test('content_type is dangerous', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('dangerous'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SAFE + UNVERIFIED: shop UPI payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"upi://pay?pa=sharmastores@okdemo&pn=Sharma%20Stores\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
+                  "pm.test('verification is UNVERIFIED', () => pm.expect(pm.response.json().verification.status).to.eql('UNVERIFIED'));",
+                  "pm.test('content_type is upi', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('upi'));",
+                  "pm.test('has indicator QR_UPI_PAYMENT', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('QR_UPI_PAYMENT'));",
+                  "pm.test('payee parsed', () => pm.expect(pm.response.json().analysis.qr.parsed.payee_vpa).to.eql('sharmastores@okdemo'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SUSPICIOUS: UPI 'refund desk' impersonation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"upi://pay?pa=refund.desk9912@okdemo&pn=SBI%20Refund%20Desk&am=4999&tn=Refund\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SUSPICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('SUSPICIOUS'));",
+                  "pm.test('has indicator QR_UPI_NAME_MISMATCH', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('QR_UPI_NAME_MISMATCH'));",
+                  "pm.test('has indicator QR_UPI_PRETEXT', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('QR_UPI_PRETEXT'));",
+                  "pm.test('has indicator QR_UPI_PREFILLED_AMOUNT', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('QR_UPI_PREFILLED_AMOUNT'));",
+                  "pm.test('QR evidence has source qr', () => pm.expect(pm.response.json().indicators.every(x => x.source === 'qr')).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wi-Fi QR: password never returned",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"WIFI:T:WPA;S:DemoCafe;P:DemoPassw0rdSECRET;;\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
+                  "pm.test('content_type is wifi', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('wifi'));",
+                  "pm.test('password not in response', () => pm.expect(pm.response.text()).to.not.include('DemoPassw0rdSECRET'));",
+                  "pm.test('has_password reported', () => pm.expect(pm.response.json().analysis.qr.parsed.has_password).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS: scam text in QR (message rules)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Your SBI account is blocked. Share the OTP to reactivate: http://sbi-kyc-update.xyz/login\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('content_type is text', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('text'));",
+                  "pm.test('has indicator MSG_OTP_REQUEST', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('MSG_OTP_REQUEST'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 empty content",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Image: SAFE + VERIFIED trusted link",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/qr-trusted-link.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
+                  "pm.test('verification is VERIFIED', () => pm.expect(pm.response.json().verification.status).to.eql('VERIFIED'));",
+                  "pm.test('source is image', () => pm.expect(pm.response.json().analysis.qr.source).to.eql('image'));",
+                  "pm.test('image metadata present', () => pm.expect(pm.response.json().analysis).to.have.property('image'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Image: MALICIOUS look-alike link",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/qr-lookalike-link.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('has indicator BRAND_LOOKALIKE', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('BRAND_LOOKALIKE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Image: SUSPICIOUS UPI refund",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/qr-upi-refund.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SUSPICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('SUSPICIOUS'));",
+                  "pm.test('content_type is upi', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('upi'));",
+                  "pm.test('has indicator QR_UPI_NAME_MISMATCH', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('QR_UPI_NAME_MISMATCH'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Image: inverted (light-on-dark) shop UPI",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/qr-inverted-upi-shop.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
+                  "pm.test('content_type is upi', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('upi'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Image: two codes, riskiest decides",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/qr-multiple.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('two codes found', () => pm.expect(pm.response.json().analysis.qr.codes_found).to.eql(2));",
+                  "pm.test('both codes listed', () => pm.expect(pm.response.json().analysis.qr_codes).to.have.length(2));",
+                  "pm.test('has indicator URL_DANGEROUS_SCHEME', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('URL_DANGEROUS_SCHEME'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "422 NO_QR_FOUND (blank image)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/blank.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 422', () => pm.response.to.have.status(422));",
+                  "pm.test('error code is NO_QR_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('NO_QR_FOUND'));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "415 not an image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/not-an-image.txt"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 415', () => pm.response.to.have.status(415));",
+                  "pm.test('error code is UNSUPPORTED_MEDIA_TYPE', () => pm.expect(pm.response.json().error.code).to.eql('UNSUPPORTED_MEDIA_TYPE'));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "QR generator",
+      "item": [
+        {
+          "name": "Generate URL QR (PNG)",
           "request": {
             "method": "POST",
             "header": [
@@ -1511,9 +2101,90 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is 501', () => pm.response.to.have.status(501));",
-                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
-                  "pm.test('error code is NOT_IMPLEMENTED', () => pm.expect(pm.response.json().error.code).to.eql('NOT_IMPLEMENTED'));"
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('PNG mime', () => pm.expect(pm.response.json().mime).to.eql('image/png'));",
+                  "pm.test('base64 image present', () => pm.expect(pm.response.json().image_base64.length).to.be.above(100));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Generate Wi-Fi QR (SVG, password masked)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/generate/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "generate",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"wifi\",\n  \"data\": {\n    \"ssid\": \"Demo;Cafe\",\n    \"password\": \"DemoPassw0rdSECRET\",\n    \"security\": \"WPA2\"\n  },\n  \"format\": \"svg\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('SVG returned', () => pm.expect(pm.response.json().svg).to.include('<svg'));",
+                  "pm.test('payload escaped and masked', () => pm.expect(pm.response.json().payload).to.eql('WIFI:T:WPA;S:Demo\\\\;Cafe;P:***;;'));",
+                  "pm.test('password not in JSON', () => pm.expect(pm.response.text()).to.not.include('DemoPassw0rdSECRET'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 generate javascript: URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/generate/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "generate",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"url\",\n  \"data\": {\n    \"url\": \"javascript:alert(1)\"\n  },\n  \"format\": \"png\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));"
                 ]
               }
             }
