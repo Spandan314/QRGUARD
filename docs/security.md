@@ -138,3 +138,34 @@ Implementation: `app/utils/net_safety.py` and `app/analyzers/redirect_resolver.p
 | Credentials | `FIREBASE_CREDENTIALS_JSON` / `FIREBASE_CREDENTIALS_FILE` only from the environment, excluded from the Config `repr`; an invalid key is reported without its content. |
 | Demo/test mode | `AUTH_DEV_TOKENS=true` ("dev-<uid>" tokens) and `HISTORY_STORE=memory` exist for local demos and automated API tests without a Firebase project. **Startup fails** if either is set with `APP_ENV=production`. |
 
+
+## Security audit (Phase 11, 2026-09-29)
+
+| Check | How | Result |
+|---|---|---|
+| Python dependencies | `pip-audit -r backend/requirements.txt` | No known vulnerabilities |
+| Web dependencies | `npm audit` in `web/` | 0 vulnerabilities |
+| Mobile dependencies | `npm audit --omit=dev` in `mobile/` | 14 moderate, see below |
+| Firebase tooling | `npm audit` in `firebase/` | 5 moderate in `firebase-tools` (a developer CLI for emulators and deploys; never shipped or run in production) |
+| E2E tooling | `npm audit` in `e2e/` | 0 vulnerabilities |
+| Secrets in git history | pattern scan of `git log --all -p` (Google API keys, private keys, GitHub/AWS/Slack tokens) and tracked `.env`/key/keystore files | None. The only match is a fake `"private_key": "SUPERSECRET"` test fixture that checks the value is never echoed |
+| Secrets in app bundles | scan of the web build and the Expo web export for provider key names, `private_key`, service-account fields | None. The frontends contain only public `VITE_*` / `EXPO_PUBLIC_*` values and never call threat-intelligence providers |
+| CORS | production container with `ALLOWED_ORIGINS=https://<web>`: the listed origin gets `Access-Control-Allow-Origin`; a foreign origin gets no CORS header; `*` refused at start-up in production | Pass |
+| Production guards | container with `APP_ENV=production AUTH_DEV_TOKENS=true` | Refuses to start |
+| Auth and isolation | production container + Firebase emulators with real ID tokens: dev tokens rejected, user B cannot see user A's history, non-admin gets 403 on `/api/admin/*` | Pass |
+| Logs | backend logs after the full E2E run (URLs, messages, a camera QR, sign-ins) searched for tokens (`eyJ…`), message text, URLs and QR payloads | None found (`e2e/run.sh` fails if any appear) |
+| Storage minimisation | history records hold domain + SHA-256 URL hash, message length / link count, UPI payee domain; no text, OCR output, screenshots or full QR payloads | Verified by `tests/integration/test_api_history.py` and the E2E history checks |
+
+**Mobile advisories (accepted, reviewed).** All 14 come from two packages:
+
+- `decode-uri-component` ≤ 0.4.2 (via `expo-router` → `query-string@7`): a denial-of-service with
+  malformed percent-encoded input. It runs only on the user's own phone when the router parses an
+  in-app URL, so the worst case is that the user's own app hangs; the backend is not affected.
+  The patched 0.5.x line is ESM-only and cannot be forced under `query-string@7` without breaking
+  navigation.
+- `uuid` < 11.1.1 (via `@expo/config-plugins` → `xcode`): a bounds-check bug when a caller
+  passes its own buffer. It is used only by build tooling that generates native project files, not
+  in the app at runtime.
+
+`npm audit fix --force` would downgrade to Expo SDK 46, which is not an acceptable fix. Re-check
+these on each Expo SDK upgrade.
