@@ -21,7 +21,7 @@ history, reports, account/privacy controls and an admin view.
 | Firestore security rules | 7 tests |
 | Postman / Newman | 83 requests, 303 assertions |
 | Web (Vitest) | 73 tests, 91% statements, lint with zero warnings |
-| Mobile (Jest) | 65 tests, 88% statements, lint with zero warnings |
+| Mobile (Jest) | 73 tests, 88% statements, lint with zero warnings |
 | End-to-end (`e2e/run.sh`: browsers → apps → Firebase emulators → Flask, production headers) | 18 flows + log privacy check |
 | Demo kit / smoke test | 11/11 demo scenarios, 11/11 deployment checks |
 
