@@ -2,6 +2,8 @@
 
 ## 1. Expected final demonstration (≈ 12 minutes)
 
+> The step-by-step script with verified expected results is [demo-runbook.md](demo-runbook.md).
+
 All inputs come from `demo-data/`, labelled **DEMO / TEST DATA**. No real people's data is used and no
 live phishing pages are shown.
 
