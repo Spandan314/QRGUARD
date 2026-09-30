@@ -192,19 +192,20 @@ eas login
 eas init        # creates the Expo project and prints its ID ("projectId")
 ```
 
-`app.config.ts` is dynamic, so `eas init` cannot write the ID into it; it is read from the
-`EAS_PROJECT_ID` variable instead (an identifier, not a secret). One command sets it and the five
-public app values in both the `preview` and `production` EAS environments. It refuses a non-HTTPS,
-local or emulator backend URL and a malformed ID, and can be re-run safely (`eas env:set`):
+`app.config.ts` is dynamic, so `eas init` cannot write the ID into it. The QRGUARD project's ID
+(`c572b10d-eef7-403b-a7f7-292903a221a5`, an identifier, not a secret) is therefore set in
+`app.config.ts` itself; an `EAS_PROJECT_ID` variable overrides it, e.g. for a different Expo
+account. One command sets the ID and the five public app values in both the `preview` and
+`production` EAS environments. It refuses a non-HTTPS, local or emulator backend URL and a
+malformed ID, and can be re-run safely (`eas env:set`):
 
 ```bash
-EAS_PROJECT_ID=<projectId printed by eas init> \
+EAS_PROJECT_ID=c572b10d-eef7-403b-a7f7-292903a221a5 \
 API_BASE_URL=https://<service>.onrender.com \
 FIREBASE_API_KEY=<apiKey> FIREBASE_AUTH_DOMAIN=<authDomain> \
 FIREBASE_PROJECT_ID=<projectId> FIREBASE_APP_ID=<appId> \
 bash scripts/eas-env.sh          # add --dry-run first to see the 12 commands it will run
 
-export EAS_PROJECT_ID=<same projectId>      # the local shell also needs it for `eas build`
 eas build -p android --profile preview      # installable APK (demo / testers)
 eas build -p android --profile production   # AAB for the Play Store (version code auto-increments)
 ```
