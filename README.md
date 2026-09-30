@@ -10,14 +10,14 @@ recommended safe action.
 
 ## Project status
 
-**Version 1.0.0 — feature-complete and deployment-ready.** The Flask backend analyses links, messages, screenshots
+**Version 1.0.0 — feature-complete; deployment in progress on free plans (Firebase and Render done).** The Flask backend analyses links, messages, screenshots
 (OCR) and QR codes, checks threat intelligence and returns an explainable score. The React web app and
 the Expo mobile app use it for every check, with Firebase sign-in, a private privacy-minimised
 history, reports, account/privacy controls and an admin view.
 
 | Suite | Result |
 |---|---|
-| Backend (pytest, incl. Firestore emulator) | 821 tests, 96% coverage, Ruff clean |
+| Backend (pytest, incl. Firestore emulator) | 831 tests, 95% coverage (98% with the Firestore emulator), Ruff clean |
 | Firestore security rules | 7 tests |
 | Postman / Newman | 83 requests, 303 assertions |
 | Web (Vitest) | 73 tests, 91% statements, lint with zero warnings |
@@ -55,9 +55,10 @@ verification.
 | 9 | React Native (Expo) mobile application | ✅ Done |
 | 10 | Firebase sign-in, private history, reports, admin (backend, web, mobile) | ✅ Done |
 | 11 | End-to-end tests, security audit, evaluation | ✅ Done |
-| 12 | Deployment (Docker/Render, Vercel, EAS, Firebase) | ✅ Ready; needs account owners to deploy ([docs/deployment.md](docs/deployment.md)) |
+| 12 | Deployment (Firebase, Docker/Render, Vercel, EAS) | 🔄 Firebase (Spark) and Render deployed; Vercel and EAS next ([docs/deployment.md](docs/deployment.md)) |
 
-"Done" means implemented, tested, merged (PRs #2–#13) and released on `main` as v1.0.0.
+"Done" means implemented, tested, merged (PRs #2–#17) and released on `main` as v1.0.0. PRs #18–#21
+made the Firebase configuration work on the free Spark plan (see [CHANGELOG.md](CHANGELOG.md)).
 
 ## Architecture at a glance
 
@@ -84,8 +85,10 @@ verification.
   cloud-metadata addresses (SSRF protection).
 - **Minimal data**: messages, screenshots, OCR text and QR contents are analysed in memory and never
   stored or logged. Opt-in history keeps only the verdict and a minimised target (domain + hash);
-  users can delete one item, all items or their whole account; items expire after 90 days (hidden
-  at once, deleted at the next sign-in or by an admin purge; see Known limitations).
+  users can delete one item, all items or their whole account; items expire after 90 days. On the
+  free Firebase Spark plan there is no Firestore TTL, so the backend enforces this: expired items
+  are hidden at once and deleted at the owner's next sign-in or history view, or for all users by
+  the admin purge (see Known limitations).
 - **Access control**: Firebase ID tokens are verified by the backend; each user sees only their own
   history; admin pages need a server-checked custom claim; Firestore rules stop clients from writing scans,
   reports or statistics (only the backend can).
@@ -104,10 +107,18 @@ Measured through the real API on a held-out labelled set that was written after 
 
 ## Deployment status
 
-The code is released as **v1.0.0** and every deployment file is prepared and validated (Render
-Blueprint + Docker, Vercel, EAS, Firebase rules/indexes; everything runs on free plans). Going live needs the team's own
-Firebase, Render, Vercel and Expo accounts: follow [docs/deployment.md](docs/deployment.md), then
-verify with `backend/scripts/smoke_test.py`. The demonstration script is
+The code is released as **v1.0.0**. Everything runs on **free plans**; no billing account and no
+paid service (no Firestore TTL, Cloud Functions, Cloud Run or scheduled jobs) is used.
+
+| Piece | Host (plan) | Status |
+|---|---|---|
+| Firestore rules + indexes, Auth | Firebase (**Spark**, free) | ✅ Deployed (`cd firebase && npm run deploy -- --project <id>`) |
+| Backend API (Docker) | Render (free) | ✅ Deployed from `render.yaml` |
+| Web app | Vercel (Hobby) | ⏳ Next |
+| Android app | EAS Build (free) | ⏳ After the web app |
+
+Follow [docs/deployment.md](docs/deployment.md) and verify the backend with
+`backend/scripts/smoke_test.py`. The demonstration script is
 [docs/demo-runbook.md](docs/demo-runbook.md).
 
 ## Run it locally
@@ -147,7 +158,9 @@ next to each component:
 - Threat intelligence: only the demo blocklist without API keys; "not listed" never means safe
   ([threat-intelligence §9](docs/threat-intelligence.md)).
 - History retention: Firestore TTL needs a paid plan, so expired history is hidden immediately but
-  deleted only at the owner's next sign-in or by an admin purge, not on a schedule
+  deleted only at the owner's next sign-in/history view or by an admin purge (Admin page,
+  `POST /api/admin/history/purge-expired` or `flask --app wsgi purge-expired-history`), not on a
+  schedule
   ([database-design §1](docs/database-design.md)).
 - Measured errors on held-out data, including missed scams, are in [docs/evaluation.md](docs/evaluation.md).
 
