@@ -57,7 +57,57 @@ verification.
 | 11 | End-to-end tests, security audit, evaluation | ✅ Done |
 | 12 | Deployment (Docker/Render, Vercel, EAS, Firebase) | ✅ Ready; needs account owners to deploy ([docs/deployment.md](docs/deployment.md)) |
 
-"Done" means implemented, tested and merged into `develop` (PRs #2–#11).
+"Done" means implemented, tested, merged (PRs #2–#13) and released on `main` as v1.0.0.
+
+## Architecture at a glance
+
+```
+ Android app (Expo)  ─┐                         ┌─> URL analyzer ── SSRF-safe redirect check
+ Web app (React)     ─┼─ HTTPS + Firebase ID ──>│   Scam-message detector
+                      │   token (optional)      │   OCR (Tesseract) · QR decoder (OpenCV)
+                      │                  Flask API (Render, Docker)
+                      │                         │   Threat intelligence (feeds + APIs, cached)
+ Firebase Auth <──────┘                         └─> Explainable scoring ──> result
+                                                     └─> opt-in history (Cloud Firestore)
+```
+
+- **All analysis runs on the backend**: the apps are thin clients with no security logic, so web and
+  Android always give the same verdict, and API keys never reach a device.
+- **Explainable, rule-based scoring**: every result lists its indicators, points per source, a
+  recommendation and a separate verification status. Details: [docs/architecture.md](docs/architecture.md),
+  [docs/risk-scoring.md](docs/risk-scoring.md), [docs/api-spec.md](docs/api-spec.md).
+
+## Security and privacy
+
+- **Nothing risky is opened for you**: links are never opened automatically; the server never fetches
+  page content and only follows redirects of known shorteners, never to private, loopback or
+  cloud-metadata addresses (SSRF protection).
+- **Minimal data**: messages, screenshots, OCR text and QR contents are analysed in memory and never
+  stored or logged. Opt-in history keeps only the verdict and a minimised target (domain + hash);
+  users can delete one item, all items or their whole account; items expire after 90 days.
+- **Access control**: Firebase ID tokens are verified by the backend; each user sees only their own
+  history; admin pages need a server-checked custom claim; Firestore rules stop clients from writing scans,
+  reports or statistics (only the backend can).
+- **Hardening**: CORS allow-list, rate limits, upload validation, security headers and CSP, secrets
+  only in server environment variables. Audit results: [docs/security.md](docs/security.md).
+
+## Evaluation
+
+Measured through the real API on a held-out labelled set that was written after the rules were frozen
+(synthetic DEMO / TEST DATA; [docs/evaluation.md](docs/evaluation.md) has the method and every error):
+
+| Set | Recall | Precision | F1 | Genuine rated MALICIOUS |
+|---|---|---|---|---|
+| Held-out messages (24) | 0.833 | 0.909 | 0.870 | 0 |
+| Held-out URLs (24) | 0.917 | 1.000 | 0.957 | 0 |
+
+## Deployment status
+
+The code is released as **v1.0.0** and every deployment file is prepared and validated (Render
+Blueprint + Docker, Vercel, EAS, Firebase rules/indexes/TTL). Going live needs the team's own
+Firebase, Render, Vercel and Expo accounts: follow [docs/deployment.md](docs/deployment.md), then
+verify with `backend/scripts/smoke_test.py`. The demonstration script is
+[docs/demo-runbook.md](docs/demo-runbook.md).
 
 ## Run it locally
 
