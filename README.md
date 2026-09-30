@@ -10,19 +10,20 @@ recommended safe action.
 
 ## Project status
 
-**Feature-complete and deployment-ready.** The Flask backend analyses links, messages, screenshots
+**Version 1.0.0 — feature-complete and deployment-ready.** The Flask backend analyses links, messages, screenshots
 (OCR) and QR codes, checks threat intelligence and returns an explainable score. The React web app and
 the Expo mobile app use it for every check, with Firebase sign-in, a private privacy-minimised
 history, reports, account/privacy controls and an admin view.
 
 | Suite | Result |
 |---|---|
-| Backend (pytest, incl. Firestore emulator) | 815 tests, 96% coverage, Ruff clean |
+| Backend (pytest, incl. Firestore emulator) | 821 tests, 96% coverage, Ruff clean |
 | Firestore security rules | 7 tests |
 | Postman / Newman | 83 requests, 303 assertions |
-| Web (Vitest) | 71 tests, 91% statements |
-| Mobile (Jest) | 65 tests, 88% statements |
-| End-to-end (`e2e/run.sh`: browsers → apps → Firebase emulators → Flask) | 16 flows + log privacy check |
+| Web (Vitest) | 73 tests, 91% statements, lint with zero warnings |
+| Mobile (Jest) | 65 tests, 88% statements, lint with zero warnings |
+| End-to-end (`e2e/run.sh`: browsers → apps → Firebase emulators → Flask, production headers) | 18 flows + log privacy check |
+| Demo kit / smoke test | 11/11 demo scenarios, 11/11 deployment checks |
 
 See [docs/testing.md](docs/testing.md), [docs/evaluation.md](docs/evaluation.md) and
 [docs/deployment.md](docs/deployment.md).
@@ -56,7 +57,45 @@ verification.
 | 11 | End-to-end tests, security audit, evaluation | ✅ Done |
 | 12 | Deployment (Docker/Render, Vercel, EAS, Firebase) | ✅ Ready; needs account owners to deploy ([docs/deployment.md](docs/deployment.md)) |
 
-"Done" means implemented, tested and in an open pull request; see each PR for review status.
+"Done" means implemented, tested and merged into `develop` (PRs #2–#11).
+
+## Run it locally
+
+Requirements: Python 3.12 (3.11+ works), Node.js 22, Tesseract OCR (`apt install tesseract-ocr`,
+`brew install tesseract`, or the UB-Mannheim installer on Windows) and, for the Firestore emulator
+only, Java 21.
+
+```bash
+# 1. Backend  → http://localhost:5000/api/health
+cd backend
+python -m venv .venv && . .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+AUTH_DEV_TOKENS=true HISTORY_STORE=memory flask --app wsgi run --port 5000   # demo accounts, no Firebase
+
+# 2. Web app  → http://localhost:5173
+cd web && npm ci
+VITE_API_BASE_URL=http://localhost:5000 VITE_AUTH_MODE=dev npm run dev
+
+# 3. Mobile app (Expo Go on a phone on the same Wi-Fi)
+cd mobile && npm ci
+EXPO_PUBLIC_API_BASE_URL=http://<your-LAN-IP>:5000 EXPO_PUBLIC_AUTH_MODE=dev npx expo start
+```
+
+`AUTH_DEV_TOKENS` / `VITE_AUTH_MODE=dev` give demo accounts without a Firebase project; the backend
+refuses them in production. Each app's README has the details, [docs/testing.md](docs/testing.md)
+lists every test command, and [docs/deployment.md](docs/deployment.md) covers production.
+
+## Known limitations
+
+QRGUARD is an explainable, rule-based assistant, not a guarantee. Known limitations are documented
+next to each component:
+
+- Messages: English rules only; novel wording can be missed ([risk-scoring §11.8](docs/risk-scoring.md)).
+- Screenshots: OCR quality depends on the image ([risk-scoring §12.3](docs/risk-scoring.md)).
+- QR codes: a UPI QR alone is at most SUSPICIOUS by design ([risk-scoring §13.5](docs/risk-scoring.md)).
+- Threat intelligence: only the demo blocklist without API keys; "not listed" never means safe
+  ([threat-intelligence §9](docs/threat-intelligence.md)).
+- Measured errors on held-out data, including missed scams, are in [docs/evaluation.md](docs/evaluation.md).
 
 ## Design documents
 
@@ -79,7 +118,7 @@ verification.
 | [docs/research.md](docs/research.md) | Reference paper analysis (QsecR), research gap, contribution |
 | [docs/demo-and-scope.md](docs/demo-and-scope.md) | Final demo script and out-of-scope items |
 
-## Planned tech stack
+## Tech stack
 
 Flask + Gunicorn (Docker, Render) · Tesseract OCR · OpenCV · React + Vite + TypeScript (Vercel) ·
 React Native + Expo (EAS Build) · Firebase Auth + Cloud Firestore · URLhaus / Google Safe Browsing /

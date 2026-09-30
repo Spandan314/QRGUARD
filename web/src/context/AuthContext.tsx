@@ -58,10 +58,13 @@ export function AuthProvider({ children, client: given }: { children: ReactNode;
 }
 
 /** For components that also render outside the provider (e.g. in isolated tests). */
+// Context hooks live with their provider (standard React pattern); fast refresh only matters in dev.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useOptionalAuth(): AuthState | null {
   return useContext(AuthContext)
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthState {
   const value = useContext(AuthContext)
   if (!value) throw new Error('useAuth must be used inside AuthProvider')
