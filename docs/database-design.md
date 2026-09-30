@@ -166,6 +166,11 @@ own scans. The same emulator runs the backend's Firestore store tests (`npm run 
 
 - `users/{uid}/scans` ordered by `created_at desc`. A single-field index, created automatically.
 - `reports` by `status` + `created_at desc`. Composite index in `firestore.indexes.json`.
+- `users/{uid}/scans` where `expire_at <= now` (retention clean-up). A single-field index, created
+  automatically. The admin purge runs this query once per `users/{uid}` instead of one
+  collection-group query, because a collection-group index would be a field override, and field
+  overrides cannot be deployed on the Spark plan. `firestore.indexes.json` therefore has
+  `"fieldOverrides": []`.
 
 ## 6. Deletion
 

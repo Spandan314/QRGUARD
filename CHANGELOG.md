@@ -11,6 +11,10 @@
   `POST /api/admin/history/purge-expired` endpoint, the "Delete expired history now" button on the
   web Admin page or `flask --app wsgi purge-expired-history`. There is no scheduled job, so expired
   results of a user who never returns stay stored (hidden) until an admin purge.
+- **No Firestore field overrides.** The `scans.expire_at` field override is removed as well
+  (`"fieldOverrides": []`): on Spark any field override fails to deploy with "billing disabled".
+  The admin purge now queries each user's `scans` (automatic single-field index) instead of a
+  collection-group query.
 
 ## v1.0.0 — final submission release
 
