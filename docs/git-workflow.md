@@ -173,6 +173,9 @@ git push origin v0.1-alpha
 - Review within **24 h**. Comments should be specific ("this regex misses `hxxps`"), not vague.
 - Merge with **Squash and merge** into `develop` (clean history), and **Merge commit** from
   `develop` into `main`.
+- Exception used for v1.0.0: the phase PRs #2–#11 were *stacked* (each branch built on the previous
+  one), so they were merged into `develop` with **merge commits** in dependency order; squashing a
+  stacked branch would re-apply its parent's changes and conflict. PR #12 was squash-merged as usual.
 - Delete the feature branch after merging.
 
 ## 5. How four people avoid breaking each other
