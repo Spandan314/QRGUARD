@@ -1,6 +1,7 @@
 # QRGUARD: System Architecture (Phase 1)
 
-> Status: **proposed, awaiting team approval**. No implementation code is written until this is approved.
+> Status: **approved and implemented** (released as v1.0.0). This document records the design decisions;
+> implementation details are in the other `docs/` files and each app's README.
 
 ## 1. Final recommended architecture
 
