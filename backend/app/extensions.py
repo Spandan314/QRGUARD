@@ -27,4 +27,9 @@ def analyze_rate_limit() -> str:
     return current_app.config["QRGUARD"].ratelimit_analyze
 
 
+def screenshot_rate_limit() -> str:
+    """Extra, stricter limit for OCR (CPU-heavy), on top of the analysis limit."""
+    return current_app.config["QRGUARD"].ratelimit_screenshot
+
+
 limiter = Limiter(key_func=get_remote_address, default_limits=[default_rate_limit])

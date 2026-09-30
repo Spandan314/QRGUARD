@@ -27,10 +27,12 @@ from app.scoring.indicator import Indicator
 from app.scoring.recommendations import DISCLAIMER, recommendation_for, summary_for
 from app.services.url_analysis_service import UrlAnalysis, UrlAnalysisService
 
-UNVERIFIED_MESSAGE_TEXT = (
-    "There is insufficient evidence to establish trust. A SAFE result does not guarantee that "
-    "the message is genuine."
-)
+UNVERIFIED_TEXT = {
+    "message": "There is insufficient evidence to establish trust. A SAFE result does not "
+    "guarantee that the message is genuine.",
+    "screenshot": "There is insufficient evidence to establish trust. A SAFE result does not "
+    "guarantee that the content of the screenshot is genuine.",
+}
 
 
 class TextNotAnalyzableError(ValueError):
@@ -52,6 +54,23 @@ class MessageAnalysisService:
         self.url_service = url_service
 
     def analyze(self, text: str) -> dict[str, Any]:
+        """Analyse a pasted message (POST /api/analyze/message)."""
+        return self.analyze_text(text)
+
+    def analyze_text(
+        self,
+        text: str,
+        *,
+        input_type: str = "message",
+        extra_indicators: list[Indicator] | None = None,
+        extra_low_confidence_reasons: list[str] | None = None,
+        extra_analysis: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Run the scam-message pipeline on any text (pasted, or extracted from a screenshot).
+
+        Other inputs (e.g. OCR) may add their own informational indicators and confidence
+        reasons, but the message rules, link analysis and scoring are always these same ones.
+        """
         pre = preprocess(text, self.rules)
         settings = self.rules.settings
         if pre.letter_count < settings.min_letters and not pre.links:
@@ -64,7 +83,7 @@ class MessageAnalysisService:
         analysed = [link for link in links if link.result is not None]
         riskiest = max(analysed, key=lambda link: link.result.risk_score, default=None)
 
-        indicators = list(findings.indicators)
+        indicators = [*findings.indicators, *(extra_indicators or [])]
         ti_results = []
         applicable = {"message"}
         incomplete = False
@@ -77,7 +96,7 @@ class MessageAnalysisService:
             ti_results = riskiest.analysis.ti_results
             incomplete = riskiest.analysis.incomplete_checks
 
-        low_reasons = []
+        low_reasons = list(extra_low_confidence_reasons or [])
         if len(text.strip()) < settings.short_text_chars:
             low_reasons.append("very short message")
         if "MSG_LANGUAGE_NOT_SUPPORTED" in findings.ids:
@@ -93,11 +112,14 @@ class MessageAnalysisService:
                 low_confidence_reasons=low_reasons,
                 unverified_safe_is_low_confidence=False,
                 allow_trusted_domain_verification=False,
-                unverified_message=UNVERIFIED_MESSAGE_TEXT,
+                unverified_message=UNVERIFIED_TEXT[input_type],
             ),
             primary_modules={"message"},
         )
-        return self._response(pre, findings, links, riskiest, result, low_reasons)
+        response = self._response(pre, findings, links, riskiest, result, low_reasons, input_type)
+        if extra_analysis:
+            response["analysis"] = {**extra_analysis, **response["analysis"]}
+        return response
 
     # ----- links ---------------------------------------------------------------------------
     def _analyze_links(self, pre: PreprocessedText) -> list[LinkResult]:
@@ -130,6 +152,7 @@ class MessageAnalysisService:
         riskiest: LinkResult | None,
         result: ScoreResult,
         low_reasons: list[str],
+        input_type: str,
     ) -> dict[str, Any]:
         ti_configured = self.url_service.threat_intel.configured
         link_rows = []
@@ -151,16 +174,16 @@ class MessageAnalysisService:
             link_rows.append(row)
 
         return {
-            "input_type": "message",
+            "input_type": input_type,
             "risk_score": result.risk_score,
             "risk_level": result.risk_level,
             "confidence": result.confidence,
             "verification": result.verification,
-            "summary": summary_for(result.risk_level, result.verification["status"], "message"),
+            "summary": summary_for(result.risk_level, result.verification["status"], input_type),
             "categories": result.categories,
             "indicators": result.indicators,
             "recommendation": recommendation_for(
-                result.risk_level, result.verification["status"], result.indicator_ids, "message"
+                result.risk_level, result.verification["status"], result.indicator_ids, input_type
             ),
             "score_breakdown": result.breakdown,
             "threat_intel": {

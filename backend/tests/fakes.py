@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 
+from app.analyzers.ocr import OcrResult
 from app.analyzers.redirect_resolver import (
     FetchConnectionError,
     FetchRequest,
@@ -72,7 +73,37 @@ class BrokenProvider(ThreatIntelProvider):
         raise RuntimeError("provider crashed")
 
 
+class FakeOcrEngine:
+    """Returns fixed text (or raises a given error) instead of running Tesseract."""
+
+    name = "fake-ocr"
+
+    def __init__(
+        self,
+        text: str = "",
+        confidence: float | None = 95.0,
+        error: Exception | None = None,
+        available: bool = True,
+    ) -> None:
+        self.text = text
+        self.confidence = confidence
+        self.error = error
+        self._available = available
+        self.calls = 0
+
+    def available(self) -> bool:
+        return self._available
+
+    def extract(self, image) -> OcrResult:
+        self.calls += 1
+        if self.error is not None:
+            raise self.error
+        words = len(self.text.split())
+        return OcrResult(self.text, self.confidence if words else None, words, self.name)
+
+
 __all__ = [
+    "FakeOcrEngine",
     "BrokenProvider",
     "DNSResolutionError",
     "DNSTimeoutError",

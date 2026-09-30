@@ -285,15 +285,58 @@ Notes:
 - `entities.phone_numbers` are masked (`******3210`). The text itself is never echoed except as
   short matched phrases, and never logged or stored.
 
-### `POST /api/analyze/screenshot`
-`multipart/form-data`: `file` (PNG/JPEG/WEBP, ≤ 5 MB, ≤ 25 MP), plus the optional form field `save_to_history`.
+### `POST /api/analyze/screenshot` ✅ implemented
 
-`details`:
+`multipart/form-data` fields:
+
+| Field | Required | Rules |
+|---|---|---|
+| `file` | yes | Exactly one image. PNG, JPEG or WEBP, detected from the **content** (the filename/extension is ignored). ≤ `MAX_UPLOAD_MB` (5 MB). 16×16 to 10000×10000 px and ≤ `MAX_IMAGE_MEGAPIXELS` (25 MP). |
+| `save_to_history` | no | `"true"` or `"false"` (used once history exists) |
+
+Processing: the image is validated and decoded in memory → OCR (Tesseract) → the extracted text goes
+through **the same pipeline as `/api/analyze/message`**: scam-message rules, links sent to the URL
+analyzer (with SSRF protection), and scoring. The screenshot therefore gets the same score,
+indicators and categories as the same text pasted as a message. OCR only adds informational
+indicators (`source: "ocr"`, weight 0) and can lower the confidence.
+
+| Status | `code` | When |
+|---|---|---|
+| 200 | | Analysis result (common result object, `input_type: "screenshot"`) |
+| 400 | `MISSING_FILE`, `EMPTY_FILE`, `VALIDATION_ERROR` | No `file` field, empty file, more than one file, invalid `save_to_history` |
+| 413 | `PAYLOAD_TOO_LARGE`, `FILE_TOO_LARGE`, `IMAGE_TOO_LARGE` | Upload over 5 MB; too many pixels or a decompression-bomb header |
+| 415 | `UNSUPPORTED_MEDIA_TYPE` | Not multipart, or the content is not PNG/JPEG/WEBP (GIF, PDF, SVG, executables…) |
+| 422 | `UNPROCESSABLE_IMAGE`, `IMAGE_TOO_SMALL` | Corrupt/truncated image; smaller than 16×16 |
+| 422 | `NO_TEXT_FOUND` | OCR found no readable text (e.g. a blank image, only emojis) |
+| 422 | `OCR_FAILED` | OCR could not finish (timeout, engine error) |
+| 429 | `RATE_LIMITED` | Analysis limit or the extra OCR limit `RATELIMIT_SCREENSHOT` (default 6/min, 60/day) |
+| 503 | `OCR_UNAVAILABLE`, `OCR_BUSY` | Tesseract not installed / too many OCR jobs running |
+
+`analysis` = the message `analysis` block (`matched_phrases`, `links`, `entities`, `language`,
+`preprocessing`, `low_confidence_reasons`, `text_length`) **plus**:
+
+Real output for `postman/fixtures/scam-kyc.png` (the result is 65 MALICIOUS, identical to the same
+text sent to `/api/analyze/message`):
+
 ```json
-{ "extracted_text": "Congratulations! You have won …", "ocr_confidence": 81.4, "ocr_quality": "good",
-  "urls": [ ], "qr_codes": [ ], "matched_phrases": [ ] }
+{
+  "ocr": {
+    "engine": "tesseract",
+    "extracted_text": "Demo / test data Dear customer, your SBI account will be BLOCKED today. Update your KYC immediately: http://sbi-kyc-update.xyz/login",
+    "confidence": 93.8,
+    "quality": "good",
+    "word_count": 18,
+    "truncated": false
+  },
+  "image": { "format": "PNG", "width": 1100, "height": 210, "size_bytes": 22347 }
+}
 ```
-`extracted_text` is returned to the caller only. It is never stored or logged.
+
+- `ocr.quality`: `good` (≥ 80), `fair` (≥ 60), `poor` (< 60, adds `OCR_LOW_CONFIDENCE` and LOW
+  confidence), `none`.
+- `extracted_text` is returned **to the caller only**, so the user can see what was read. It is never
+  logged or stored. At most 5000 characters are analysed (`OCR_TEXT_TRUNCATED` otherwise).
+- QR codes inside screenshots are not detected yet (QR phase).
 
 ### `POST /api/analyze/qr`
 Two accepted forms:
@@ -344,7 +387,7 @@ Special characters (`\ ; , : "`) in Wi-Fi fields are escaped as the Wi-Fi QR for
 | Message length | 5000 chars |
 | Rate limit, anonymous | 20/min, 200/day per IP |
 | Rate limit, authenticated | 40/min, 500/day per uid |
-| `/api/analyze/screenshot` | additional 6/min (CPU-heavy OCR) |
+| `/api/analyze/screenshot` | additional `RATELIMIT_SCREENSHOT` = 6/min, 60/day (CPU-heavy OCR); OCR timeout 20 s, max 2 concurrent OCR jobs per process |
 | Threat-intel time budget | 6 s total, 3 s per provider (when providers are added) |
 | Redirect checking | `REDIRECT_RESOLUTION=shorteners_only`, max 5 redirects, 3 s per request, 8 s total, ports 80/443 only, 0 body bytes read |
 

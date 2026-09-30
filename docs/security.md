@@ -84,3 +84,17 @@ Implementation: `app/utils/net_safety.py` and `app/analyzers/redirect_resolver.p
 | Abuse through links in messages | At most 3 links are analysed and at most 2 redirect checks made per message. Every check goes through the same SSRF-protected redirect checker as `/api/analyze/url`. |
 | Obfuscation | Invisible characters, full-width/styled letters, look-alike letters, leetspeak and defanged links (`hxxp`, `[.]`) are normalised before matching, and their presence is reported. |
 | Rule-file tampering / mistakes | `scam_rules.yaml` is loaded with `yaml.safe_load` and strictly validated (unknown keys, bad IDs, invalid regex, unknown combination members → startup error). |
+
+## Screenshot uploads and OCR (implemented)
+
+| Concern | Control |
+|---|---|
+| Wrong / dangerous file types | The type is detected from the **file content** (magic bytes + Pillow header). Only PNG, JPEG and WEBP are accepted, and the extension is ignored. GIF, PDF, SVG, scripts and executables → 415. |
+| Oversized uploads | `MAX_CONTENT_LENGTH` (5 MB) rejects the request before it is read. The route reads at most limit + 1 bytes. |
+| Decompression bombs / huge images | Dimensions are read from the header **before decoding**: max 10000 px per side and 25 MP (`MAX_IMAGE_MEGAPIXELS`). Pillow's `DecompressionBombWarning` is treated as an error. |
+| Malformed / truncated images | `Image.verify()` plus a full decode. Failures → 422 `UNPROCESSABLE_IMAGE`. OCR never runs on rejected files. |
+| Temporary files / path traversal | None exist: the upload is kept in memory, Tesseract receives the image on **stdin** and returns text on stdout, and the uploaded filename is never used or returned. |
+| Executing uploads | Nothing is executed. Tesseract is started with a fixed argument list (no shell) and only reads image data. |
+| Resource exhaustion | OCR timeout (`OCR_TIMEOUT_SECONDS`, 20 s), at most `OCR_MAX_CONCURRENT` (2) OCR jobs per process (then 503 `OCR_BUSY`), single-threaded Tesseract (`OMP_THREAD_LIMIT=1`), stricter rate limit (`RATELIMIT_SCREENSHOT`, 6/min), images downscaled to ≤ 4000 px for OCR. |
+| Privacy | Screenshots and OCR text are never written to disk, logged or stored. `extracted_text` is returned only to the caller. Error messages never include OCR text, Tesseract output or file paths. A test checks logs and the temp directory. |
+| Link safety | Links read from screenshots go through the same SSRF-protected URL analyzer as `/api/analyze/url`, with the same per-message limits (3 links analysed, 2 redirect checks). |

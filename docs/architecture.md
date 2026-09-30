@@ -262,6 +262,9 @@ flowchart TD
 
 ### Screenshot analysis
 
+> Implemented (v0.1.0). The QR-in-screenshot step is planned for the QR phase. OCR text reuses
+> the message pipeline, so there is no separate screenshot scoring (see `docs/risk-scoring.md` §12).
+
 ```mermaid
 flowchart TD
   I[Upload image] --> V[Validate type, size, pixels]
