@@ -1,13 +1,21 @@
 {
   "info": {
     "name": "QRGUARD API",
-    "description": "QRGUARD backend API. /api/analyze/url and /api/analyze/message are implemented; other analysis endpoints validate input and return 501 until their modules are built.",
+    "description": "QRGUARD backend API. /api/analyze/url, /message and /screenshot are implemented (screenshot needs Tesseract); /api/analyze/qr and /api/generate/qr validate input and return 501 until built. Run with: newman run QRGUARD.postman_collection.json --working-dir postman",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
     {
       "key": "baseUrl",
       "value": "http://localhost:5000"
+    },
+    {
+      "key": "scanId",
+      "value": ""
+    },
+    {
+      "key": "reportId",
+      "value": ""
     }
   ],
   "item": [
@@ -1088,10 +1096,359 @@
       ]
     },
     {
-      "name": "Analyze (contract stubs)",
+      "name": "Screenshot analysis (DEMO / TEST DATA)",
+      "description": "Uses the synthetic images in postman/fixtures (run newman with --working-dir postman). Requires Tesseract on the server.",
       "item": [
         {
-          "name": "POST /api/analyze/qr (decoded content)",
+          "name": "MALICIOUS: fake KYC screenshot",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/scam-kyc.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('input_type is screenshot', () => pm.expect(pm.response.json().input_type).to.eql('screenshot'));",
+                  "pm.test('OCR block present', () => pm.expect(pm.response.json().analysis.ocr).to.have.property('extracted_text'));",
+                  "pm.test('verification reported separately', () => pm.expect(pm.response.json().verification).to.have.property('status'));",
+                  "pm.test('has indicator MSG_KYC_PRETEXT', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('MSG_KYC_PRETEXT'));",
+                  "pm.test('has indicator BRAND_IN_DOMAIN_NAME', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('BRAND_IN_DOMAIN_NAME'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SAFE: genuine OTP screenshot",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/genuine-otp.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
+                  "pm.test('input_type is screenshot', () => pm.expect(pm.response.json().input_type).to.eql('screenshot'));",
+                  "pm.test('OCR block present', () => pm.expect(pm.response.json().analysis.ocr).to.have.property('extracted_text'));",
+                  "pm.test('verification reported separately', () => pm.expect(pm.response.json().verification).to.have.property('status'));",
+                  "pm.test('no OTP request', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.not.include('MSG_OTP_REQUEST'));",
+                  "pm.test('SAFE + UNVERIFIED', () => pm.expect(pm.response.json().verification.status).to.eql('UNVERIFIED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS: dark-mode JPEG, UPI PIN to receive",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/upi-dark.jpg"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('input_type is screenshot', () => pm.expect(pm.response.json().input_type).to.eql('screenshot'));",
+                  "pm.test('OCR block present', () => pm.expect(pm.response.json().analysis.ocr).to.have.property('extracted_text'));",
+                  "pm.test('verification reported separately', () => pm.expect(pm.response.json().verification).to.have.property('status'));",
+                  "pm.test('has indicator MSG_UPI_PIN_TO_RECEIVE', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('MSG_UPI_PIN_TO_RECEIVE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS: look-alike link in screenshot",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/lookalike-link.png"
+                },
+                {
+                  "key": "save_to_history",
+                  "value": "false",
+                  "type": "text"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('input_type is screenshot', () => pm.expect(pm.response.json().input_type).to.eql('screenshot'));",
+                  "pm.test('OCR block present', () => pm.expect(pm.response.json().analysis.ocr).to.have.property('extracted_text'));",
+                  "pm.test('verification reported separately', () => pm.expect(pm.response.json().verification).to.have.property('status'));",
+                  "pm.test('has indicator BRAND_LOOKALIKE', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('BRAND_LOOKALIKE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "422 blank image (no text)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/blank.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 422', () => pm.response.to.have.status(422));",
+                  "pm.test('error code is NO_TEXT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('NO_TEXT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "415 not an image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/not-an-image.txt"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 415', () => pm.response.to.have.status(415));",
+                  "pm.test('error code is UNSUPPORTED_MEDIA_TYPE', () => pm.expect(pm.response.json().error.code).to.eql('UNSUPPORTED_MEDIA_TYPE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "422 truncated image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/truncated.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 422', () => pm.response.to.have.status(422));",
+                  "pm.test('error code is UNPROCESSABLE_IMAGE', () => pm.expect(pm.response.json().error.code).to.eql('UNPROCESSABLE_IMAGE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "413 decompression-bomb header",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/decompression-bomb.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "screenshot"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 413', () => pm.response.to.have.status(413));",
+                  "pm.test('error code is IMAGE_TOO_LARGE', () => pm.expect(pm.response.json().error.code).to.eql('IMAGE_TOO_LARGE'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "QR analysis (DEMO / TEST DATA)",
+      "item": [
+        {
+          "name": "SAFE + VERIFIED: trusted link (camera)",
           "request": {
             "method": "POST",
             "header": [
@@ -1113,7 +1470,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"content\": \"upi://pay?pa=demo@upi&pn=Demo&am=1\",\n  \"source\": \"camera\"\n}"
+              "raw": "{\n  \"content\": \"https://www.wikipedia.org/\",\n  \"source\": \"camera\"\n}"
             }
           },
           "event": [
@@ -1122,39 +1479,291 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is 501', () => pm.response.to.have.status(501));",
-                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
-                  "pm.test('error code is NOT_IMPLEMENTED', () => pm.expect(pm.response.json().error.code).to.eql('NOT_IMPLEMENTED'));"
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
+                  "pm.test('verification is VERIFIED', () => pm.expect(pm.response.json().verification.status).to.eql('VERIFIED'));",
+                  "pm.test('content_type is url', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('url'));",
+                  "pm.test('input_type is qr', () => pm.expect(pm.response.json().input_type).to.eql('qr'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "POST /api/analyze/screenshot (choose a file)",
+          "name": "MALICIOUS: look-alike link (camera)",
           "request": {
             "method": "POST",
-            "header": [],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "url": {
-              "raw": "{{baseUrl}}/api/analyze/screenshot",
+              "raw": "{{baseUrl}}/api/analyze/qr",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "api",
                 "analyze",
-                "screenshot"
+                "qr"
               ]
             },
             "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "file",
-                  "type": "file",
-                  "src": []
-                }
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"https://flipkrat.com/rewards\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('has indicator BRAND_LOOKALIKE', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('BRAND_LOOKALIKE'));",
+                  "pm.test('verification is UNVERIFIED', () => pm.expect(pm.response.json().verification.status).to.eql('UNVERIFIED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS: javascript: payload",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
               ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"javascript:alert(1)\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('has indicator URL_DANGEROUS_SCHEME', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('URL_DANGEROUS_SCHEME'));",
+                  "pm.test('content_type is dangerous', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('dangerous'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SAFE + UNVERIFIED: shop UPI payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"upi://pay?pa=sharmastores@okdemo&pn=Sharma%20Stores\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
+                  "pm.test('verification is UNVERIFIED', () => pm.expect(pm.response.json().verification.status).to.eql('UNVERIFIED'));",
+                  "pm.test('content_type is upi', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('upi'));",
+                  "pm.test('has indicator QR_UPI_PAYMENT', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('QR_UPI_PAYMENT'));",
+                  "pm.test('payee parsed', () => pm.expect(pm.response.json().analysis.qr.parsed.payee_vpa).to.eql('sharmastores@okdemo'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SUSPICIOUS: UPI 'refund desk' impersonation",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"upi://pay?pa=refund.desk9912@okdemo&pn=SBI%20Refund%20Desk&am=4999&tn=Refund\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SUSPICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('SUSPICIOUS'));",
+                  "pm.test('has indicator QR_UPI_NAME_MISMATCH', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('QR_UPI_NAME_MISMATCH'));",
+                  "pm.test('has indicator QR_UPI_PRETEXT', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('QR_UPI_PRETEXT'));",
+                  "pm.test('has indicator QR_UPI_PREFILLED_AMOUNT', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('QR_UPI_PREFILLED_AMOUNT'));",
+                  "pm.test('QR evidence has source qr', () => pm.expect(pm.response.json().indicators.every(x => x.source === 'qr')).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Wi-Fi QR: password never returned",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"WIFI:T:WPA;S:DemoCafe;P:DemoPassw0rdSECRET;;\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
+                  "pm.test('content_type is wifi', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('wifi'));",
+                  "pm.test('password not in response', () => pm.expect(pm.response.text()).to.not.include('DemoPassw0rdSECRET'));",
+                  "pm.test('has_password reported', () => pm.expect(pm.response.json().analysis.qr.parsed.has_password).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS: scam text in QR (message rules)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Your SBI account is blocked. Share the OTP to reactivate: http://sbi-kyc-update.xyz/login\",\n  \"source\": \"camera\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('content_type is text', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('text'));",
+                  "pm.test('has indicator MSG_OTP_REQUEST', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('MSG_OTP_REQUEST'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 empty content",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"\",\n  \"source\": \"camera\"\n}"
             }
           },
           "event": [
@@ -1164,15 +1773,312 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status is 400', () => pm.response.to.have.status(400));",
-                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
-                  "pm.test('error code is MISSING_FILE', () => pm.expect(pm.response.json().error.code).to.eql('MISSING_FILE'));"
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "POST /api/generate/qr",
+          "name": "Image: SAFE + VERIFIED trusted link",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/qr-trusted-link.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
+                  "pm.test('verification is VERIFIED', () => pm.expect(pm.response.json().verification.status).to.eql('VERIFIED'));",
+                  "pm.test('source is image', () => pm.expect(pm.response.json().analysis.qr.source).to.eql('image'));",
+                  "pm.test('image metadata present', () => pm.expect(pm.response.json().analysis).to.have.property('image'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Image: MALICIOUS look-alike link",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/qr-lookalike-link.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('has indicator BRAND_LOOKALIKE', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('BRAND_LOOKALIKE'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Image: SUSPICIOUS UPI refund",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/qr-upi-refund.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SUSPICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('SUSPICIOUS'));",
+                  "pm.test('content_type is upi', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('upi'));",
+                  "pm.test('has indicator QR_UPI_NAME_MISMATCH', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('QR_UPI_NAME_MISMATCH'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Image: inverted (light-on-dark) shop UPI",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/qr-inverted-upi-shop.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is SAFE', () => pm.expect(pm.response.json().risk_level).to.eql('SAFE'));",
+                  "pm.test('content_type is upi', () => pm.expect(pm.response.json().analysis.qr.content_type).to.eql('upi'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Image: two codes, riskiest decides",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/qr-multiple.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('risk level is MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('two codes found', () => pm.expect(pm.response.json().analysis.qr.codes_found).to.eql(2));",
+                  "pm.test('both codes listed', () => pm.expect(pm.response.json().analysis.qr_codes).to.have.length(2));",
+                  "pm.test('has indicator URL_DANGEROUS_SCHEME', () => pm.expect(pm.response.json().indicators.map(x => x.id)).to.include('URL_DANGEROUS_SCHEME'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "422 NO_QR_FOUND (blank image)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/blank.png"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 422', () => pm.response.to.have.status(422));",
+                  "pm.test('error code is NO_QR_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('NO_QR_FOUND'));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "415 not an image",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": "fixtures/not-an-image.txt"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "qr"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 415', () => pm.response.to.have.status(415));",
+                  "pm.test('error code is UNSUPPORTED_MEDIA_TYPE', () => pm.expect(pm.response.json().error.code).to.eql('UNSUPPORTED_MEDIA_TYPE'));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "QR generator",
+      "item": [
+        {
+          "name": "Generate URL QR (PNG)",
           "request": {
             "method": "POST",
             "header": [
@@ -1203,9 +2109,1086 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is 501', () => pm.response.to.have.status(501));",
-                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));",
-                  "pm.test('error code is NOT_IMPLEMENTED', () => pm.expect(pm.response.json().error.code).to.eql('NOT_IMPLEMENTED'));"
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('PNG mime', () => pm.expect(pm.response.json().mime).to.eql('image/png'));",
+                  "pm.test('base64 image present', () => pm.expect(pm.response.json().image_base64.length).to.be.above(100));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Generate Wi-Fi QR (SVG, password masked)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/generate/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "generate",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"wifi\",\n  \"data\": {\n    \"ssid\": \"Demo;Cafe\",\n    \"password\": \"DemoPassw0rdSECRET\",\n    \"security\": \"WPA2\"\n  },\n  \"format\": \"svg\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('SVG returned', () => pm.expect(pm.response.json().svg).to.include('<svg'));",
+                  "pm.test('payload escaped and masked', () => pm.expect(pm.response.json().payload).to.eql('WIFI:T:WPA;S:Demo\\\\;Cafe;P:***;;'));",
+                  "pm.test('password not in JSON', () => pm.expect(pm.response.text()).to.not.include('DemoPassw0rdSECRET'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 generate javascript: URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/generate/qr",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "generate",
+                "qr"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"url\",\n  \"data\": {\n    \"url\": \"javascript:alert(1)\"\n  },\n  \"format\": \"png\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));",
+                  "pm.test('has X-Request-ID', () => pm.response.to.have.header('X-Request-ID'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Threat intelligence (DEMO / TEST DATA)",
+      "item": [
+        {
+          "name": "Health: TI providers listed without secrets",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('threat_intel component present', () => pm.expect(pm.response.json().components.threat_intel.enabled).to.eql(true));",
+                  "pm.test('providers only report enabled/external', () => pm.response.json().components.threat_intel.providers.forEach(p => pm.expect(Object.keys(p).sort()).to.eql(['enabled','external','provider'])));",
+                  "pm.test('local feed enabled', () => pm.expect(pm.response.json().components.threat_intel.providers.find(p => p.provider === 'local_feed').enabled).to.eql(true));",
+                  "pm.test('no API key material in response', () => { const t = pm.response.text(); ['Auth-Key','x-apikey','api_key','app_key','?key='].forEach(k => pm.expect(t).to.not.include(k)); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS + VERIFIED: URL on the demo blocklist",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"http://secure-sbi-kyc-update.example/login\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('score is 90 MALICIOUS', () => { const b = pm.response.json(); pm.expect(b.risk_score).to.eql(90); pm.expect(b.risk_level).to.eql('MALICIOUS'); });",
+                  "pm.test('verified by threat intelligence', () => pm.expect(pm.response.json().verification.source).to.eql('threat_intelligence'));",
+                  "pm.test('TI_LISTED from source threat_intelligence', () => pm.expect(pm.response.json().indicators.find(i => i.id === 'TI_LISTED').source).to.eql('threat_intelligence'));",
+                  "pm.test('local feed listed it (demo coverage)', () => { const p = pm.response.json().threat_intel.providers[0]; pm.expect(p.provider).to.eql('local_feed'); pm.expect(p.status).to.eql('listed'); pm.expect(p.limited_coverage).to.eql(true); });",
+                  "pm.test('no API key material in response', () => { const t = pm.response.text(); ['Auth-Key','x-apikey','api_key','app_key','?key='].forEach(k => pm.expect(t).to.not.include(k)); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS + VERIFIED: subdomain of a blocklisted host",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://pay.upi-refund-desk.example/refund\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('score is 90 MALICIOUS', () => { const b = pm.response.json(); pm.expect(b.risk_score).to.eql(90); pm.expect(b.risk_level).to.eql('MALICIOUS'); });",
+                  "pm.test('verified by threat intelligence', () => pm.expect(pm.response.json().verification.source).to.eql('threat_intelligence'));",
+                  "pm.test('TI_LISTED from source threat_intelligence', () => pm.expect(pm.response.json().indicators.find(i => i.id === 'TI_LISTED').source).to.eql('threat_intelligence'));",
+                  "pm.test('local feed listed it (demo coverage)', () => { const p = pm.response.json().threat_intel.providers[0]; pm.expect(p.provider).to.eql('local_feed'); pm.expect(p.status).to.eql('listed'); pm.expect(p.limited_coverage).to.eql(true); });",
+                  "pm.test('no API key material in response', () => { const t = pm.response.text(); ['Auth-Key','x-apikey','api_key','app_key','?key='].forEach(k => pm.expect(t).to.not.include(k)); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Not listed never lowers the score (look-alike stays 60)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://flipkrat.com/rewards\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('still MALICIOUS 60', () => { const b = pm.response.json(); pm.expect(b.risk_score).to.eql(60); pm.expect(b.risk_level).to.eql('MALICIOUS'); });",
+                  "pm.test('not verified', () => pm.expect(pm.response.json().verification.status).to.eql('UNVERIFIED'));",
+                  "pm.test('local feed not_listed', () => pm.expect(pm.response.json().threat_intel.providers[0].status).to.eql('not_listed'));",
+                  "pm.test('external providers without keys are disabled', () => pm.response.json().threat_intel.providers.slice(1).forEach(p => pm.expect(p.status).to.eql('disabled')));",
+                  "pm.test('honest note', () => pm.expect(pm.response.json().threat_intel.note).to.include('does not mean a link is safe'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "MALICIOUS + VERIFIED: message containing a blocklisted link",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "message"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Hi, the photos from yesterday are here: http://secure-sbi-kyc-update.example/login\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
+                  "pm.test('verified by threat intelligence', () => pm.expect(pm.response.json().verification.source).to.eql('threat_intelligence'));",
+                  "pm.test('no API key material in response', () => { const t = pm.response.text(); ['Auth-Key','x-apikey','api_key','app_key','?key='].forEach(k => pm.expect(t).to.not.include(k)); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 malformed IPv6 link (no server error)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"http://[::1\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error code is INVALID_URL', () => pm.expect(pm.response.json().error.code).to.eql('INVALID_URL'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "History, reports, admin (DEMO: dev tokens, in-memory store)",
+      "item": [
+        {
+          "name": "401 history without a token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "history"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error code is AUTH_REQUIRED', () => pm.expect(pm.response.json().error.code).to.eql('AUTH_REQUIRED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "401 invalid token on analysis",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer not-a-real-token"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error code is INVALID_TOKEN', () => pm.expect(pm.response.json().error.code).to.eql('INVALID_TOKEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reset: delete all my history",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "history"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('deleted count', () => pm.expect(pm.response.json().deleted).to.be.a('number'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Save a message scan",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-postman"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "message"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Dear customer, your SBI account will be BLOCKED today. Share the OTP and update your KYC: http://sbi-kyc-update.xyz/login?token=PMSECRET42\",\n  \"save_to_history\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('saved', () => pm.expect(pm.response.json().history.saved).to.eql(true));",
+                  "pm.collectionVariables.set('scanId', pm.response.json().history.scan_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Save a URL scan (demo blocklist)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-postman"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"http://secure-sbi-kyc-update.example/login\",\n  \"save_to_history\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('saved', () => pm.expect(pm.response.json().history.saved).to.eql(true));",
+                  "pm.test('still 90 MALICIOUS', () => pm.expect(pm.response.json().risk_score).to.eql(90));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Anonymous save is refused politely",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://www.wikipedia.org/\",\n  \"save_to_history\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('sign-in required', () => pm.expect(pm.response.json().history).to.eql({saved:false, reason:'sign_in_required'}));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List my history (verdicts only)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/history",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "history"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('two items, newest first', () => { const i = pm.response.json().items; pm.expect(i).to.have.length(2); pm.expect(i[0].input_type).to.eql('url'); });",
+                  "pm.test('no message text, token or full URL stored', () => { const t = pm.response.text(); ['PMSECRET42','Dear customer','/login'].forEach(s => pm.expect(t).to.not.include(s)); });",
+                  "pm.test('URL reduced to domain + hash', () => { const u = pm.response.json().items[0].target; pm.expect(u.domain).to.eql('secure-sbi-kyc-update.example'); pm.expect(u.url_hash).to.have.length(64); });",
+                  "pm.test('message target is metadata only', () => pm.expect(pm.response.json().items[1].target.kind).to.eql('message'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "404 another user cannot read my scan",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-postman-other"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/history/{{scanId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "history",
+                "{{scanId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('error code is NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Switch history off",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-postman"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"save_history\": false\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('off', () => pm.expect(pm.response.json().save_history).to.eql(false));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Not saved while history is off",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-postman"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/analyze/url",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "analyze",
+                "url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://www.wikipedia.org/\",\n  \"save_to_history\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('history_disabled', () => pm.expect(pm.response.json().history.reason).to.eql('history_disabled'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Switch history on again",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-postman"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "me"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"save_history\": true\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Report a scan as a false positive",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-postman"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/reports",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reports"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reported_as\": \"false_positive\",\n  \"note\": \"Demo report\",\n  \"scan_id\": \"{{scanId}}\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('reportId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "403 admin stats for a normal user",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stats",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "stats"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code is FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin: daily stats (anonymous counts)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-admin-postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/stats?days=7",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "stats"
+              ],
+              "query": [
+                {
+                  "key": "days",
+                  "value": "7"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('today has analyses', () => pm.expect(pm.response.json().days.slice(-1)[0].total).to.be.above(0));",
+                  "pm.test('no user ids', () => pm.expect(pm.response.text()).to.not.include('postman'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin: open reports without reporter uid",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-admin-postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/reports?status=open",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "reports"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "open"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('contains the report', () => pm.expect(pm.response.json().items.map(r => r.id)).to.include(pm.collectionVariables.get('reportId')));",
+                  "pm.test('no uid field', () => pm.response.json().items.forEach(r => pm.expect(r).to.not.have.property('uid')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin: mark report reviewed",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-admin-postman"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/reports/{{reportId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "admin",
+                "reports",
+                "{{reportId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"reviewed\"\n}"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('reviewed', () => pm.expect(pm.response.json().status).to.eql('reviewed'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete one scan",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/history/{{scanId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "history",
+                "{{scanId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "400 invalid page size",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/history?limit=500",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "history"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "500"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('error code is VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete my data",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer dev-postman"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/me",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "me"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('one scan left was deleted', () => pm.expect(pm.response.json().deleted_scans).to.eql(1));",
+                  "pm.test('report anonymised', () => pm.expect(pm.response.json().anonymised_reports).to.eql(1));"
                 ]
               }
             }

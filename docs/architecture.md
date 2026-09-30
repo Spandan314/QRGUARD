@@ -262,6 +262,9 @@ flowchart TD
 
 ### Screenshot analysis
 
+> Implemented. QR codes inside a screenshot are decoded and analysed too (see `docs/risk-scoring.md`
+> §13). OCR text reuses the message pipeline, so there is no separate screenshot scoring (§12).
+
 ```mermaid
 flowchart TD
   I[Upload image] --> V[Validate type, size, pixels]

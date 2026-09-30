@@ -1,0 +1,30 @@
+rules_version = '2';
+
+// QRGUARD Firestore rules (docs/database-design.md §4).
+// Clients talk to the API, not to Firestore; the backend uses the Admin SDK, which bypasses
+// these rules. The rules are defence in depth: they deny everything that bypasses the API,
+// except letting a signed-in user read and delete their OWN history and settings.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+      allow create, update: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['created_at', 'save_history', 'is_anonymous'])
+        && (!('save_history' in request.resource.data) || request.resource.data.save_history is bool);
+      allow delete: if false;
+
+      match /scans/{scanId} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if false;   // only the backend writes verdicts (no score forgery)
+      }
+    }
+
+    match /reports/{reportId}   { allow read, write: if false; }
+    match /stats_daily/{day}    { allow read, write: if false; }
+    match /{document=**}        { allow read, write: if false; }
+  }
+}

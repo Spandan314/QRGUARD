@@ -164,7 +164,10 @@ def normalize_url(raw: str, rules: UrlRules) -> ParsedURL:
     if had_backslash:
         text = text.replace("\\", "/")  # what browsers do for http(s) links
 
-    parts = urlsplit(text)
+    try:
+        parts = urlsplit(text)  # raises ValueError for broken [IPv6] brackets
+    except ValueError as exc:
+        raise URLValidationError("INVALID_URL", "The link has an invalid address.") from exc
     if not parts.netloc:
         raise URLValidationError("INVALID_URL", "The link has no domain name.")
 

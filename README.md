@@ -10,9 +10,23 @@ recommended safe action.
 
 ## Project status
 
-**URL analysis, risk-scoring engine and scam-message detector implemented.**
-`POST /api/analyze/url` and `POST /api/analyze/message` are live and tested (445 automated tests,
-Postman collection with 35 requests). See [backend/README.md](backend/README.md).
+**Version 1.0.0 — feature-complete and deployment-ready.** The Flask backend analyses links, messages, screenshots
+(OCR) and QR codes, checks threat intelligence and returns an explainable score. The React web app and
+the Expo mobile app use it for every check, with Firebase sign-in, a private privacy-minimised
+history, reports, account/privacy controls and an admin view.
+
+| Suite | Result |
+|---|---|
+| Backend (pytest, incl. Firestore emulator) | 821 tests, 96% coverage, Ruff clean |
+| Firestore security rules | 7 tests |
+| Postman / Newman | 83 requests, 303 assertions |
+| Web (Vitest) | 73 tests, 91% statements, lint with zero warnings |
+| Mobile (Jest) | 65 tests, 88% statements, lint with zero warnings |
+| End-to-end (`e2e/run.sh`: browsers → apps → Firebase emulators → Flask, production headers) | 18 flows + log privacy check |
+| Demo kit / smoke test | 11/11 demo scenarios, 11/11 deployment checks |
+
+See [docs/testing.md](docs/testing.md), [docs/evaluation.md](docs/evaluation.md) and
+[docs/deployment.md](docs/deployment.md).
 
 ### Risk levels and verification
 
@@ -32,16 +46,56 @@ verification.
 |---|---|---|
 | 1 | Architecture, folder structure, DB design, API design, roadmap | ✅ Approved |
 | 2 | Backend foundation | ✅ Done |
-| 3a | URL analysis, SSRF-safe redirect checking, risk-scoring engine | ✅ Done (awaiting review) |
-| 3b | Scam message detector | ✅ Done (awaiting review) |
-| 3c | OCR / screenshot analyzer | ⏳ |
-| 4 | Threat intelligence | ⏳ |
-| 5 | React web application | ⏳ |
-| 6 | React Native (Expo) mobile application | ⏳ |
-| 7 | Firebase integration | ⏳ |
-| 8 | Testing | ⏳ |
-| 9 | Deployment | ⏳ |
-| 10 | Final documentation | ⏳ |
+| 3 | URL analysis, SSRF-safe redirect checking, risk-scoring engine | ✅ Done |
+| 4 | Scam message detector | ✅ Done |
+| 5 | Screenshot analysis (OCR) | ✅ Done |
+| 6 | QR code analysis and generation | ✅ Done |
+| 7 | Threat intelligence | ✅ Done |
+| 8 | React web application | ✅ Done |
+| 9 | React Native (Expo) mobile application | ✅ Done |
+| 10 | Firebase sign-in, private history, reports, admin (backend, web, mobile) | ✅ Done |
+| 11 | End-to-end tests, security audit, evaluation | ✅ Done |
+| 12 | Deployment (Docker/Render, Vercel, EAS, Firebase) | ✅ Ready; needs account owners to deploy ([docs/deployment.md](docs/deployment.md)) |
+
+"Done" means implemented, tested and merged into `develop` (PRs #2–#11).
+
+## Run it locally
+
+Requirements: Python 3.12 (3.11+ works), Node.js 22, Tesseract OCR (`apt install tesseract-ocr`,
+`brew install tesseract`, or the UB-Mannheim installer on Windows) and, for the Firestore emulator
+only, Java 21.
+
+```bash
+# 1. Backend  → http://localhost:5000/api/health
+cd backend
+python -m venv .venv && . .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -r requirements-dev.txt
+AUTH_DEV_TOKENS=true HISTORY_STORE=memory flask --app wsgi run --port 5000   # demo accounts, no Firebase
+
+# 2. Web app  → http://localhost:5173
+cd web && npm ci
+VITE_API_BASE_URL=http://localhost:5000 VITE_AUTH_MODE=dev npm run dev
+
+# 3. Mobile app (Expo Go on a phone on the same Wi-Fi)
+cd mobile && npm ci
+EXPO_PUBLIC_API_BASE_URL=http://<your-LAN-IP>:5000 EXPO_PUBLIC_AUTH_MODE=dev npx expo start
+```
+
+`AUTH_DEV_TOKENS` / `VITE_AUTH_MODE=dev` give demo accounts without a Firebase project; the backend
+refuses them in production. Each app's README has the details, [docs/testing.md](docs/testing.md)
+lists every test command, and [docs/deployment.md](docs/deployment.md) covers production.
+
+## Known limitations
+
+QRGUARD is an explainable, rule-based assistant, not a guarantee. Known limitations are documented
+next to each component:
+
+- Messages: English rules only; novel wording can be missed ([risk-scoring §11.8](docs/risk-scoring.md)).
+- Screenshots: OCR quality depends on the image ([risk-scoring §12.3](docs/risk-scoring.md)).
+- QR codes: a UPI QR alone is at most SUSPICIOUS by design ([risk-scoring §13.5](docs/risk-scoring.md)).
+- Threat intelligence: only the demo blocklist without API keys; "not listed" never means safe
+  ([threat-intelligence §9](docs/threat-intelligence.md)).
+- Measured errors on held-out data, including missed scams, are in [docs/evaluation.md](docs/evaluation.md).
 
 ## Design documents
 
@@ -53,14 +107,18 @@ verification.
 | [docs/api-spec.md](docs/api-spec.md) | REST API contract (v1) |
 | [docs/risk-scoring.md](docs/risk-scoring.md) | Indicator catalogue, weights, combination model, thresholds, confidence |
 | [docs/threat-intelligence.md](docs/threat-intelligence.md) | `ThreatIntelService` design and providers |
-| [docs/security.md](docs/security.md) | Security controls including SSRF protection |
+| [docs/security.md](docs/security.md) | Security controls including SSRF protection, and the security audit |
+| [docs/testing.md](docs/testing.md) | Unit, integration, emulator, Newman and end-to-end tests |
+| [docs/evaluation.md](docs/evaluation.md) | Measured precision/recall on held-out data, and error analysis |
+| [docs/deployment.md](docs/deployment.md) | Firebase, Render, Vercel and EAS deployment, smoke test, go-live checklist |
+| [docs/demo-runbook.md](docs/demo-runbook.md) | Final Android + web demonstration script, demo QR sheet, fallbacks |
 | [docs/git-workflow.md](docs/git-workflow.md) | Branching, PRs, reviews, CI for a 4-member team |
 | [docs/roadmap.md](docs/roadmap.md) | 12-week plan by member |
 | [docs/risks.md](docs/risks.md) | Technical and security risks |
 | [docs/research.md](docs/research.md) | Reference paper analysis (QsecR), research gap, contribution |
 | [docs/demo-and-scope.md](docs/demo-and-scope.md) | Final demo script and out-of-scope items |
 
-## Planned tech stack
+## Tech stack
 
 Flask + Gunicorn (Docker, Render) · Tesseract OCR · OpenCV · React + Vite + TypeScript (Vercel) ·
 React Native + Expo (EAS Build) · Firebase Auth + Cloud Firestore · URLhaus / Google Safe Browsing /

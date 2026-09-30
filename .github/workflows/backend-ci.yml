@@ -2,10 +2,10 @@ name: backend-ci
 
 on:
   pull_request:
-    paths: ["backend/**", ".github/workflows/backend-ci.yml"]
+    paths: ["backend/**", "demo-data/**", "firebase/**", ".github/workflows/backend-ci.yml"]
   push:
     branches: [main, develop]
-    paths: ["backend/**", ".github/workflows/backend-ci.yml"]
+    paths: ["backend/**", "demo-data/**", "firebase/**", ".github/workflows/backend-ci.yml"]
 
 jobs:
   test:
@@ -20,8 +20,40 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
+      - name: Install Tesseract OCR (used by screenshot-analysis tests)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng
       - run: pip install -r requirements-dev.txt
       - name: Lint
         run: ruff check . && ruff format --check .
       - name: Tests
         run: pytest --cov=app --cov-report=term-missing
+
+  firestore:
+    # Firestore security rules + the backend's Firestore store, in the local Firestore emulator
+    # (no Google account or secrets needed).
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: firebase
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: firebase/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: npm ci
+      - run: pip install -r ../backend/requirements-dev.txt
+      - name: Firestore rules tests
+        run: npm run test:rules
+      - name: Backend Firestore store tests
+        run: npm run test:backend

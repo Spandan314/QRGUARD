@@ -1,17 +1,26 @@
 # QRGUARD Backend (Flask REST API)
 
-**Status:** the backend foundation, **URL analysis + risk scoring** (`POST /api/analyze/url`) and
-the **scam-message detector** (`POST /api/analyze/message`) are working. The screenshot and QR
-endpoints validate requests against the API contract and answer `501 NOT_IMPLEMENTED` until their
-modules are built. No threat-intelligence
-provider is connected yet; responses say so explicitly.
+**Status:** the backend foundation, **URL analysis + risk scoring** (`POST /api/analyze/url`), the
+**scam-message detector** (`POST /api/analyze/message`), **screenshot analysis with OCR**
+(`POST /api/analyze/screenshot`), **QR analysis** (`POST /api/analyze/qr`, decoded content or an
+image; OpenCV decoding, installed by `pip`) and the **QR generator** (`POST /api/generate/qr`) are
+working, and so is **threat intelligence**: an offline local feed (demo blocklist plus optional
+downloaded OpenPhish/URLhaus feeds) is on by default, and URLhaus, Google Safe Browsing,
+VirusTotal (lookup only) and PhishTank are used when their API keys are set (see `.env.example`
+and `docs/threat-intelligence.md`). **Sign-in and history** (Firebase Auth ID tokens + Firestore)
+are implemented: `/api/history`, `/api/me`, `/api/reports` and `/api/admin/*`. Without
+`FIREBASE_PROJECT_ID` analysis works normally and those endpoints answer `503`; for a local demo
+without Firebase set `AUTH_DEV_TOKENS=true HISTORY_STORE=memory` (refused in production). Setup:
+`docs/database-design.md`.
 
 ## Requirements
 
 - Python **3.11 or 3.12** (`python --version`)
 - Git
-- Optional now, needed from Phase 3: **Tesseract OCR**
-  (Ubuntu: `sudo apt install tesseract-ocr`; Windows: UB-Mannheim installer; macOS: `brew install tesseract`)
+- **Tesseract OCR 4 or newer** for screenshot analysis
+  (Ubuntu: `sudo apt install tesseract-ocr`; Windows: UB-Mannheim installer, then set
+  `TESSERACT_CMD` to the full path of `tesseract.exe` in `.env`; macOS: `brew install tesseract`).
+  Without it, `/api/analyze/screenshot` answers `503 OCR_UNAVAILABLE` and everything else works.
 
 ## 1. Set up
 
@@ -58,7 +67,9 @@ gunicorn -c gunicorn.conf.py wsgi:app
 - **curl:** `curl -i http://localhost:5000/api/health`
 - **Postman:** *Import* `postman/QRGUARD.postman_collection.json` and
   `postman/QRGUARD.local.postman_environment.json`, select the "QRGUARD local" environment,
-  then run the collection. All 35 requests (134 checks) should pass.
+  then run the collection. All 42 requests (165 checks) should pass. Start the server with
+  `RATELIMIT_SCREENSHOT="60 per minute"` and run Newman with `--working-dir postman`
+  (see `docs/testing.md`).
 
 Expected response (`200 OK`):
 
@@ -106,6 +117,15 @@ curl -s -X POST http://localhost:5000/api/analyze/message \
 # → 200 {"risk_score": 0, "risk_level": "SAFE", "verification": {"status": "UNVERIFIED", ...}}
 ```
 
+Analyse a screenshot (synthetic demo image):
+
+```bash
+curl -s -X POST http://localhost:5000/api/analyze/screenshot \
+     -F "file=@../postman/fixtures/scam-kyc.png"
+# → 200 {"input_type": "screenshot", "risk_score": 65, "risk_level": "MALICIOUS",
+#        "analysis": {"ocr": {"extracted_text": "...", "quality": "good", ...}, ...}}
+```
+
 Only link shorteners (bit.ly, tinyurl.com…) are contacted, to see where they redirect, and only through
 the SSRF-protected checker (see `docs/security.md`). Set `REDIRECT_RESOLUTION=off` in `.env` to
 never contact any link.
@@ -119,7 +139,7 @@ error.
 ## 4. Run the tests and linter
 
 ```bash
-pytest                                   # expected: 445 passed (no internet needed)
+pytest                                   # expected: 806 passed, 3 skipped Firestore-emulator tests (no internet needed)
 pytest --cov=app --cov-report=term-missing
 ruff check . && ruff format --check .    # expected: All checks passed!
 ```
@@ -146,14 +166,15 @@ backend/
 │   ├── schemas.py         Pydantic request models (the API contract)
 │   ├── routes/            health, analyze, generate, history blueprints
 │   ├── analyzers/         url_normalizer, url_features, lookalike, redirect_resolver, url_rules,
-│   │                      text_preprocessor, message_analyzer, scam_rules
+│   │                      text_preprocessor, message_analyzer, scam_rules, ocr
 │   ├── services/          url_analysis_service (normalise → features → redirects → TI → score),
-│   │                      message_analysis_service (preprocess → rules → links → score)
+│   │                      message_analysis_service (preprocess → rules → links → score),
+│   │                      screenshot_analysis_service (validate → OCR → message pipeline)
 │   ├── scoring/           scoring_config.yaml (ONE place for weights/floors/thresholds),
 │   │                      settings (validation), engine, indicator, recommendations
 │   ├── threat_intelligence/  provider interface + service (providers come later)
 │   ├── data/              url_rules.yaml, brands.yaml, scam_rules.yaml (editable rules)
-│   └── utils/             validation.py, net_safety.py (SSRF checks, DNS with timeout)
+│   └── utils/             validation.py, net_safety.py (SSRF checks), image_validation.py
 ├── tests/{unit,integration}
 ├── wsgi.py  gunicorn.conf.py  Dockerfile  requirements*.txt  pyproject.toml  .env.example
 ```
@@ -173,6 +194,9 @@ backend/
 | `ScoringConfigError: indicator X: unknown category` | Every indicator's `category` must be listed in `category_caps`. |
 | `UrlRulesError` at startup | A YAML list in `app/data/` is malformed; the message names the field. |
 | Shortened links show `redirects.status: "timeout"` | The server could not reach the shortener within 3 s (offline laptop, firewall). The result is still returned, with LOW confidence. |
+| Screenshot returns `503 OCR_UNAVAILABLE` | Tesseract is not installed or not on PATH. Install it, or set `TESSERACT_CMD`. `GET /api/health` shows `ocr_engine`. |
+| Screenshot returns `422 NO_TEXT_FOUND` | The image has no readable text. Crop to the message and use a sharper screenshot. |
+| Screenshot result misses something visible | Check `analysis.ocr.extracted_text`: OCR may have misread it (see `docs/risk-scoring.md` §12.3). |
 | `ScamRulesError: pattern has a nested quantifier` | A pattern in `scam_rules.yaml` could backtrack catastrophically; rewrite it without `(…+)+`. |
 | A genuine message is flagged | Find the indicator in the response (`matched_phrases` shows the words), then add a near-miss test and tighten that pattern in `scam_rules.yaml`. |
 | A legitimate site is flagged as a lookalike | Add its domain to the brand's `official_domains` in `app/data/brands.yaml`. |

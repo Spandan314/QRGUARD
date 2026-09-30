@@ -33,6 +33,16 @@ SUMMARIES = {
     },
 }
 
+SUMMARIES["screenshot"] = {
+    MALICIOUS: "Strong warning signs: the content of this screenshot is very likely a scam.",
+    SUSPICIOUS: "Several warning signs were found in this screenshot. Treat it as suspicious.",
+    SAFE_VERIFIED: "No significant suspicious indicators detected in the screenshot text.",
+    SAFE_UNVERIFIED: (
+        "No significant suspicious indicators detected in the text read from this screenshot. "
+        "This does not guarantee that it is genuine."
+    ),
+}
+
 RECOMMENDATIONS = {
     "url": {
         MALICIOUS: (
@@ -74,10 +84,47 @@ RECOMMENDATIONS = {
     },
 }
 
+RECOMMENDATIONS["screenshot"] = RECOMMENDATIONS["message"]
+
+SUMMARIES["qr"] = {
+    MALICIOUS: "Strong warning signs: this QR code is very likely malicious.",
+    SUSPICIOUS: "Several warning signs were found. Treat this QR code as suspicious.",
+    SAFE_VERIFIED: (
+        "No significant suspicious indicators detected, and the link in this QR code belongs to "
+        "a recognised domain."
+    ),
+    SAFE_UNVERIFIED: (
+        "No significant suspicious indicators detected. This does not guarantee that the QR code "
+        "is safe."
+    ),
+}
+RECOMMENDATIONS["qr"] = {
+    MALICIOUS: (
+        "Do not open, pay or connect using this QR code, and never enter your UPI PIN, OTP or "
+        "passwords because of it. If you already paid or entered details, contact your bank "
+        "immediately."
+    ),
+    SUSPICIOUS: (
+        "Avoid using this QR code. To pay or visit a service, use its official app or type the "
+        "address yourself."
+    ),
+    SAFE_UNVERIFIED: (
+        "Only use this QR code if you trust where it came from. For payments, check that the "
+        "payee name in your UPI app is who you intend to pay: scanning a QR code or entering your "
+        "UPI PIN never gives you money."
+    ),
+    SAFE_VERIFIED: RECOMMENDATIONS["url"][SAFE_VERIFIED],
+}
+
 # Extra advice added for the first matching evidence type (checked in this order).
 EXTRA_ADVICE = [
     (
-        {"MSG_UPI_PIN_TO_RECEIVE"},
+        {
+            "MSG_UPI_PIN_TO_RECEIVE",
+            "QR_UPI_RECEIVE_CONTEXT",
+            "QR_UPI_NAME_MISMATCH",
+            "QR_UPI_PRETEXT",
+        },
         "You never need to enter your UPI PIN, approve a request or scan a QR code to RECEIVE "
         "money.",
     ),
@@ -148,7 +195,7 @@ def recommendation_for(
                 parts.append(advice)
                 break
         parts.append(REPORTING_ADVICE)
-        if input_type == "message":
+        if input_type in ("message", "screenshot", "qr"):
             parts.append(MESSAGE_REPORTING_ADVICE)
     elif key == SAFE_UNVERIFIED and input_type == "url":
         for ids, advice in EXTRA_ADVICE:

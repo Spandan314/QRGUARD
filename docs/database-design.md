@@ -1,5 +1,20 @@
 # Database Design (Firebase Auth + Cloud Firestore)
 
+> **Implemented** (backend): `app/services/history_store.py` (Firestore and in-memory stores),
+> `app/services/history_service.py` (privacy minimisation), routes in `app/routes/history.py`,
+> `account.py`, `reports.py`, `admin.py`. API: docs/api-spec.md "Sign-in, history, reports, admin".
+> Differences from the first draft: scans also keep `verification` and category ids; indicators keep
+> `id`, `title`, `severity`, `score_contribution`, `source` (no `evidence`); `users/{uid}` is deleted
+> by "delete my data".
+>
+> **One-time Firebase setup:** create the project (Spark plan), enable Authentication (Anonymous
+> and optionally Email/Password), create Firestore, deploy rules and indexes
+> (`cd firebase && npx firebase deploy --only firestore --project <id>`), and add a **TTL policy**
+> on the `expire_at` field of the `scans` collection group (Firestore console → TTL, or
+> `gcloud firestore fields ttls update expire_at --collection-group=scans --enable-ttl`).
+> Admins are marked with a custom claim, e.g. with the Admin SDK:
+> `auth.set_custom_user_claims(uid, {"admin": True})`.
+
 ## 1. Privacy principles
 
 1. **Store verdicts, not content.** Raw message text, screenshots, OCR output and Wi-Fi passwords are
@@ -40,7 +55,7 @@ one-off script, so a user cannot grant themselves admin by editing a document.
 | `recommended_action` | string | |
 | `target` | map | `{kind:"url", domain:"bit.ly", url_hash:"9f2c…"}` or `{kind:"message", length:212, url_count:1}` or `{kind:"upi", payee_domain:"@okaxis"}` |
 | `threat_intel` | array<map> | `[{provider:"urlhaus", status:"not_listed"}]` |
-| `engine_version` | string | `0.1.0` (lets us explain why old results differ) |
+| `engine_version` | string | e.g. `1.0.0` (lets us explain why old results differ) |
 | `schema_version` | int | `1` |
 
 ### `reports/{reportId}` (user-submitted feedback)
@@ -137,8 +152,11 @@ service cloud.firestore {
 }
 ```
 
-They will be tested with the Firebase Emulator in Phase 7 (unauthorised read, cross-user read and
-client-side score forgery must all fail).
+The rules live in `firebase/firestore.rules` and are tested in the Firestore emulator
+(`cd firebase && npm ci && npm run test:rules`): unauthenticated reads, cross-user reads/deletes,
+client-side score forgery, settings with extra fields (e.g. `admin: true`) and any access to
+`reports`, `stats_daily` or unknown collections must all fail; the owner can read and delete their
+own scans. The same emulator runs the backend's Firestore store tests (`npm run test:backend`).
 
 ## 5. Indexes
 

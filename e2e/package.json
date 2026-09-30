@@ -1,0 +1,13 @@
+{
+  "name": "qrguard-e2e",
+  "private": true,
+  "type": "module",
+  "description": "Browser end-to-end tests of web + mobile (Expo web) + Flask + Firebase emulators.",
+  "scripts": {
+    "test": "bash run.sh",
+    "test:web": "bash run.sh web"
+  },
+  "dependencies": {
+    "playwright-core": "^1.63.0"
+  }
+}

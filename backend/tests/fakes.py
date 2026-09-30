@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ipaddress
 
+from app.analyzers.ocr import OcrResult
 from app.analyzers.redirect_resolver import (
     FetchConnectionError,
     FetchRequest,
@@ -12,6 +13,7 @@ from app.analyzers.redirect_resolver import (
     FetchTLSError,
 )
 from app.threat_intelligence.base import ProviderResult, ThreatIntelProvider, TIStatus
+from app.threat_intelligence.http import HttpResponse, TIHttpError
 from app.utils.net_safety import DNSResolutionError, DNSTimeoutError
 
 PUBLIC_IP = "93.184.215.14"  # any public address; nothing is ever contacted
@@ -72,7 +74,37 @@ class BrokenProvider(ThreatIntelProvider):
         raise RuntimeError("provider crashed")
 
 
+class FakeOcrEngine:
+    """Returns fixed text (or raises a given error) instead of running Tesseract."""
+
+    name = "fake-ocr"
+
+    def __init__(
+        self,
+        text: str = "",
+        confidence: float | None = 95.0,
+        error: Exception | None = None,
+        available: bool = True,
+    ) -> None:
+        self.text = text
+        self.confidence = confidence
+        self.error = error
+        self._available = available
+        self.calls = 0
+
+    def available(self) -> bool:
+        return self._available
+
+    def extract(self, image) -> OcrResult:
+        self.calls += 1
+        if self.error is not None:
+            raise self.error
+        words = len(self.text.split())
+        return OcrResult(self.text, self.confidence if words else None, words, self.name)
+
+
 __all__ = [
+    "FakeOcrEngine",
     "BrokenProvider",
     "DNSResolutionError",
     "DNSTimeoutError",
@@ -85,3 +117,36 @@ __all__ = [
     "PUBLIC_IP",
     "redirect_loop",
 ]
+
+
+class FakeHttp:
+    """Stands in for the threat-intel HTTP client: returns canned responses, records requests."""
+
+    def __init__(self, status: int = 200, data=None, error: bool = False) -> None:
+        self.status = status
+        self.data = data
+        self.error = error
+        self.requests: list[dict] = []
+
+    def request(self, method, url, *, headers=None, body=None, timeout):
+        self.requests.append(
+            {"method": method, "url": url, "headers": headers or {}, "body": body or b""}
+        )
+        if self.error:
+            raise TIHttpError("network error")
+        return HttpResponse(self.status, self.data)
+
+
+class SlowProvider(ThreatIntelProvider):
+    """Answers only after `delay` seconds (to test the overall time budget)."""
+
+    name = "slow"
+
+    def __init__(self, delay: float) -> None:
+        self.delay = delay
+
+    def check_url(self, normalized_url: str, domain: str) -> ProviderResult:
+        import time
+
+        time.sleep(self.delay)
+        return ProviderResult(self.name, TIStatus.LISTED, "phishing")

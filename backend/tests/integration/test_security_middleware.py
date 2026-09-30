@@ -38,8 +38,9 @@ def test_health_is_exempt_from_rate_limit():
 
 def test_default_limit_applies_to_other_routes():
     client = make_app(RATELIMIT_DEFAULT="2 per minute").test_client()
+    # /api/history has only the default limit (503 here: no Firebase configured in tests).
     statuses = [client.get("/api/history").status_code for _ in range(3)]
-    assert statuses == [501, 501, 429]
+    assert statuses == [503, 503, 429]
 
 
 def test_proxy_fix_uses_forwarded_client_ip_for_rate_limits():

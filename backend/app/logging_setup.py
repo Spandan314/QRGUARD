@@ -17,6 +17,7 @@ import json
 import logging
 import re
 import sys
+import traceback
 from datetime import UTC, datetime
 
 from flask import g, has_request_context
@@ -38,7 +39,7 @@ class JsonFormatter(logging.Formatter):
     """Formats each log record as a single JSON line."""
 
     # Extra attributes we allow callers to attach with logger.info(..., extra={...}).
-    EXTRA_FIELDS = ("method", "path", "status", "duration_ms", "event")
+    EXTRA_FIELDS = ("method", "path", "status", "duration_ms", "event", "provider")
 
     def format(self, record: logging.LogRecord) -> str:
         entry: dict[str, object] = {
@@ -58,6 +59,24 @@ class JsonFormatter(logging.Formatter):
         if record.exc_info:
             entry["exc"] = redact(self.formatException(record.exc_info))
         return json.dumps(entry, ensure_ascii=False)
+
+    def formatException(self, ei) -> str:  # noqa: N802 - logging.Formatter API
+        """Stack frames and exception types only, never exception messages.
+
+        A message can echo user input (a URL, message text or QR payload passed to a library), so it
+        is withheld. The frames (file, line, function, source line) are enough to find the bug.
+        """
+        chain: list[BaseException] = []
+        exc: BaseException | None = ei[1]
+        while exc is not None and exc not in chain:
+            chain.append(exc)
+            exc = exc.__cause__ or (None if exc.__suppress_context__ else exc.__context__)
+        parts = []
+        for error in reversed(chain):
+            frames = "".join(traceback.format_tb(error.__traceback__))
+            name = f"{type(error).__module__}.{type(error).__qualname__}"
+            parts.append(f"Traceback (most recent call last):\n{frames}{name} (message withheld)")
+        return "\nwhich caused:\n".join(parts)
 
 
 class RequestIdFilter(logging.Filter):

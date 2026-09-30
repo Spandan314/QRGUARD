@@ -103,6 +103,8 @@ def test_dangerous_schemes_are_flagged_not_parsed(url):
         ("https://example.com/\x00", "INVALID_URL"),
         ("http://example.com:99999/", "INVALID_URL"),
         ("http://exa$mple.com/", "INVALID_URL"),
+        ("http://[::1", "INVALID_URL"),  # broken IPv6 brackets used to cause a 500
+        ("https://[bad]/", "INVALID_URL"),
         ("http://a..b.com/", "INVALID_URL"),
         ("ftp://files.example.com/", "UNSUPPORTED_PROTOCOL"),
         ("mailto:someone@example.com", "UNSUPPORTED_PROTOCOL"),

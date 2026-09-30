@@ -7,7 +7,6 @@ and never reveals secrets, versions of dependencies or internal paths.
 
 from __future__ import annotations
 
-import shutil
 from datetime import UTC, datetime
 
 from flask import Blueprint, current_app, jsonify
@@ -19,9 +18,16 @@ health_bp = Blueprint("health", __name__)
 
 
 def _ocr_status() -> str:
-    # Tesseract is a system program (installed in the Docker image).
-    # The OCR module is built in Phase 3; this check proves the binary is present early.
-    return "available" if shutil.which("tesseract") else "not_installed"
+    # Tesseract is a system program (installed in the Docker image). Without it, screenshot
+    # analysis answers 503 OCR_UNAVAILABLE; every other endpoint keeps working.
+    engine = current_app.extensions["qrguard.screenshot_analysis"].ocr_engine
+    return "available" if engine.available() else "not_installed"
+
+
+def _threat_intel_status() -> dict:
+    # Which reputation sources are active. Never includes API keys, only on/off.
+    service = current_app.extensions["qrguard.url_analysis"].threat_intel
+    return {"enabled": service.configured, "providers": service.status()}
 
 
 @health_bp.get("/health")
@@ -42,6 +48,7 @@ def health():
                     "thresholds": config.scoring.thresholds.model_dump(),
                 },
                 "ocr_engine": _ocr_status(),
+                "threat_intel": _threat_intel_status(),
             },
         }
     )

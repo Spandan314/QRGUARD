@@ -47,7 +47,7 @@ MODULES = ("url_qr", "threat_intel", "message", "ocr")
 FALLBACK_CATEGORY = "social_engineering_other"
 
 # Where each piece of evidence came from, as shown in the API ("source" of an indicator).
-EVIDENCE_SOURCES = ("message", "link", "threat_intelligence", "combination", "ocr")
+EVIDENCE_SOURCES = ("message", "link", "qr", "threat_intelligence", "combination", "ocr")
 
 VERIFICATION_MESSAGES = {
     SOURCE_THREAT_INTEL: "A threat-intelligence source lists this as known malicious.",
@@ -95,9 +95,11 @@ def threat_intel_indicators(results: list[ProviderResult]) -> list[Indicator]:
 
 
 def evidence_source(definition: IndicatorDefinition) -> str:
-    """message / link / threat_intelligence / combination / ocr."""
+    """message / link / qr / threat_intelligence / combination / ocr."""
     if definition.category == "combination":
         return "combination"
+    if definition.category == "qr_payload":  # UPI, Wi-Fi, phone... read from a QR code
+        return "qr"
     return {"url_qr": "link", "threat_intel": "threat_intelligence"}.get(
         definition.module, definition.module
     )
@@ -227,7 +229,8 @@ def score_indicators(
     }
 
     # ---- 5. confidence -----------------------------------------------------------------------
-    ti_definitive = any(r.status in DEFINITIVE_STATUSES for r in ti_results)
+    # A demo-only blocklist saying "not listed" is not a real reputation check.
+    ti_definitive = any(r.status in DEFINITIVE_STATUSES and not r.limited for r in ti_results)
     positive_categories = {
         definitions[i.id].category for i in all_indicators if definitions[i.id].weight > 0
     }
