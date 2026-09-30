@@ -1,0 +1,113 @@
+# DEMO / TEST DATA: held-out evaluation set. Written after the scoring rules were frozen and NEVER
+# used to tune them; do not change rules or weights to fit this file (add new cases instead).
+# No real people's data: phone numbers are fictitious, links use reserved (.example, .test) or
+# clearly fake domains. Do NOT send these to anyone.
+#
+# label: scam | genuine. The target is: every scam at least SUSPICIOUS, no genuine item MALICIOUS.
+# Run: cd backend && python -m scripts.evaluate
+
+messages:
+  # ---- scams ----
+  - id: m-electricity-cutoff
+    label: scam
+    text: "Dear consumer your electricity power will be disconnected tonight at 9.30 pm because your previous month bill was not updated. Please immediately contact our electricity officer 98765 43210."
+  - id: m-parcel-customs
+    label: scam
+    text: "Your courier parcel is held at customs. Pay Rs 49 clearance fee within 24 hours or it will be returned: http://indiapost-redelivery.top/pay"
+  - id: m-work-from-home
+    label: scam
+    text: "Earn Rs 5000 daily from home! Just like YouTube videos. No experience needed. Pay Rs 999 registration fee to join our Telegram group now."
+  - id: m-lottery-kbc
+    label: scam
+    text: "Congratulations! Your mobile number has won Rs 25,00,000 in KBC lucky draw. To claim your prize pay processing fee Rs 12,500 and send your bank details."
+  - id: m-account-suspended-link
+    label: scam
+    text: "ALERT: Your HDFC account has been suspended due to incomplete PAN update. Click http://hdfc-pan-update.xyz/verify to reactivate today."
+  - id: m-refund-upi-pin
+    label: scam
+    text: "Your refund of Rs 3,450 has been approved. Scan the QR code we sent and enter your UPI PIN to receive the money in your account."
+  - id: m-sextortion-police
+    label: scam
+    text: "This is Cyber Crime Police. A case is registered against your Aadhaar. You will be arrested today unless you pay the fine immediately. Do not tell anyone."
+  - id: m-crypto-doubling
+    label: scam
+    text: "Invest Rs 10,000 today and get guaranteed Rs 50,000 in 7 days. 100% safe crypto trading, limited slots. WhatsApp now."
+  - id: m-sim-block
+    label: scam
+    text: "Your SIM card will be blocked within 2 hours due to KYC expiry. Call our customer care 98765 12345 and share the OTP you receive to continue service."
+  - id: m-job-offer-fee
+    label: scam
+    text: "You are selected for Amazon data entry job, salary 35000/month. Pay Rs 2,500 security deposit for your ID card and training kit to confirm joining."
+  - id: m-gift-card-boss
+    label: scam
+    text: "Hi, this is your manager. I am in a meeting and need you to buy 5 Google Play gift cards of Rs 2000 urgently. Send me the codes, I will pay you back."
+  - id: m-rewards-points
+    label: scam
+    text: "Dear SBI user, your 7,250 reward points expire today. Redeem now at http://sbi-rewardz.example/redeem and enter your card details."
+
+  # ---- genuine ----
+  - id: m-otp-flipkart
+    label: genuine
+    text: "591204 is your Flipkart verification code. Do not share it with anyone. Flipkart will never call you to ask for it."
+  - id: m-salary-credit
+    label: genuine
+    text: "Rs 48,200.00 credited to your A/c XX9012 on 01-10-26 towards SALARY. Available balance Rs 52,780.40. -Axis Bank"
+  - id: m-doctor-appointment
+    label: genuine
+    text: "Your appointment with Dr. Mehta is confirmed for 14 Oct, 5:30 PM at Example Clinic, Kothrud. Reply C to cancel."
+  - id: m-train-ticket
+    label: genuine
+    text: "PNR 4521367890, Train 12127, Dt 18-10-26, From PUNE to CSMT, Coach D3 Seat 45. Have a happy journey."
+  - id: m-college-notice
+    label: genuine
+    text: "Reminder: The final year project review is on Friday at 10 AM in Lab 3. Bring your report and the demo laptop."
+  - id: m-electricity-bill
+    label: genuine
+    text: "Your electricity bill of Rs 1,140 for September is generated. Due date 20-10-26. Pay using the official app or at the nearest collection centre."
+  - id: m-family
+    label: genuine
+    text: "Reached home safely. Will call you after dinner. Please don't forget to bring the charger tomorrow."
+  - id: m-delivery-otp
+    label: genuine
+    text: "Your Swiggy order is on the way. Share OTP 4417 with the delivery partner only when you receive your order."
+  - id: m-emi-reminder
+    label: genuine
+    text: "Your EMI of Rs 6,300 for loan XX4471 will be auto-debited on 05-10-26. Please keep sufficient balance. -Bajaj Finance"
+  - id: m-password-changed
+    label: genuine
+    text: "Your account password was changed on 29 Sep at 18:02. If this was you, no action is needed."
+  - id: m-library
+    label: genuine
+    text: "The book 'Computer Networks' is due for return on 07-10-26. Late fee is Rs 2 per day. -College Library"
+  - id: m-meeting-link
+    label: genuine
+    text: "Team sync moved to 4 PM today. Same meeting link as last week: https://meet.example.com/abc-defg-hij"
+
+urls:
+  # ---- scams ----
+  - { id: u-brand-kyc, label: scam, url: "http://sbi-kyc-verify.top/login" }
+  - { id: u-ip-login, label: scam, url: "http://203.0.113.45/paytm/login.php" }
+  - { id: u-typo-amazon, label: scam, url: "https://amaz0n-offers.example/deal" }
+  - { id: u-typo-flipkart, label: scam, url: "https://flipkarrt.com/big-billion" }
+  - { id: u-userinfo, label: scam, url: "https://www.hdfcbank.com@secure-login.example/netbanking" }
+  - { id: u-punycode, label: scam, url: "https://xn--pypal-4ve.com/signin" }
+  - { id: u-apk, label: scam, url: "http://free-recharge.example/offer.apk" }
+  - { id: u-many-subdomains, label: scam, url: "https://secure.login.icici.verify-account.example/update" }
+  - { id: u-blocklisted, label: scam, url: "https://secure-sbi-kyc-update.example/" }
+  - { id: u-free-host-bank, label: scam, url: "https://axisbank-rewards.web.app/claim" }
+  - { id: u-port, label: scam, url: "http://upi-refund.example:8080/claim?amount=4999" }
+  - { id: u-kyc-xyz, label: scam, url: "https://paytm-kyc-update.xyz/" }
+
+  # ---- genuine ----
+  - { id: u-sbi, label: genuine, url: "https://www.onlinesbi.sbi/" }
+  - { id: u-irctc, label: genuine, url: "https://www.irctc.co.in/nget/train-search" }
+  - { id: u-wikipedia, label: genuine, url: "https://en.wikipedia.org/wiki/QR_code" }
+  - { id: u-github, label: genuine, url: "https://github.com/" }
+  - { id: u-gov, label: genuine, url: "https://www.india.gov.in/" }
+  - { id: u-amazon, label: genuine, url: "https://www.amazon.in/gp/your-account/order-history" }
+  - { id: u-google-docs, label: genuine, url: "https://docs.google.com/document/d/1AbC/edit" }
+  - { id: u-college, label: genuine, url: "https://www.example.edu/admissions" }
+  - { id: u-news, label: genuine, url: "https://www.thehindu.com/news/national/" }
+  - { id: u-cybercrime, label: genuine, url: "https://cybercrime.gov.in/" }
+  - { id: u-youtube, label: genuine, url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ" }
+  - { id: u-shop-http, label: genuine, url: "http://local-bakery.example/menu" }

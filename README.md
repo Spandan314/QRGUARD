@@ -10,10 +10,22 @@ recommended safe action.
 
 ## Project status
 
-**URL analysis, risk-scoring engine, scam-message detector, screenshot OCR, QR analysis and
-threat intelligence implemented.** `POST /api/analyze/url`, `/message`, `/screenshot`, `/qr` and `POST /api/generate/qr`
-are live and tested (750 automated tests, Postman collection with 64 requests). Screenshot analysis needs Tesseract OCR installed. See
-[backend/README.md](backend/README.md) and [docs/testing.md](docs/testing.md).
+**Feature-complete and deployment-ready.** The Flask backend analyses links, messages, screenshots
+(OCR) and QR codes, checks threat intelligence and returns an explainable score. The React web app and
+the Expo mobile app use it for every check, with Firebase sign-in, a private privacy-minimised
+history, reports, account/privacy controls and an admin view.
+
+| Suite | Result |
+|---|---|
+| Backend (pytest, incl. Firestore emulator) | 815 tests, 96% coverage, Ruff clean |
+| Firestore security rules | 7 tests |
+| Postman / Newman | 83 requests, 303 assertions |
+| Web (Vitest) | 71 tests, 91% statements |
+| Mobile (Jest) | 65 tests, 88% statements |
+| End-to-end (`e2e/run.sh`: browsers → apps → Firebase emulators → Flask) | 16 flows + log privacy check |
+
+See [docs/testing.md](docs/testing.md), [docs/evaluation.md](docs/evaluation.md) and
+[docs/deployment.md](docs/deployment.md).
 
 ### Risk levels and verification
 
@@ -33,16 +45,18 @@ verification.
 |---|---|---|
 | 1 | Architecture, folder structure, DB design, API design, roadmap | ✅ Approved |
 | 2 | Backend foundation | ✅ Done |
-| 3a | URL analysis, SSRF-safe redirect checking, risk-scoring engine | ✅ Done (awaiting review) |
-| 3b | Scam message detector | ✅ Done (awaiting review) |
-| 3c | OCR / screenshot analyzer | ✅ Done (PR open) |
-| 4 | Threat intelligence | ⏳ |
-| 5 | React web application | ⏳ |
-| 6 | React Native (Expo) mobile application | ⏳ |
-| 7 | Firebase integration | ⏳ |
-| 8 | Testing | ⏳ |
-| 9 | Deployment | ⏳ |
-| 10 | Final documentation | ⏳ |
+| 3 | URL analysis, SSRF-safe redirect checking, risk-scoring engine | ✅ Done |
+| 4 | Scam message detector | ✅ Done |
+| 5 | Screenshot analysis (OCR) | ✅ Done |
+| 6 | QR code analysis and generation | ✅ Done |
+| 7 | Threat intelligence | ✅ Done |
+| 8 | React web application | ✅ Done |
+| 9 | React Native (Expo) mobile application | ✅ Done |
+| 10 | Firebase sign-in, private history, reports, admin (backend, web, mobile) | ✅ Done |
+| 11 | End-to-end tests, security audit, evaluation | ✅ Done |
+| 12 | Deployment (Docker/Render, Vercel, EAS, Firebase) | ✅ Ready; needs account owners to deploy ([docs/deployment.md](docs/deployment.md)) |
+
+"Done" means implemented, tested and in an open pull request; see each PR for review status.
 
 ## Design documents
 
@@ -54,7 +68,10 @@ verification.
 | [docs/api-spec.md](docs/api-spec.md) | REST API contract (v1) |
 | [docs/risk-scoring.md](docs/risk-scoring.md) | Indicator catalogue, weights, combination model, thresholds, confidence |
 | [docs/threat-intelligence.md](docs/threat-intelligence.md) | `ThreatIntelService` design and providers |
-| [docs/security.md](docs/security.md) | Security controls including SSRF protection |
+| [docs/security.md](docs/security.md) | Security controls including SSRF protection, and the security audit |
+| [docs/testing.md](docs/testing.md) | Unit, integration, emulator, Newman and end-to-end tests |
+| [docs/evaluation.md](docs/evaluation.md) | Measured precision/recall on held-out data, and error analysis |
+| [docs/deployment.md](docs/deployment.md) | Firebase, Render, Vercel and EAS deployment, go-live checklist |
 | [docs/git-workflow.md](docs/git-workflow.md) | Branching, PRs, reviews, CI for a 4-member team |
 | [docs/roadmap.md](docs/roadmap.md) | 12-week plan by member |
 | [docs/risks.md](docs/risks.md) | Technical and security risks |

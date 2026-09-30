@@ -17,6 +17,10 @@ import re
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+import click
+from flask import current_app
+from flask.cli import with_appcontext
+
 from app.config import Config
 
 logger = logging.getLogger("qrguard.auth")
@@ -137,3 +141,33 @@ def delete_auth_user(app: Any, uid: str) -> bool:
     except Exception:  # noqa: BLE001 - never fail the data deletion because of the account
         logger.warning("auth user could not be deleted", extra={"event": "auth_delete_failed"})
         return False
+
+
+@click.command("set-admin")
+@click.argument("uid")
+@click.option("--revoke", is_flag=True, help="Remove the admin claim instead of granting it.")
+@with_appcontext
+def set_admin_command(uid: str, revoke: bool) -> None:
+    """`flask --app wsgi set-admin <uid> [--revoke]`: grant or remove the "admin" custom claim.
+
+    Other custom claims are kept. The user must sign in again (or refresh the ID token) before
+    the change is visible to the API.
+    """
+    from firebase_admin import auth
+
+    app = current_app.extensions.get("qrguard.firebase_app")
+    if app is None:
+        raise click.ClickException("Firebase is not configured (set FIREBASE_PROJECT_ID)")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", uid):
+        raise click.ClickException("That does not look like a Firebase uid")
+    try:
+        user = auth.get_user(uid, app=app)
+    except auth.UserNotFoundError:
+        raise click.ClickException(f"No user with uid {uid}") from None
+    claims = dict(user.custom_claims or {})
+    if revoke:
+        claims.pop("admin", None)
+    else:
+        claims["admin"] = True
+    auth.set_custom_user_claims(uid, claims or None, app=app)
+    click.echo(f"{'Removed' if revoke else 'Granted'} admin for {uid}.")

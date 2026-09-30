@@ -73,3 +73,38 @@ npx newman run postman/QRGUARD.postman_collection.json --working-dir postman
 
 Rate limiting itself is tested with pytest (`test_rate_limit_for_screenshots`,
 `test_rate_limit_returns_429_with_retry_after`).
+
+## End-to-end (whole system, no mocks)
+
+`e2e/run.sh` builds the web app and the mobile app (Expo web export) in Firebase mode, starts the
+Firebase Auth + Firestore emulators, the Flask backend under Gunicorn and static servers, then drives
+Chromium through both apps (`e2e/tests/web.mjs`, `e2e/tests/mobile.mjs`):
+
+```bash
+# once: backend/.venv with requirements-dev.txt, `npm ci` in web/, mobile/, firebase/, e2e/, Java 21
+bash e2e/run.sh            # web + mobile
+bash e2e/run.sh web        # web only
+CHROMIUM_PATH=/path/to/chrome bash e2e/run.sh   # use a local Chrome/Chromium
+```
+
+| Flow | Checked |
+|---|---|
+| Anonymous Firebase sign-in → profile from Flask | web + mobile |
+| Link check → threat-intelligence hit → MALICIOUS / *Verified by threat intelligence* → saved to Firestore | web + mobile |
+| Report a result (linked to the saved scan) | web |
+| Message check saved; history never shows the text or full URL | web + mobile |
+| **Live camera** QR scan (Chromium fake camera plays a generated UPI-refund QR video) → SUSPICIOUS | web |
+| Second user sees an empty history (isolation) | web + mobile |
+| Non-admin refused (page and API); admin claim granted with `flask set-admin`, stats + report review | web |
+| Delete my data → history gone, signed out (with the confirmation dialog) | web + mobile |
+| 375 px width: no horizontal scroll | web |
+| Backend log contains no ID tokens, URLs, message text or QR payloads | log scan |
+
+Screenshots and the backend log are written to `e2e/artifacts/`. CI: `.github/workflows/e2e.yml`.
+The native camera and gallery on a real phone cannot be automated here; check them on a device
+(scan a printed QR code, pick a screenshot, deny and re-allow camera permission).
+
+## Evaluation
+
+`python -m scripts.evaluate` (in `backend/`) measures precision/recall on a held-out labelled set
+and the tuning set; results and error analysis are in [evaluation.md](evaluation.md).
