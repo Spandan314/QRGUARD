@@ -6,9 +6,13 @@ services:
   - type: web
     name: qrguard-api
     runtime: docker
-    rootDir: backend
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    # Paths are relative to the repository root.
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    # Only backend changes trigger a new build (when auto-deploy is turned on).
+    buildFilter:
+      paths:
+        - backend/**
     plan: free
     region: singapore
     healthCheckPath: /api/health
