@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## Free-plan deployment fixes (after v1.0.0, on `main`)
 
 ### Changed
 
@@ -57,7 +57,7 @@ app and an Expo (Android) app, backed by Firebase for sign-in and a privacy-mini
 
 ### Quality, deployment and demo (#10, #11, final audit)
 
-- 800+ backend tests (96% coverage), Firestore rules and emulator tests, Postman/Newman collection,
+- 800+ backend tests (96% coverage at v1.0.0), Firestore rules and emulator tests, Postman/Newman collection,
   web and mobile unit tests, and whole-system browser E2E tests under the production headers.
 - Held-out evaluation with honest error analysis (`docs/evaluation.md`).
 - Render Blueprint, Docker image, Vercel and EAS configuration with build-time guards against
