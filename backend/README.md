@@ -1,10 +1,11 @@
 # QRGUARD Backend (Flask REST API)
 
 **Status:** the backend foundation, **URL analysis + risk scoring** (`POST /api/analyze/url`), the
-**scam-message detector** (`POST /api/analyze/message`) and **screenshot analysis with OCR**
-(`POST /api/analyze/screenshot`) are working. The QR endpoints validate requests against the API
-contract and answer `501 NOT_IMPLEMENTED` until their module is built. No threat-intelligence
-provider is connected yet; responses say so explicitly.
+**scam-message detector** (`POST /api/analyze/message`), **screenshot analysis with OCR**
+(`POST /api/analyze/screenshot`), **QR analysis** (`POST /api/analyze/qr`, decoded content or an
+image; OpenCV decoding, installed by `pip`) and the **QR generator** (`POST /api/generate/qr`) are
+working. History endpoints answer `501 NOT_IMPLEMENTED` until authentication is built. No
+threat-intelligence provider is connected yet; responses say so explicitly.
 
 ## Requirements
 
@@ -132,7 +133,7 @@ error.
 ## 4. Run the tests and linter
 
 ```bash
-pytest                                   # expected: 515 passed (no internet needed)
+pytest                                   # expected: 627 passed (no internet needed)
 pytest --cov=app --cov-report=term-missing
 ruff check . && ruff format --check .    # expected: All checks passed!
 ```

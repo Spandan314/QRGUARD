@@ -20,7 +20,7 @@ from typing import Any
 
 from app.analyzers.message_analyzer import analyze_message
 from app.analyzers.scam_rules import ScamRules
-from app.analyzers.text_preprocessor import PreprocessedText, preprocess
+from app.analyzers.text_preprocessor import ExtractedLink, PreprocessedText, preprocess
 from app.analyzers.url_normalizer import URLValidationError
 from app.scoring.engine import ScoreResult, ScoringContext, score_indicators
 from app.scoring.indicator import Indicator
@@ -32,7 +32,13 @@ UNVERIFIED_TEXT = {
     "guarantee that the message is genuine.",
     "screenshot": "There is insufficient evidence to establish trust. A SAFE result does not "
     "guarantee that the content of the screenshot is genuine.",
+    "qr": "There is insufficient evidence to establish trust. A SAFE result does not guarantee "
+    "that the QR code is safe.",
 }
+
+
+# Message evidence that turns a UPI payment QR into the "scan to receive money" scam.
+RECEIVE_PRETEXT_IDS = {"MSG_UPI_PIN_TO_RECEIVE", "MSG_PRIZE_REWARD", "MSG_REFUND_PRETEXT"}
 
 
 class TextNotAnalyzableError(ValueError):
@@ -46,6 +52,7 @@ class LinkResult:
     result: ScoreResult | None
     error: str | None = None
     redirect_checked: bool = False
+    source: str = "text"
 
 
 class MessageAnalysisService:
@@ -65,13 +72,20 @@ class MessageAnalysisService:
         extra_indicators: list[Indicator] | None = None,
         extra_low_confidence_reasons: list[str] | None = None,
         extra_analysis: dict[str, Any] | None = None,
+        extra_links: list[str] | None = None,
+        upi_qr_indicators: list[Indicator] | None = None,
     ) -> dict[str, Any]:
         """Run the scam-message pipeline on any text (pasted, or extracted from a screenshot).
 
         Other inputs (e.g. OCR) may add their own informational indicators and confidence
         reasons, but the message rules, link analysis and scoring are always these same ones.
+        ``extra_links`` are links decoded from QR codes in a screenshot (analysed like links in
+        the text). ``upi_qr_indicators`` describe a UPI payment QR shown with the text.
         """
         pre = preprocess(text, self.rules)
+        for link in extra_links or []:
+            if all(link != existing.text for existing in pre.links):
+                pre.links.append(ExtractedLink(link, deobfuscated=False, source="qr"))
         settings = self.rules.settings
         if pre.letter_count < settings.min_letters and not pre.links:
             raise TextNotAnalyzableError(
@@ -86,6 +100,14 @@ class MessageAnalysisService:
         indicators = [*findings.indicators, *(extra_indicators or [])]
         ti_results = []
         applicable = {"message"}
+        if upi_qr_indicators:
+            # A UPI payment QR is extra evidence (url_qr module): it can raise, never lower.
+            applicable.add("url_qr")
+            indicators.extend(upi_qr_indicators)
+            if findings.ids & RECEIVE_PRETEXT_IDS:
+                indicators.append(
+                    Indicator("QR_UPI_RECEIVE_CONTEXT", "UPI QR + money-to-receive text")
+                )
         incomplete = False
         if riskiest is not None:
             applicable.add("url_qr")
@@ -112,7 +134,7 @@ class MessageAnalysisService:
                 low_confidence_reasons=low_reasons,
                 unverified_safe_is_low_confidence=False,
                 allow_trusted_domain_verification=False,
-                unverified_message=UNVERIFIED_TEXT[input_type],
+                unverified_message=UNVERIFIED_TEXT.get(input_type, UNVERIFIED_TEXT["message"]),
             ),
             primary_modules={"message"},
         )
@@ -128,19 +150,23 @@ class MessageAnalysisService:
         redirect_budget = settings.max_links_redirect_checked
         for index, link in enumerate(pre.links):
             if index >= settings.max_links_analyzed:
-                results.append(LinkResult(link.text, None, None, "not analysed (limit reached)"))
+                results.append(
+                    LinkResult(
+                        link.text, None, None, "not analysed (limit reached)", source=link.source
+                    )
+                )
                 continue
             try:
                 analysis, result = self.url_service.analyze_link(
                     link.text, resolve_redirects=redirect_budget > 0
                 )
             except URLValidationError as exc:
-                results.append(LinkResult(link.text, None, None, exc.code))
+                results.append(LinkResult(link.text, None, None, exc.code, source=link.source))
                 continue
             checked = analysis.redirects.get("checked", False)
             if checked:
                 redirect_budget -= 1
-            results.append(LinkResult(link.text, analysis, result, None, checked))
+            results.append(LinkResult(link.text, analysis, result, None, checked, link.source))
         return results
 
     # ----- response ------------------------------------------------------------------------
@@ -157,7 +183,11 @@ class MessageAnalysisService:
         ti_configured = self.url_service.threat_intel.configured
         link_rows = []
         for link in links:
-            row: dict[str, Any] = {"url": link.text, "scored": link is riskiest}
+            row: dict[str, Any] = {
+                "url": link.text,
+                "found_in": link.source,
+                "scored": link is riskiest,
+            }
             if link.result is not None:
                 row.update(
                     {

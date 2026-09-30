@@ -10,9 +10,9 @@ recommended safe action.
 
 ## Project status
 
-**URL analysis, risk-scoring engine, scam-message detector and screenshot OCR implemented.**
-`POST /api/analyze/url`, `/message` and `/screenshot` are live and tested (515 automated tests,
-Postman collection with 42 requests). Screenshot analysis needs Tesseract OCR installed. See
+**URL analysis, risk-scoring engine, scam-message detector, screenshot OCR and QR analysis
+implemented.** `POST /api/analyze/url`, `/message`, `/screenshot`, `/qr` and `POST /api/generate/qr`
+are live and tested (627 automated tests, Postman collection with 58 requests). Screenshot analysis needs Tesseract OCR installed. See
 [backend/README.md](backend/README.md) and [docs/testing.md](docs/testing.md).
 
 ### Risk levels and verification

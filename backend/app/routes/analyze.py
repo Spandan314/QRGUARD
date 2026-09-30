@@ -1,8 +1,7 @@
 """POST /api/analyze/*: analysis endpoints.
 
-``/analyze/url``, ``/analyze/message`` and ``/analyze/screenshot`` are implemented.
-``/analyze/qr`` validates requests against the API contract and answers 501 NOT_IMPLEMENTED
-until its analyzer is built, so the web and mobile teams can already use the real shapes.
+All four analysis endpoints are implemented: ``/analyze/url``, ``/analyze/message``,
+``/analyze/screenshot`` (OCR) and ``/analyze/qr`` (decoded content or a QR image).
 
 Privacy: submitted text and images are never logged (the access log records only method,
 path, status and duration) and never stored.
@@ -18,19 +17,12 @@ from app.errors import APIError
 from app.extensions import analyze_rate_limit, limiter, screenshot_rate_limit
 from app.schemas import AnalyzeMessageRequest, AnalyzeQrContentRequest, AnalyzeUrlRequest
 from app.services.message_analysis_service import TextNotAnalyzableError
+from app.services.qr_analysis_service import NoQrFoundError
 from app.services.screenshot_analysis_service import NoTextFoundError
 from app.utils.validation import parse_json_body, require_multipart_file
 from app.version import __version__
 
 analyze_bp = Blueprint("analyze", __name__)
-
-
-def _not_implemented(module: str, planned: str) -> APIError:
-    return APIError(
-        501,
-        "NOT_IMPLEMENTED",
-        f"{module} is not implemented yet (planned: {planned}). Your request was valid.",
-    )
 
 
 @analyze_bp.post("/analyze/url")
@@ -98,8 +90,15 @@ def analyze_screenshot():
 @limiter.limit(analyze_rate_limit)
 def analyze_qr():
     # Two accepted forms: JSON {"content": ...} (camera) or multipart image upload.
+    service = current_app.extensions["qrguard.qr_analysis"]
     if request.mimetype == "multipart/form-data":
-        require_multipart_file("file")
+        data = _read_upload("file")
+        try:
+            result = service.analyze_image(data)
+        except NoQrFoundError as exc:
+            raise APIError(422, "NO_QR_FOUND", str(exc)) from exc
     else:
-        parse_json_body(AnalyzeQrContentRequest)
-    raise _not_implemented("QR analysis", "QR analysis phase")
+        body = parse_json_body(AnalyzeQrContentRequest)
+        result = service.analyze_content(body.content, source=body.source)
+    # save_to_history is validated now and used once history is implemented (Firebase phase).
+    return jsonify({"request_id": g.request_id, **result, "engine_version": __version__})

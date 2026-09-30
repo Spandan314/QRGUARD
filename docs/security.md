@@ -98,3 +98,15 @@ Implementation: `app/utils/net_safety.py` and `app/analyzers/redirect_resolver.p
 | Resource exhaustion | OCR timeout (`OCR_TIMEOUT_SECONDS`, 20 s), at most `OCR_MAX_CONCURRENT` (2) OCR jobs per process (then 503 `OCR_BUSY`), single-threaded Tesseract (`OMP_THREAD_LIMIT=1`), stricter rate limit (`RATELIMIT_SCREENSHOT`, 6/min), images downscaled to ≤ 4000 px for OCR. |
 | Privacy | Screenshots and OCR text are never written to disk, logged or stored. `extracted_text` is returned only to the caller. Error messages never include OCR text, Tesseract output or file paths. A test checks logs and the temp directory. |
 | Link safety | Links read from screenshots go through the same SSRF-protected URL analyzer as `/api/analyze/url`, with the same per-message limits (3 links analysed, 2 redirect checks). |
+
+## QR decoding and generation (implemented)
+
+| Concern | Control |
+|---|---|
+| Malicious QR images | Same in-memory validation as screenshots (content-type sniffing, size/pixel caps, decompression-bomb check, full decode) before OpenCV sees the image. Images are downscaled to ≤ 2000 px for decoding. OpenCV errors are caught and reported as "no QR code found", never as a 500 with internals. |
+| Oversized / many payloads | At most 5 codes per image are analysed; a payload over 4096 characters is ignored (JSON `content` is limited to 4096). |
+| Acting on content | QRGUARD never opens, dials, pays, sends or connects to anything in a QR code. Web links go through the SSRF-protected URL analyzer (only shortener redirects are checked, no body read); `javascript:`, `data:`, `intent:` and similar schemes are flagged, never followed. |
+| Wi-Fi passwords | Never returned: `decoded_content` shows `P:***`, `parsed` has only `has_password`. The generator returns the payload with the password masked (it exists only inside the image). Tests check responses **and logs**. |
+| Privacy | Decoded content is returned to the caller only, never logged or stored. Parsing errors never echo the content. |
+| Generator abuse | Strict per-type field allow-list (unknown fields → 400), length limits, `http(s)` only for URLs (a `javascript:` code cannot be generated), Wi-Fi special characters escaped, limit 30/min. |
+

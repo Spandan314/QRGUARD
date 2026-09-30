@@ -336,6 +336,8 @@ source:
 | `link` | Findings from the URL analyzer for the riskiest link | `BRAND_LOOKALIKE`, `URL_SUSPICIOUS_TLD` |
 | `threat_intelligence` | Reputation results | `TI_LISTED`, `TI_PARTIAL` |
 | `combination` | Rules that need several kinds of message evidence together | `MSG_COMBO_ADVANCE_FEE` |
+| `qr` | Content of a QR code that is not a web link (section 13) | `QR_UPI_NAME_MISMATCH`, `QR_UPI_RECEIVE_CONTEXT` |
+| `ocr` | Informational OCR notes, never scored (section 12) | `OCR_LOW_CONFIDENCE` |
 
 When the text score wins, link indicators are still listed (for explanation) with
 `score_contribution: 0`. Their scam categories are then not reported, because they did not
@@ -490,12 +492,80 @@ transparency, grayscale, invert dark mode (average brightness < 110), upscale sm
 - **Layout:** chat bubbles, timestamps, sender names and UI labels are read as text and may be
   joined into sentences. The sender's identity (a verified business badge, a phone number shown
   in the app header) is not evaluated.
-- **QR codes, logos and images inside screenshots are ignored** (QR detection comes in the QR
-  phase).
+- **Logos and images inside screenshots are ignored.** QR codes in screenshots are decoded
+  (section 13.3); a logo that imitates a bank is not recognised.
 - **Tesseract is a system dependency.** Without it the endpoint answers `503 OCR_UNAVAILABLE`
   (never a fake result), and `/api/health` shows `ocr_engine: not_installed`.
 - **Cost:** OCR takes about 0.2–2 s per image and uses CPU, hence the stricter rate limit and the
   concurrency cap.
+
+## 13. QR codes (implemented)
+
+Files: `app/analyzers/qr_decoder.py`, `app/analyzers/qr_payload.py`,
+`app/services/qr_analysis_service.py`, `app/services/qr_generator.py`.
+
+### 13.1 One pipeline, no separate QR scoring
+
+A QR code is only a container. The decoded content is classified and sent to the analyzer that
+already exists for it: **web links go to the URL analyzer** (identical score to
+`/api/analyze/url`), **free text / vCard / SMS and e-mail bodies go to the scam-message rules**
+(identical to `/api/analyze/message`). Only content that no other analyzer understands (UPI, Wi-Fi,
+phone, geo, app links) gets QR-specific indicators, in the `url_qr` module with the capped group
+`qr_payload` (cap 40) and `source: "qr"`.
+
+| ID | Points | When |
+|---|---|---|
+| `QR_UPI_PAYMENT` | 0 | Any UPI payment code (explains that scanning sends money) |
+| `QR_UPI_MALFORMED` | 15 | Invalid payee VPA, invalid amount or unexpected action |
+| `QR_UPI_PREFILLED_AMOUNT` | 10 | Amount fixed in the code |
+| `QR_UPI_NAME_MISMATCH` | 15 | Payee name claims a bank/brand/authority that the UPI handle does not match |
+| `QR_UPI_PRETEXT` | 15 | Name or note says refund, cashback, prize, KYC, customer care… |
+| `QR_UPI_RECEIVE_CONTEXT` | 30, **floor 60** | Screenshot: UPI QR next to "receive money / prize / refund" text |
+| `QR_WIFI_OPEN` / `QR_WIFI_WEAK_SECURITY` | 0 / 5 | Open network / WEP |
+| `QR_PHONE_NUMBER`, `QR_EMAIL`, `QR_GEO_LOCATION` | 0 | Informational |
+| `QR_SMS_PREFILLED` | 10 | Pre-written SMS (text is also checked by the message rules) |
+| `QR_APP_LINK` | 10 | Opens another app directly (`market:`, `tg:`, custom schemes) |
+
+Design decision: **a UPI QR on its own reaches at most SUSPICIOUS** (e.g. 40 for "SBI Refund Desk"
+with a fixed amount). The code cannot show *why* someone wants you to pay; a refund-desk name is a
+warning, not proof. The only QR floor is `QR_UPI_RECEIVE_CONTEXT`: text promising money *to you*
+combined with a code that can only *take* money is the defining trick of UPI QR fraud, so it is
+MALICIOUS. We did not raise other weights just to make more demo cases MALICIOUS.
+
+### 13.2 Several codes
+
+Each decoded code (max 5 per image) is analysed separately and **the riskiest decides** the result;
+all are listed with their own score. Averaging would let one safe code hide a malicious one.
+
+### 13.3 QR codes in screenshots
+
+The screenshot pipeline decodes QR codes before OCR. A link QR becomes one of the screenshot's links
+(same link rules, `found_in: "qr"`); the first UPI QR adds its UPI indicators to the message
+analysis (plus `QR_UPI_RECEIVE_CONTEXT` when the text is a receive/prize/refund pretext); other
+codes are listed only. A screenshot with a QR code but no readable text is analysed as a QR code.
+
+### 13.4 Verification
+
+Only a web link can be VERIFIED (trusted-domain list or threat intelligence), exactly as for
+`/api/analyze/url`. UPI, Wi-Fi and text codes are always UNVERIFIED: there is no trusted list of
+payees, and a SAFE result means only that no warning sign was found.
+
+### 13.5 Known limitations of QR analysis
+
+- **No payee reputation.** QRGUARD cannot tell whether a UPI handle belongs to the shop in front of
+  you or to a fraudster who pasted a sticker over the real code. A plain `shop@okaxis` code is SAFE
+  + UNVERIFIED. Always check the name your UPI app shows before entering the PIN.
+- **Name matching is keyword-based.** `QR_UPI_NAME_MISMATCH` fires when the payee name mentions a
+  bank/brand/authority not in the handle. Real merchants with such names can trigger it, and a
+  fraudster using a neutral name does not.
+- **Decoder limits.** OpenCV reads standard QR codes; heavily damaged, very small, strongly
+  perspective-distorted or artistic codes and Micro QR / other barcode types may not be read
+  (`422 NO_QR_FOUND`). Images are downscaled to 2000 px before decoding.
+- **Only the first UPI code in a screenshot** contributes UPI indicators; other codes are listed.
+- **App links and custom schemes** are only flagged (+10), not analysed: what `tg:` or a custom
+  scheme does depends on the installed app.
+- **Content is not fetched.** As everywhere in QRGUARD, the page behind a link is never loaded
+  (only redirects of shorteners are checked).
 
 ## 10. Future ML extension (not in MVP)
 

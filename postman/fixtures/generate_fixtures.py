@@ -1,4 +1,4 @@
-"""Regenerate the Postman screenshot fixtures (DEMO / TEST DATA, synthetic, no real data).
+"""Regenerate the Postman screenshot and QR fixtures (DEMO / TEST DATA, synthetic, no real data).
 
 Run from backend/ with the virtual environment active:
     python ../postman/fixtures/generate_fixtures.py
@@ -10,7 +10,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[1] / "backend"))
 
-from tests.images import blank, png_with_declared_size  # noqa: E402
+from tests.images import blank, png_with_declared_size, qr_png  # noqa: E402
 from tests.images import render_text as _render  # noqa: E402
 
 
@@ -41,6 +41,16 @@ FIXTURES = {
     ]),
     "blank.png": blank(),
     "decompression-bomb.png": png_with_declared_size(60000, 60000),
+    # QR codes (synthetic payloads; the look-alike domain and UPI handles are fictitious)
+    "qr-trusted-link.png": qr_png("https://www.wikipedia.org/"),
+    "qr-lookalike-link.png": qr_png("https://flipkrat.com/rewards"),
+    "qr-upi-refund.png": qr_png(
+        "upi://pay?pa=refund.desk9912@okdemo&pn=SBI%20Refund%20Desk&am=4999&tn=Refund"
+    ),
+    "qr-inverted-upi-shop.png": qr_png(
+        "upi://pay?pa=sharmastores@okdemo&pn=Sharma%20Stores", invert=True
+    ),
+    "qr-multiple.png": qr_png("https://www.wikipedia.org/", "javascript:alert(1)"),
 }
 
 for name, data in FIXTURES.items():

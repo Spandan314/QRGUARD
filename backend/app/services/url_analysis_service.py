@@ -219,20 +219,28 @@ class UrlAnalysisService:
             analysis.brand = final_brand
 
     # ----- response -----------------------------------------------------------------------------
-    def _response(self, analysis: UrlAnalysis, result: ScoreResult) -> dict[str, Any]:
+    def build_response(
+        self, analysis: UrlAnalysis, result: ScoreResult, input_type: str = "url"
+    ) -> dict[str, Any]:
+        """Public form of the URL response, reused for links decoded from QR codes."""
+        return self._response(analysis, result, input_type)
+
+    def _response(
+        self, analysis: UrlAnalysis, result: ScoreResult, input_type: str = "url"
+    ) -> dict[str, Any]:
         parsed = analysis.parsed
         ti_configured = self.threat_intel.configured
         return {
-            "input_type": "url",
+            "input_type": input_type,
             "risk_score": result.risk_score,
             "risk_level": result.risk_level,
             "confidence": result.confidence,
             "verification": result.verification,
-            "summary": summary_for(result.risk_level, result.verification["status"]),
+            "summary": summary_for(result.risk_level, result.verification["status"], input_type),
             "categories": result.categories,
             "indicators": result.indicators,
             "recommendation": recommendation_for(
-                result.risk_level, result.verification["status"], result.indicator_ids
+                result.risk_level, result.verification["status"], result.indicator_ids, input_type
             ),
             "score_breakdown": result.breakdown,
             "threat_intel": {

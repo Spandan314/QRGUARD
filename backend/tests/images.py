@@ -42,3 +42,24 @@ def png_with_declared_size(width: int, height: int) -> bytes:
     ihdr = struct.pack(">IIBBBBB", width, height, 8, 0, 0, 0, 0)  # 8-bit grayscale
     idat = zlib.compress(b"\x00" * 16)
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", idat) + chunk(b"IEND", b"")
+
+
+def qr_image(data: str, size: int = 300, invert: bool = False) -> Image.Image:
+    """A QR code as a PIL image (DEMO / TEST DATA)."""
+    import qrcode
+
+    image = qrcode.make(data).convert("RGB").resize((size, size), Image.Resampling.NEAREST)
+    if invert:
+        from PIL import ImageOps
+
+        image = ImageOps.invert(image)
+    return image
+
+
+def qr_png(*codes: str, size: int = 300, invert: bool = False, gap: int = 40) -> bytes:
+    """One or more QR codes side by side on a canvas, encoded as PNG."""
+    background = "black" if invert else "white"
+    canvas = Image.new("RGB", (gap + len(codes) * (size + gap), size + 2 * gap), background)
+    for i, code in enumerate(codes):
+        canvas.paste(qr_image(code, size, invert), (gap + i * (size + gap), gap))
+    return encode(canvas)

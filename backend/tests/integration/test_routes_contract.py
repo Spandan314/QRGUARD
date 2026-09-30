@@ -1,4 +1,4 @@
-"""Stub endpoints validate the real contract, then answer 501 until each module exists."""
+"""API contract: every endpoint validates its input the same way (all are now implemented)."""
 
 import io
 
@@ -14,8 +14,11 @@ from tests.integration.test_errors import assert_error
         ("/api/generate/qr", {"type": "url", "data": {"url": "https://example.com"}}),
     ],
 )
-def test_valid_json_requests_reach_the_module_stub(client, path, body):
-    assert_error(client.post(path, json=body), 501, "NOT_IMPLEMENTED")
+def test_valid_json_requests_are_processed(client, path, body):
+    # Formerly 501 stubs; both endpoints are implemented now.
+    response = client.post(path, json=body)
+    assert response.status_code == 200
+    assert response.get_json()["request_id"] == response.headers["X-Request-ID"]
 
 
 @pytest.mark.parametrize(
@@ -33,13 +36,14 @@ def test_invalid_json_requests_rejected(client, path, body):
     assert_error(client.post(path, json=body), 400, "VALIDATION_ERROR")
 
 
-def test_multipart_upload_reaches_qr_stub(client):
+def test_qr_image_endpoint_validates_images(client):
+    # Formerly a 501 stub; the truncated PNG header is now rejected by real validation.
     response = client.post(
         "/api/analyze/qr",
         data={"file": (io.BytesIO(b"\x89PNG\r\n\x1a\n"), "shot.png")},
         content_type="multipart/form-data",
     )
-    assert_error(response, 501, "NOT_IMPLEMENTED")
+    assert_error(response, 422, "UNPROCESSABLE_IMAGE")
 
 
 def test_screenshot_endpoint_is_implemented_and_validates_images(client):
