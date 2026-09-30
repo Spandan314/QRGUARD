@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Runs on the free Firebase Spark plan.** The Firestore TTL policy on `scans.expire_at` is removed
+  (TTL needs billing). The 90-day retention is now enforced by the backend: expired results are
+  never returned or reportable, a user's expired results are deleted when they sign in or open
+  their history, and an admin can delete every user's expired results with the new
+  `POST /api/admin/history/purge-expired` endpoint, the "Delete expired history now" button on the
+  web Admin page or `flask --app wsgi purge-expired-history`. There is no scheduled job, so expired
+  results of a user who never returns stay stored (hidden) until an admin purge.
+
 ## v1.0.0 — final submission release
 
 The complete QRGUARD system: an explainable scam and QR-code checker with a Flask API, a React web
@@ -26,7 +38,7 @@ app and an Expo (Android) app, backed by Firebase for sign-in and a privacy-mini
 
 - Firebase sign-in (anonymous or e-mail) verified on the server; opt-in history that stores only the
   verdict and a minimised target (domain + URL hash, message length, UPI payee domain); delete one,
-  delete all, delete my data; 90-day automatic expiry (Firestore TTL); reports; admin statistics and
+  delete all, delete my data; 90-day expiry; reports; admin statistics and
   report review behind a custom claim; `flask set-admin` command. (#7, #10)
 
 ### Web app (#5, #8)

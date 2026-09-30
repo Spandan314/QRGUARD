@@ -18,6 +18,8 @@ export default function Admin() {
   const [reports, setReports] = useState<AdminReport[]>([])
   const [status, setStatus] = useState<'open' | 'reviewed'>('open')
   const [error, setError] = useState<ApiError | null>(null)
+  const [purged, setPurged] = useState<number | null>(null)
+  const [purging, setPurging] = useState(false)
 
   useEffect(() => {
     if (!profile?.admin) return
@@ -41,6 +43,17 @@ export default function Admin() {
       setReports((current) => current.filter((report) => report.id !== id))
     } catch (caught) {
       if (caught instanceof ApiError) setError(caught)
+    }
+  }
+
+  async function purgeExpired() {
+    setPurging(true)
+    try {
+      setPurged((await api.adminPurgeExpiredHistory()).deleted)
+    } catch (caught) {
+      if (caught instanceof ApiError) setError(caught)
+    } finally {
+      setPurging(false)
     }
   }
 
@@ -122,6 +135,26 @@ export default function Admin() {
           </ul>
         </section>
       ) : null}
+      <section className="space-y-2">
+        <h2 className="text-xl font-semibold">History retention</h2>
+        <p className="text-sm">
+          Saved results expire after {profile.history_retention_days} days. Expired results are never shown and are
+          deleted when their owner next signs in; this button deletes every user&apos;s expired results now.
+        </p>
+        <button
+          type="button"
+          disabled={purging}
+          className="rounded bg-teal-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          onClick={() => void purgeExpired()}
+        >
+          Delete expired history now
+        </button>
+        {purged !== null ? (
+          <p role="status" className="text-sm">
+            Deleted {purged} expired result{purged === 1 ? '' : 's'}.
+          </p>
+        ) : null}
+      </section>
       <section className="space-y-2">
         <div className="flex items-center gap-3">
           <h2 className="text-xl font-semibold">User reports</h2>

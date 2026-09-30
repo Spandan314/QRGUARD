@@ -32,6 +32,8 @@ class HistoryStore(Protocol):
     ) -> tuple[list[dict[str, Any]], str | None]: ...
     def delete_scan(self, uid: str, scan_id: str) -> bool: ...
     def delete_all_scans(self, uid: str) -> int: ...
+    def delete_expired_scans(self, uid: str, now: datetime) -> int: ...
+    def delete_all_expired_scans(self, now: datetime, limit: int) -> int: ...
     def add_report(self, report: dict[str, Any]) -> str: ...
     def list_reports(self, status: str, limit: int) -> list[dict[str, Any]]: ...
     def update_report(self, report_id: str, status: str) -> bool: ...
@@ -102,6 +104,25 @@ class MemoryHistoryStore:
     def delete_all_scans(self, uid: str) -> int:
         with self._lock:
             return len(self.scans.pop(uid, {}))
+
+    def delete_expired_scans(self, uid: str, now: datetime) -> int:
+        with self._lock:
+            scans = self.scans.get(uid, {})
+            expired = [scan_id for scan_id, scan in scans.items() if scan["expire_at"] <= now]
+            for scan_id in expired:
+                del scans[scan_id]
+            return len(expired)
+
+    def delete_all_expired_scans(self, now: datetime, limit: int) -> int:
+        deleted = 0
+        with self._lock:
+            for scans in self.scans.values():
+                for scan_id in [s for s, scan in scans.items() if scan["expire_at"] <= now]:
+                    if deleted >= limit:
+                        return deleted
+                    del scans[scan_id]
+                    deleted += 1
+        return deleted
 
     def add_report(self, report: dict[str, Any]) -> str:
         report_id = new_id()
@@ -204,6 +225,34 @@ class FirestoreHistoryStore:
                 batch.delete(doc.reference)
             batch.commit()
             deleted += len(docs)
+
+    def _delete_query(self, query: Any, limit: int) -> int:
+        """Delete the documents a query returns, in batches, up to `limit` documents."""
+        deleted = 0
+        while deleted < limit:
+            docs = list(query.limit(min(MAX_BATCH, limit - deleted)).stream())
+            if not docs:
+                break
+            batch = self.db.batch()
+            for doc in docs:
+                batch.delete(doc.reference)
+            batch.commit()
+            deleted += len(docs)
+        return deleted
+
+    def delete_expired_scans(self, uid: str, now: datetime) -> int:
+        from google.cloud.firestore import FieldFilter
+
+        query = self._scans(uid).where(filter=FieldFilter("expire_at", "<=", now))
+        return self._delete_query(query, 10_000)
+
+    def delete_all_expired_scans(self, now: datetime, limit: int) -> int:
+        # Collection-group query over every user's scans; needs the collection-group index on
+        # scans.expire_at declared in firebase/firestore.indexes.json.
+        from google.cloud.firestore import FieldFilter
+
+        query = self.db.collection_group("scans").where(filter=FieldFilter("expire_at", "<=", now))
+        return self._delete_query(query, limit)
 
     def add_report(self, report: dict[str, Any]) -> str:
         ref = self.db.collection("reports").document(new_id())

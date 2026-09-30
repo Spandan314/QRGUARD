@@ -100,3 +100,23 @@ def test_api_end_to_end_with_firestore():
     assert [i["id"] for i in items] == [body["history"]["scan_id"]]
     assert items[0]["target"]["domain"] == "wikipedia.org"
     assert client.delete("/api/history", headers=headers).get_json() == {"deleted": 1}
+
+
+def test_expired_scans_are_deleted_per_user_and_for_everyone(store):
+    from datetime import timedelta
+
+    now = utcnow()
+    alice, bob = uid(), uid()
+    past, future = now - timedelta(days=1), now + timedelta(days=90)
+    a_old = store.add_scan(alice, {**record(1), "expire_at": past})
+    a_new = store.add_scan(alice, {**record(2), "expire_at": future})
+    b_old = [store.add_scan(bob, {**record(3), "expire_at": past}) for _ in range(3)]
+
+    assert store.delete_expired_scans(alice, now) == 1
+    assert store.get_scan(alice, a_old) is None and store.get_scan(alice, a_new) is not None
+
+    # Collection-group purge over every user, in chunks.
+    assert store.delete_all_expired_scans(now, limit=2) == 2
+    assert store.delete_all_expired_scans(now, limit=10) == 1
+    assert all(store.get_scan(bob, scan_id) is None for scan_id in b_old)
+    assert store.get_scan(alice, a_new) is not None

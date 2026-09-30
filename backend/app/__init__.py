@@ -28,7 +28,7 @@ from app.services.firebase_service import (
     init_firebase_app,
     set_admin_command,
 )
-from app.services.history_service import HistoryService
+from app.services.history_service import HistoryService, purge_expired_command
 from app.services.history_store import FirestoreHistoryStore, MemoryHistoryStore
 from app.services.message_analysis_service import MessageAnalysisService
 from app.services.qr_analysis_service import QrAnalysisService
@@ -146,4 +146,5 @@ def create_app(config: Config | None = None) -> Flask:
     app.logger.info("QRGUARD backend started (env=%s, version=%s)", config.app_env, __version__)
     app.cli.add_command(update_feeds_command)
     app.cli.add_command(set_admin_command)
+    app.cli.add_command(purge_expired_command)
     return app

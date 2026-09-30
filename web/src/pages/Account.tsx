@@ -170,7 +170,7 @@ function Profile() {
           </label>
           <p className="text-sm text-slate-600 dark:text-slate-300">
             Only the verdict is saved (level, score, reasons, the website's domain). Messages, screenshots, QR contents and
-            full links are never stored. Saved results are deleted automatically after {profile.history_retention_days} days.{' '}
+            full links are never stored. Saved results expire after {profile.history_retention_days} days: they are hidden from then on and deleted the next time you sign in.{' '}
             <Link to="/history" className="text-teal-700 underline dark:text-teal-400">
               View my history
             </Link>

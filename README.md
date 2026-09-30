@@ -84,7 +84,8 @@ verification.
   cloud-metadata addresses (SSRF protection).
 - **Minimal data**: messages, screenshots, OCR text and QR contents are analysed in memory and never
   stored or logged. Opt-in history keeps only the verdict and a minimised target (domain + hash);
-  users can delete one item, all items or their whole account; items expire after 90 days.
+  users can delete one item, all items or their whole account; items expire after 90 days (hidden
+  at once, deleted at the next sign-in or by an admin purge; see Known limitations).
 - **Access control**: Firebase ID tokens are verified by the backend; each user sees only their own
   history; admin pages need a server-checked custom claim; Firestore rules stop clients from writing scans,
   reports or statistics (only the backend can).
@@ -104,7 +105,7 @@ Measured through the real API on a held-out labelled set that was written after 
 ## Deployment status
 
 The code is released as **v1.0.0** and every deployment file is prepared and validated (Render
-Blueprint + Docker, Vercel, EAS, Firebase rules/indexes/TTL). Going live needs the team's own
+Blueprint + Docker, Vercel, EAS, Firebase rules/indexes; everything runs on free plans). Going live needs the team's own
 Firebase, Render, Vercel and Expo accounts: follow [docs/deployment.md](docs/deployment.md), then
 verify with `backend/scripts/smoke_test.py`. The demonstration script is
 [docs/demo-runbook.md](docs/demo-runbook.md).
@@ -145,6 +146,9 @@ next to each component:
 - QR codes: a UPI QR alone is at most SUSPICIOUS by design ([risk-scoring §13.5](docs/risk-scoring.md)).
 - Threat intelligence: only the demo blocklist without API keys; "not listed" never means safe
   ([threat-intelligence §9](docs/threat-intelligence.md)).
+- History retention: Firestore TTL needs a paid plan, so expired history is hidden immediately but
+  deleted only at the owner's next sign-in or by an admin purge, not on a schedule
+  ([database-design §1](docs/database-design.md)).
 - Measured errors on held-out data, including missed scams, are in [docs/evaluation.md](docs/evaluation.md).
 
 ## Design documents

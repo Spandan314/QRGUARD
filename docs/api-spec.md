@@ -512,6 +512,12 @@ reports, deletes the settings and the Firebase account:
   Daily counters are anonymous (they include anonymous analyses; no user ids).
 - `GET /api/admin/reports?status=open|reviewed` → `{ "items": [ { "id", "scan_id", "reported_as", "domain", "url_hash", "note", "status", "created_at" } ] }` (the reporter's uid is not shown).
 - `PATCH /api/admin/reports/{id}` `{ "status": "reviewed" }` → `{ "id": "…", "status": "reviewed" }`.
+- `POST /api/admin/history/purge-expired` → `{ "deleted": 12 }`. Deletes every user's expired scans
+  (at most 5000 per call; repeat until `deleted` is 0). Nothing is read back or returned.
+
+Expired scans (older than `history_retention_days`) are never returned by `/api/history`, and a
+user's expired scans are deleted when they call `GET /api/me` (every sign-in) or the first page of
+`GET /api/history`.
 
 ## 4. Limits (configurable via env)
 
