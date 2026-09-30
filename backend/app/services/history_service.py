@@ -5,7 +5,10 @@ Privacy rules applied here, before anything is written:
       Wi-Fi passwords or indicator evidence strings
     - links are reduced to their registrable domain plus a SHA-256 hash of the normalised URL
     - UPI codes keep only the payment provider part of the UPI ID ("@okaxis")
-    - every scan expires (expire_at, Firestore TTL policy), default 90 days
+    - every scan expires after HISTORY_RETENTION_DAYS (default 90), enforced by the application so
+      it works on the free Firebase Spark plan (Firestore TTL needs billing): expired scans are
+      never returned, a user's expired scans are deleted when they sign in or open their history,
+      and an admin can delete everyone's expired scans at once (purge_all_expired)
     - daily statistics are anonymous counters (no user ids)
 A failure to write history or statistics never breaks the analysis itself.
 """
@@ -14,8 +17,12 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
+
+import click
+from flask import current_app
+from flask.cli import with_appcontext
 
 from app.services.firebase_service import AuthUser
 from app.services.history_store import HistoryStore, utcnow
@@ -107,6 +114,11 @@ def public_scan(scan: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def is_expired(scan: dict[str, Any], now: datetime | None = None) -> bool:
+    expire_at = scan.get("expire_at")
+    return expire_at is not None and expire_at <= (now or utcnow())
+
+
 class HistoryService:
     def __init__(self, store: HistoryStore | None, retention_days: int = 90) -> None:
         self.store = store
@@ -151,6 +163,19 @@ class HistoryService:
             return {"saved": False, "reason": "history_error"}
         return {"saved": True, "scan_id": scan_id}
 
+    # ----- retention (application-level; no paid Firestore TTL) ---------------------------------
+    def purge_expired(self, uid: str) -> int:
+        """Delete one user's expired scans. Never raises: a failed purge must not block the user."""
+        try:
+            return self._store().delete_expired_scans(uid, utcnow())
+        except Exception:  # noqa: BLE001 - expired scans stay hidden even if deletion fails
+            logger.warning("expired-history purge failed", extra={"event": "history_purge_error"})
+            return 0
+
+    def purge_all_expired(self, limit: int = 5000) -> int:
+        """Delete expired scans of every user (admin action / CLI), at most `limit` per call."""
+        return self._store().delete_all_expired_scans(utcnow(), limit)
+
     def _store(self) -> HistoryStore:
         if self.store is None:  # routes check `enabled` first; this is a programming error
             raise RuntimeError("history store is not configured")
@@ -164,6 +189,8 @@ class HistoryService:
 
     def profile(self, user: AuthUser) -> dict[str, Any]:
         store = self._store()
+        # The apps load the profile at every sign-in, which is when expired scans are cleaned up.
+        self.purge_expired(user.uid)
         settings = store.get_user(user.uid)
         if settings is None:
             settings = {
@@ -195,7 +222,7 @@ class HistoryService:
         target: dict[str, Any] = {}
         if scan_id is not None:
             scan = store.get_scan(user.uid, scan_id)
-            if scan is None:
+            if scan is None or is_expired(scan):
                 return None
             target = scan.get("target") or {}
         return store.add_report(
@@ -224,3 +251,19 @@ class HistoryService:
         today = utcnow().date()
         dates = [(today - timedelta(days=offset)).isoformat() for offset in range(days)][::-1]
         return store.get_stats(dates)
+
+
+@click.command("purge-expired-history")
+@with_appcontext
+def purge_expired_command() -> None:
+    """`flask --app wsgi purge-expired-history`: delete every user's expired scans now."""
+    history = current_app.extensions["qrguard.history"]
+    if not history.enabled:
+        raise click.ClickException("History is not configured (set FIREBASE_PROJECT_ID)")
+    total = 0
+    while True:  # purge_all_expired works in chunks; repeat until nothing is left
+        deleted = history.purge_all_expired()
+        total += deleted
+        if deleted == 0:
+            break
+    click.echo(f"Deleted {total} expired scan(s).")

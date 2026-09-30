@@ -1,10 +1,12 @@
 """Sign-in, history, reports and admin (in-memory store + dev tokens; no Firebase needed)."""
 
 import logging
+from datetime import timedelta
 
 import pytest
 
 from app.config import Config, ConfigError
+from app.services.history_store import utcnow
 from tests.conftest import make_app
 from tests.fakes import FakeFetcher, FakeOcrEngine, FakeResolver
 from tests.images import blank, qr_png
@@ -212,6 +214,80 @@ def test_delete_my_data(client):
     assert history(client)["items"] == []
 
 
+# --- retention without Firestore TTL (free Spark plan) --------------------------------------------
+def expire(app, uid, scan_id):
+    """Make a stored scan look older than the retention period."""
+    store = app.extensions["qrguard.history"].store
+    store.scans[uid][scan_id]["expire_at"] = utcnow() - timedelta(seconds=1)
+
+
+def test_expired_scans_are_hidden_and_deleted_when_history_is_opened(app, client):
+    old = analyze_url(client, headers=ALICE).get_json()["history"]["scan_id"]
+    kept = analyze_url(client, headers=ALICE).get_json()["history"]["scan_id"]
+    expire(app, "dev-alice", old)
+    assert_error(client.get(f"/api/history/{old}", headers=ALICE), 404, "NOT_FOUND")
+    assert [item["id"] for item in history(client)["items"]] == [kept]
+    assert old not in app.extensions["qrguard.history"].store.scans["dev-alice"]  # really deleted
+    assert client.get(f"/api/history/{kept}", headers=ALICE).status_code == 200
+
+
+def test_expired_scans_are_deleted_at_sign_in(app, client):
+    scan_id = analyze_url(client, headers=ALICE).get_json()["history"]["scan_id"]
+    expire(app, "dev-alice", scan_id)
+    assert client.get("/api/me", headers=ALICE).status_code == 200  # the apps load this at sign-in
+    assert app.extensions["qrguard.history"].store.scans["dev-alice"] == {}
+
+
+def test_an_expired_scan_cannot_be_reported(app, client):
+    scan_id = analyze_url(client, headers=ALICE).get_json()["history"]["scan_id"]
+    expire(app, "dev-alice", scan_id)
+    response = client.post(
+        "/api/reports", json={"reported_as": "scam", "scan_id": scan_id}, headers=ALICE
+    )
+    assert_error(response, 404, "NOT_FOUND")
+
+
+def test_a_failed_purge_still_hides_expired_scans(app, client, caplog, monkeypatch):
+    scan_id = analyze_url(client, headers=ALICE).get_json()["history"]["scan_id"]
+    expire(app, "dev-alice", scan_id)
+    store = app.extensions["qrguard.history"].store
+
+    def broken(uid, now):
+        raise RuntimeError("firestore down")
+
+    monkeypatch.setattr(store, "delete_expired_scans", broken)
+    with caplog.at_level(logging.WARNING):
+        assert history(client)["items"] == []
+        assert client.get("/api/me", headers=ALICE).status_code == 200
+    assert "expired-history purge failed" in caplog.text
+
+
+def test_admin_purges_every_users_expired_scans(app, client):
+    alice_old = analyze_url(client, headers=ALICE).get_json()["history"]["scan_id"]
+    bob_old = analyze_url(client, headers=BOB).get_json()["history"]["scan_id"]
+    bob_new = analyze_url(client, headers=BOB).get_json()["history"]["scan_id"]
+    expire(app, "dev-alice", alice_old)
+    expire(app, "dev-bob", bob_old)
+    response = client.post("/api/admin/history/purge-expired", headers=ADMIN)
+    assert response.status_code == 200 and response.get_json() == {"deleted": 2}
+    scans = app.extensions["qrguard.history"].store.scans
+    assert scans["dev-alice"] == {} and list(scans["dev-bob"]) == [bob_new]
+
+
+def test_purge_command(app, client):
+    scan_id = analyze_url(client, headers=ALICE).get_json()["history"]["scan_id"]
+    expire(app, "dev-alice", scan_id)
+    result = app.test_cli_runner().invoke(args=["purge-expired-history"])
+    assert result.exit_code == 0 and "Deleted 1 expired scan(s)." in result.output
+    result = app.test_cli_runner().invoke(args=["purge-expired-history"])
+    assert "Deleted 0 expired scan(s)." in result.output
+
+
+def test_purge_command_needs_history():
+    result = make_app().test_cli_runner().invoke(args=["purge-expired-history"])
+    assert result.exit_code != 0 and "History is not configured" in result.output
+
+
 # --- reports and admin ---------------------------------------------------------------------------
 def test_reports(client):
     scan_id = analyze_url(client, headers=ALICE).get_json()["history"]["scan_id"]
@@ -247,6 +323,7 @@ def test_admin_requires_the_admin_claim(client):
         ("get", "/api/admin/stats"),
         ("get", "/api/admin/reports"),
         ("patch", "/api/admin/reports/abcdefgh12"),
+        ("post", "/api/admin/history/purge-expired"),
     ):
         assert_error(getattr(client, method)(path, json={}, headers=ALICE), 403, "FORBIDDEN")
         assert_error(getattr(client, method)(path, json={}), 401, "AUTH_REQUIRED")

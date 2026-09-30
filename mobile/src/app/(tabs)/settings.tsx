@@ -133,7 +133,7 @@ function Account() {
           </View>
           <Text style={ui.small}>
             Only the verdict is saved (level, score, reasons and the domain of a link) – never messages, screenshots, QR
-            contents or full links. Saved results are deleted after {profile.history_retention_days} days.
+            contents or full links. Saved results expire after {profile.history_retention_days} days: they are hidden from then on and deleted the next time you sign in.
           </Text>
           <ActionButton label="Delete my data" variant="danger" onPress={deleteEverything} />
         </>

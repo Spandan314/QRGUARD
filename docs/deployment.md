@@ -7,7 +7,7 @@ QRGUARD is deployed as four pieces that only talk to each other over HTTPS:
 | Backend (Flask + Gunicorn, Docker) | Render | `render.yaml`, `backend/Dockerfile` | All analysis, threat intelligence, scoring, token verification, history. **All secrets live here.** |
 | Web app (React + Vite) | Vercel | `web/vercel.json` | Static files. Only public `VITE_*` values. |
 | Mobile app (Expo) | EAS Build → APK / AAB | `mobile/eas.json`, `mobile/app.config.ts` | Only public `EXPO_PUBLIC_*` values. |
-| Firebase project | Firebase | `firebase/firebase.json`, `firestore.rules`, `firestore.indexes.json` | Auth (sign-in), Firestore (history), rules, indexes, 90-day TTL. |
+| Firebase project | Firebase | `firebase/firebase.json`, `firestore.rules`, `firestore.indexes.json` | Auth (sign-in), Firestore (history), rules, indexes. Free **Spark** plan; no billing needed. |
 
 Nothing below needs a secret to be committed. Everything marked **secret** is entered only in the
 Render dashboard (never in Vercel, EAS or the repository).
@@ -36,7 +36,7 @@ The repository refuses the most common deployment mistakes instead of shipping a
    **Email/Password**.
 3. **Build → Firestore Database → Create database** → *Standard edition*, **production mode**,
    location `asia-south1` (Mumbai) or the region closest to your users.
-4. Deploy the security rules, the index, and the **90-day TTL policy** from this repository:
+4. Deploy the security rules and indexes from this repository (works on the free Spark plan):
    ```bash
    cd firebase
    npm ci
@@ -46,11 +46,12 @@ The repository refuses the most common deployment mistakes instead of shipping a
    - The rules let a signed-in user read and delete only their own scans. Clients can never
      write scans, reports or stats: only the backend (Admin SDK) does. Tested in
      `firebase/tests/rules.test.js` (`npm run test:rules`).
-   - `firestore.indexes.json` enables TTL on `scans.expire_at` (each saved scan expires 90 days
-     after it was saved) and excludes that field from indexing, as Google recommends for TTL
-     fields. Check **Firestore → TTL**: the `scans` / `expire_at` policy moves from *Creating*
-     to *Serving* within minutes to hours. Firestore usually deletes expired documents within
-     24 hours of `expire_at`.
+   - `firestore.indexes.json` adds the `reports` query index and ascending indexes on
+     `scans.expire_at` (per user and across users) that the retention clean-up queries use.
+   - **No Firestore TTL policy.** TTL deletion needs the paid Blaze plan, so the 90-day retention
+     is enforced by the application instead: expired scans are hidden immediately and deleted at
+     the owner's next sign-in or history view; **Admin → Delete expired history now** deletes
+     everyone's. Do not create a TTL policy in the console.
 5. **Service account for the backend (secret).** Project settings → Service accounts →
    *Generate new private key*. Keep the JSON file outside the repository (`.gitignore` also
    blocks `*service-account*.json` and `firebase-adminsdk*.json`). You upload it to Render in
@@ -213,7 +214,7 @@ browser). Permissions: camera only (QR scanning); photos use the system picker.
 - [ ] "Delete my data" removes history and the account.
 - [ ] Render logs contain no URLs, message text, OCR text or tokens (request logs show only
       method, path, status and duration).
-- [ ] Firestore → TTL shows `scans` / `expire_at` as *Serving*.
+- [ ] As admin, **Admin → Delete expired history now** answers "Deleted N expired results".
 - [ ] The APK installs; the camera scans the demo QR codes (`demo-data/demo-kit/index.html`) and
       results match the web app.
 
@@ -230,9 +231,9 @@ browser). Permissions: camera only (QR scanning); photos use the system picker.
   of a wrong CORS origin.
 - The full browser E2E suite (`e2e/`), with the web app served under `web/vercel.json`'s real
   security headers.
-- `firestore.indexes.json` (TTL override) validated with firebase-tools' own deploy validator.
+- `firestore.indexes.json` validated with firebase-tools' own deploy validator (no TTL; Spark-compatible).
 - The web and EAS build guards (a hosted build without an `https://` API URL is refused).
 
 What needs real accounts and cannot be verified from the repository: the Render, Vercel and
-EAS deploys, a real Firebase project (rules/TTL deploy, service account), real
+EAS deploys, a real Firebase project (rules/index deploy, service account), real
 threat-intelligence API keys, and camera scanning on a physical phone.

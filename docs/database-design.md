@@ -9,9 +9,8 @@
 >
 > **One-time Firebase setup:** create the project (Spark plan), enable Authentication (Anonymous
 > and optionally Email/Password), create Firestore, deploy rules and indexes
-> (`cd firebase && npx firebase deploy --only firestore --project <id>`), and add a **TTL policy**
-> on the `expire_at` field of the `scans` collection group (Firestore console → TTL, or
-> `gcloud firestore fields ttls update expire_at --collection-group=scans --enable-ttl`).
+> (`cd firebase && npm run deploy -- --project <id>`). No TTL policy is used: it needs the paid
+> Blaze plan (see principle 4).
 > Admins are marked with a custom claim, e.g. with the Admin SDK:
 > `auth.set_custom_user_claims(uid, {"admin": True})`.
 
@@ -24,8 +23,13 @@
    without keeping the full path, which can contain tokens or personal IDs.
 3. **Opt-in history.** `save_history` defaults to `true` for signed-in users, can be switched off in
    Settings, and every item can be deleted.
-4. **Retention.** Each scan has `expire_at` (default +90 days). A Firestore **TTL policy** on that
-   field deletes old scans automatically.
+4. **Retention.** Each scan has `expire_at` (default +90 days, `HISTORY_RETENTION_DAYS`).
+   Retention works on the free **Spark** plan, without Firestore TTL (which needs billing): expired
+   scans are never returned by the API, a user's expired scans are deleted when they sign in or open
+   their history, and an admin can delete every user's expired scans with **Admin → Delete expired
+   history now** (or `flask --app wsgi purge-expired-history`). There is no scheduled job (that would
+   need a paid service), so the expired scans of a user who never returns stay stored, hidden, until
+   that admin purge runs.
 5. **Server-only writes.** Only the backend (Admin SDK) writes scans, reports and stats.
 
 ## 2. Collections
@@ -170,7 +174,7 @@ own scans. The same emulator runs the backend's Firestore store tests (`npm run 
 | Delete one scan | `DELETE /api/history/{scan_id}` |
 | Delete all history | `DELETE /api/history`, which does batched deletes of 500 |
 | Delete account | Settings → "Delete my data", which deletes history, then reports' `uid` field, then the Auth user |
-| Automatic | TTL policy on `expire_at` |
+| After 90 days | Hidden at once; deleted at the owner's next sign-in or history view, or for everyone by the admin purge (`POST /api/admin/history/purge-expired`). No TTL policy (needs billing). |
 
 ## 7. Free-tier fit
 

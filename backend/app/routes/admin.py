@@ -1,6 +1,7 @@
 """/api/admin/*: small admin dashboard API (custom claim admin=true, checked on the server).
 
-Only anonymous aggregates and user reports are exposed: no user's scan history.
+Only anonymous aggregates and user reports are exposed: no user's scan history. The purge action
+deletes expired scans without reading or returning them.
 """
 
 from __future__ import annotations
@@ -58,3 +59,13 @@ def update_report(report_id: str):
     ):
         raise APIError(404, "NOT_FOUND", "This report does not exist.")
     return jsonify({"id": report_id, "status": body.status})
+
+
+@admin_bp.post("/admin/history/purge-expired")
+@require_admin
+def purge_expired_history():
+    """Delete every user's expired scans now.
+
+    This is how retention works on the free Firebase Spark plan, where Firestore TTL is unavailable.
+    """
+    return jsonify({"deleted": _history().purge_all_expired()})

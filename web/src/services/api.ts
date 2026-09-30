@@ -166,6 +166,8 @@ export const api = {
     request<AdminStats>(`/api/admin/stats?days=${days}`, { method: 'GET' }, signal),
   adminReports: (status: 'open' | 'reviewed', signal?: AbortSignal) =>
     request<{ items: AdminReport[] }>(`/api/admin/reports?status=${status}`, { method: 'GET' }, signal),
+  adminPurgeExpiredHistory: () =>
+    request<{ deleted: number }>('/api/admin/history/purge-expired', { method: 'POST' }),
   adminUpdateReport: (id: string, status: 'open' | 'reviewed') =>
     sendJson<{ id: string; status: string }>('PATCH', `/api/admin/reports/${encodeURIComponent(id)}`, { status }),
 }
