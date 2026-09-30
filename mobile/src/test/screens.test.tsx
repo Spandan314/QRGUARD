@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, jest } from '@jest/globals'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native'
 import { useEffect, type ReactNode } from 'react'
+import { AuthProvider } from '../context/AuthContext'
 import { ResultProvider, useResult } from '../context/ResultContext'
+import { NoAuthClient, type AuthClient } from '../services/auth'
 import { jsonResponse, maliciousUrl, qrResult } from './fixtures'
 import UrlCheck from '../app/check/url'
 import MessageCheck from '../app/check/message'
@@ -68,12 +70,14 @@ function Probe() {
   })
   return null
 }
-function wrap(ui: ReactNode) {
+function wrap(ui: ReactNode, client: AuthClient = new NoAuthClient()) {
   return render(
-    <ResultProvider>
-      {ui}
-      <Probe />
-    </ResultProvider>,
+    <AuthProvider client={client}>
+      <ResultProvider>
+        {ui}
+        <Probe />
+      </ResultProvider>
+    </AuthProvider>,
   )
 }
 
@@ -84,7 +88,7 @@ describe('URL check', () => {
     await fireEvent.press(screen.getByText('Check link'))
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/result'))
     expect(latestResult.current?.result?.risk_level).toBe('MALICIOUS')
-    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ url: 'http://sbi.co.in.kyc-verify.xyz/login' }))
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ url: 'http://sbi.co.in.kyc-verify.xyz/login', save_to_history: false }))
   })
 
   it('shows backend errors and stays on the screen', async () => {
@@ -106,7 +110,7 @@ describe('message check', () => {
     expect(screen.getByText(/14 \/ 5000/)).toBeOnTheScreen()
     await fireEvent.press(screen.getByText('Check message'))
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/result'))
-    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ text: 'Share your OTP' }))
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ text: 'Share your OTP', save_to_history: false }))
   })
 })
 
@@ -128,7 +132,7 @@ describe('QR camera scan', () => {
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/result'))
     expect(fetchMock).toHaveBeenCalledTimes(1)
     expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
-      JSON.stringify({ content: 'upi://pay?pa=refund.desk9912@okdemo', source: 'camera' }),
+      JSON.stringify({ content: 'upi://pay?pa=refund.desk9912@okdemo', source: 'camera', save_to_history: false }),
     )
   })
 

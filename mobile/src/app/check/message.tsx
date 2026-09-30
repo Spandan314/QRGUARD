@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { SaveToHistory, useSaveOption } from '../../components/SaveToHistory'
 import { Text, TextInput } from 'react-native'
 import { ActionButton, Card, ErrorBanner, Screen, styles as ui } from '../../components/ui'
 import { MAX_MESSAGE_CHARS } from '../../constants/config'
@@ -8,6 +9,7 @@ import { api } from '../../services/api'
 export default function MessageCheck() {
   const [text, setText] = useState('')
   const { loading, error, run } = useAnalysis(api.analyzeMessage)
+  const saveOption = useSaveOption()
 
   return (
     <Screen intro="Paste an SMS, WhatsApp or e-mail message. Links inside it are checked too.">
@@ -25,7 +27,8 @@ export default function MessageCheck() {
         <Text style={ui.small}>
           {text.length} / {MAX_MESSAGE_CHARS} · We do not store message text.
         </Text>
-        <ActionButton label="Check message" loading={loading} disabled={!text.trim()} onPress={() => void run(text)} />
+        <SaveToHistory option={saveOption} />
+        <ActionButton label="Check message" loading={loading} disabled={!text.trim()} onPress={() => void run(text, { save: saveOption.save })} />
       </Card>
       {error ? <ErrorBanner error={error} /> : null}
     </Screen>

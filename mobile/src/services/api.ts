@@ -1,5 +1,13 @@
 import { API_BASE_URL } from '../constants/config'
-import type { AnalysisResult, ApiErrorBody, HealthResponse } from '../types/api'
+import type {
+  AnalysisResult,
+  ApiErrorBody,
+  HealthResponse,
+  HistoryItem,
+  HistoryPage,
+  Profile,
+  ReportKind,
+} from '../types/api'
 
 // The backend does every check; this module only sends the input and returns the answer.
 const DEFAULT_TIMEOUT_MS = 45_000
@@ -24,6 +32,14 @@ export class ApiError extends Error {
   }
 }
 
+/** Set by AuthProvider: a fresh ID token for the signed-in user, or null. */
+type TokenProvider = () => Promise<string | null>
+let tokenProvider: TokenProvider = async () => null
+
+export function setTokenProvider(provider: TokenProvider): void {
+  tokenProvider = provider
+}
+
 function isErrorBody(value: unknown): value is ApiErrorBody {
   if (typeof value !== 'object' || value === null || !('error' in value)) return false
   const error = (value as { error: unknown }).error
@@ -39,9 +55,13 @@ async function request<T>(path: string, init: RequestInit, signal?: AbortSignal,
   }, timeoutMs)
   const onAbort = () => controller.abort()
   signal?.addEventListener('abort', onAbort)
+  const headers: Record<string, string> = { ...((init.headers as Record<string, string> | undefined) ?? {}) }
   let response: Response
   try {
-    response = await fetch(`${API_BASE_URL}${path}`, { ...init, signal: controller.signal, credentials: 'omit' })
+    const token = await tokenProvider().catch(() => null)
+    if (token) headers.Authorization = `Bearer ${token}`
+    if (controller.signal.aborted) throw new Error('aborted')
+    response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers, signal: controller.signal, credentials: 'omit' })
   } catch (error) {
     if (signal?.aborted) throw error
     if (timedOut) throw new ApiError(0, 'TIMEOUT', 'The check took too long. Please try again.')
@@ -51,6 +71,7 @@ async function request<T>(path: string, init: RequestInit, signal?: AbortSignal,
     signal?.removeEventListener('abort', onAbort)
   }
 
+  if (response.status === 204) return undefined as T
   let body: unknown
   try {
     body = await response.json()
@@ -65,29 +86,65 @@ async function request<T>(path: string, init: RequestInit, signal?: AbortSignal,
   return body as T
 }
 
-function postJson<T>(path: string, payload: unknown, signal?: AbortSignal): Promise<T> {
+function sendJson<T>(method: string, path: string, payload: unknown, signal?: AbortSignal): Promise<T> {
   return request<T>(
     path,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+    { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
     signal,
   )
 }
 
-function postImage<T>(path: string, image: PickedImage, signal?: AbortSignal): Promise<T> {
+function postImage<T>(path: string, image: PickedImage, save: boolean, signal?: AbortSignal): Promise<T> {
   const form = new FormData()
   // React Native's FormData accepts a { uri, name, type } descriptor for files.
   form.append('file', { uri: image.uri, name: image.name, type: image.mimeType } as unknown as Blob)
+  form.append('save_to_history', save ? 'true' : 'false')
   return request<T>(path, { method: 'POST', body: form }, signal)
+}
+
+export interface AnalyzeOptions {
+  save?: boolean
 }
 
 export const api = {
   health: (signal?: AbortSignal) => request<HealthResponse>('/api/health', { method: 'GET' }, signal, 10_000),
-  analyzeUrl: (url: string, signal?: AbortSignal) => postJson<AnalysisResult>('/api/analyze/url', { url }, signal),
-  analyzeMessage: (text: string, signal?: AbortSignal) =>
-    postJson<AnalysisResult>('/api/analyze/message', { text }, signal),
-  analyzeScreenshot: (image: PickedImage, signal?: AbortSignal) =>
-    postImage<AnalysisResult>('/api/analyze/screenshot', image, signal),
-  analyzeQrImage: (image: PickedImage, signal?: AbortSignal) => postImage<AnalysisResult>('/api/analyze/qr', image, signal),
-  analyzeQrContent: (content: string, signal?: AbortSignal) =>
-    postJson<AnalysisResult>('/api/analyze/qr', { content, source: 'camera' }, signal),
+  analyzeUrl: (url: string, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
+    sendJson<AnalysisResult>('POST', '/api/analyze/url', { url, save_to_history: options.save ?? false }, signal),
+  analyzeMessage: (text: string, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
+    sendJson<AnalysisResult>('POST', '/api/analyze/message', { text, save_to_history: options.save ?? false }, signal),
+  analyzeScreenshot: (image: PickedImage, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
+    postImage<AnalysisResult>('/api/analyze/screenshot', image, options.save ?? false, signal),
+  analyzeQrImage: (image: PickedImage, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
+    postImage<AnalysisResult>('/api/analyze/qr', image, options.save ?? false, signal),
+  analyzeQrContent: (content: string, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
+    sendJson<AnalysisResult>(
+      'POST',
+      '/api/analyze/qr',
+      { content, source: 'camera', save_to_history: options.save ?? false },
+      signal,
+    ),
+
+  // ----- signed-in features ---------------------------------------------------------------------
+  history: (cursor: string | null = null, limit = 20, signal?: AbortSignal) =>
+    request<HistoryPage>(
+      `/api/history?limit=${limit}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+      { method: 'GET' },
+      signal,
+    ),
+  historyItem: (id: string, signal?: AbortSignal) =>
+    request<HistoryItem>(`/api/history/${encodeURIComponent(id)}`, { method: 'GET' }, signal),
+  deleteHistoryItem: (id: string) => request<undefined>(`/api/history/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  deleteAllHistory: () => request<{ deleted: number }>('/api/history', { method: 'DELETE' }),
+  me: (signal?: AbortSignal) => request<Profile>('/api/me', { method: 'GET' }, signal),
+  updateMe: (saveHistory: boolean) => sendJson<Profile>('PATCH', '/api/me', { save_history: saveHistory }),
+  deleteMe: () =>
+    request<{ deleted_scans: number; anonymised_reports: number; account_deleted: boolean }>('/api/me', {
+      method: 'DELETE',
+    }),
+  report: (reportedAs: ReportKind, note: string, scanId?: string) =>
+    sendJson<{ id: string }>('POST', '/api/reports', {
+      reported_as: reportedAs,
+      note,
+      ...(scanId ? { scan_id: scanId } : {}),
+    }),
 }

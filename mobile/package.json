@@ -4,6 +4,7 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@expo/metro-runtime": "~57.0.16",
+    "@react-native-async-storage/async-storage": "^2.2.0",
     "expo": "~57.0.26",
     "expo-camera": "~57.0.6",
     "expo-clipboard": "~57.0.2",
@@ -14,6 +15,7 @@
     "expo-router": "~57.0.24",
     "expo-sharing": "~57.0.22",
     "expo-status-bar": "~57.0.1",
+    "firebase": "^12.19.0",
     "react": "19.2.3",
     "react-native": "0.86.3",
     "react-native-qrcode-svg": "^6.3.26",
@@ -63,6 +65,9 @@
     },
     "transformIgnorePatterns": [
       "node_modules/(?!((jest-)?react-native|@react-native(-community)?)|expo(nent)?|@expo(nent)?/.*|@expo-google-fonts/.*|react-navigation|@react-navigation/.*|@sentry/react-native|native-base|react-native-svg|react-native-qrcode-svg)"
+    ],
+    "setupFiles": [
+      "./src/test/setup.ts"
     ]
   }
 }
