@@ -46,8 +46,16 @@ The repository refuses the most common deployment mistakes instead of shipping a
    - The rules let a signed-in user read and delete only their own scans. Clients can never
      write scans, reports or stats: only the backend (Admin SDK) does. Tested in
      `firebase/tests/rules.test.js` (`npm run test:rules`).
-   - `firestore.indexes.json` adds the `reports` query index and ascending indexes on
-     `scans.expire_at` (per user and across users) that the retention clean-up queries use.
+   - `firestore.indexes.json` holds only the `reports` composite index and **no field
+     overrides** (`"fieldOverrides": []`). On Spark, any field override (a TTL policy *or* a
+     single-field index change) is rejected with `403 … has billing disabled`. The retention
+     clean-up queries (`expire_at <= now` in one user's `scans`) use Firestore's automatic
+     single-field indexes, so nothing else has to be deployed. A unit test
+     (`backend/tests/unit/test_history_store.py`) fails if a field override or TTL is added back.
+   - A successful deploy ends with `✔  firestore: deployed indexes in firestore.indexes.json
+     successfully …`, `✔  firestore: released rules firestore.rules to cloud.firestore` and
+     `✔  Deploy complete!`. The `reports` index then shows as *Building* and later *Enabled* in
+     **Firestore → Indexes**.
    - **No Firestore TTL policy.** TTL deletion needs the paid Blaze plan, so the 90-day retention
      is enforced by the application instead: expired scans are hidden immediately and deleted at
      the owner's next sign-in or history view; **Admin → Delete expired history now** deletes
@@ -231,7 +239,7 @@ browser). Permissions: camera only (QR scanning); photos use the system picker.
   of a wrong CORS origin.
 - The full browser E2E suite (`e2e/`), with the web app served under `web/vercel.json`'s real
   security headers.
-- `firestore.indexes.json` validated with firebase-tools' own deploy validator (no TTL; Spark-compatible).
+- `firestore.indexes.json` validated with firebase-tools' own deploy validator (no TTL and no field overrides; Spark-compatible).
 - The web and EAS build guards (a hosted build without an `https://` API URL is refused).
 
 What needs real accounts and cannot be verified from the repository: the Render, Vercel and

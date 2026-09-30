@@ -240,19 +240,26 @@ class FirestoreHistoryStore:
             deleted += len(docs)
         return deleted
 
-    def delete_expired_scans(self, uid: str, now: datetime) -> int:
+    def _expired(self, uid: str, now: datetime):
+        # A single-field range filter: served by Firestore's automatic index, so no entry in
+        # firestore.indexes.json is needed (field overrides fail to deploy on the Spark plan).
         from google.cloud.firestore import FieldFilter
 
-        query = self._scans(uid).where(filter=FieldFilter("expire_at", "<=", now))
-        return self._delete_query(query, 10_000)
+        return self._scans(uid).where(filter=FieldFilter("expire_at", "<=", now))
+
+    def delete_expired_scans(self, uid: str, now: datetime) -> int:
+        return self._delete_query(self._expired(uid, now), 10_000)
 
     def delete_all_expired_scans(self, now: datetime, limit: int) -> int:
-        # Collection-group query over every user's scans; needs the collection-group index on
-        # scans.expire_at declared in firebase/firestore.indexes.json.
-        from google.cloud.firestore import FieldFilter
-
-        query = self.db.collection_group("scans").where(filter=FieldFilter("expire_at", "<=", now))
-        return self._delete_query(query, limit)
+        # One per-user query for every users/{uid} (list_documents also returns users that have
+        # scans but no settings document) instead of a collection-group query, which would need
+        # a custom collection-group index on scans.expire_at.
+        deleted = 0
+        for user in self.db.collection("users").list_documents():
+            if deleted >= limit:
+                break
+            deleted += self._delete_query(self._expired(user.id, now), limit - deleted)
+        return deleted
 
     def add_report(self, report: dict[str, Any]) -> str:
         ref = self.db.collection("reports").document(new_id())
