@@ -25,6 +25,14 @@ async function newUser() {
 const alice = await newUser()
 const a = alice.page
 
+await check('served with the production security headers from vercel.json', async () => {
+  const response = await a.goto(`${WEB}/`)
+  const headers = response.headers()
+  if (!headers['content-security-policy']?.includes("default-src 'self'")) throw new Error('no CSP')
+  if (!headers['permissions-policy']?.includes('camera=(self)')) throw new Error('camera not allowed')
+  if (headers['x-frame-options'] !== 'DENY') throw new Error('frame protection missing')
+})
+
 await check('anonymous Firebase sign-in (Auth emulator) and profile from Flask', async () => {
   await a.goto(`${WEB}/account`)
   await a.getByRole('button', { name: 'Continue without an e-mail' }).click()
@@ -137,6 +145,19 @@ await check('delete my data removes all history and signs out', async () => {
   await a.getByRole('button', { name: 'Delete my data' }).click()
   await a.getByRole('button', { name: 'Yes, delete everything' }).click()
   await a.getByRole('button', { name: 'Continue without an e-mail' }).waitFor({ timeout: 15000 })
+})
+
+await check('QR generator renders a Wi-Fi code under the production CSP', async () => {
+  const g = await newUser()
+  await g.page.goto(`${WEB}/generate`)
+  await g.page.getByLabel('Wi-Fi').click()
+  await g.page.getByLabel('Network name (SSID)').fill('DemoNet')
+  await g.page.getByLabel('Password').fill('demo-password-123')
+  await g.page.getByRole('button', { name: 'Create QR code' }).click()
+  const image = g.page.getByAltText('Generated QR code')
+  await image.waitFor({ timeout: 10000 })
+  const width = await image.evaluate((img) => (img.complete ? img.naturalWidth : 0))
+  if (!(width > 0)) throw new Error('generated image did not load')
 })
 
 await check('mobile width: no horizontal scroll on the result page', async () => {
