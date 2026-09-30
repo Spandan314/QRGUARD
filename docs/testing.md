@@ -100,7 +100,10 @@ CHROMIUM_PATH=/path/to/chrome bash e2e/run.sh   # use a local Chrome/Chromium
 | 375 px width: no horizontal scroll | web |
 | Backend log contains no ID tokens, URLs, message text or QR payloads | log scan |
 
-Screenshots and the backend log are written to `e2e/artifacts/`. CI: `.github/workflows/e2e.yml`.
+The web build is served by `e2e/static-server.mjs` with the **production headers from
+`web/vercel.json`** (Content-Security-Policy, Permissions-Policy), so a CSP that would break the
+deployed app fails the E2E (a check also asserts the headers are present). Screenshots and the
+backend log are written to `e2e/artifacts/`. CI: `.github/workflows/e2e.yml`.
 The native camera and gallery on a real phone cannot be automated here; check them on a device
 (scan a printed QR code, pick a screenshot, deny and re-allow camera permission).
 
@@ -108,3 +111,10 @@ The native camera and gallery on a real phone cannot be automated here; check th
 
 `python -m scripts.evaluate` (in `backend/`) measures precision/recall on a held-out labelled set
 and the tuning set; results and error analysis are in [evaluation.md](evaluation.md).
+
+## Deployment and demo checks
+
+| Script | What it proves | Tested by |
+|---|---|---|
+| `backend/scripts/smoke_test.py <backend-url> --web-origin <web-origin>` | A **deployed** backend answers correctly: health, security headers, detection, SSRF guard, validation, sign-in required, dev tokens refused, CORS allow/deny | `tests/unit/test_smoke_test.py` (against a real local HTTP server, including a CORS misconfiguration) |
+| `python -m scripts.demo_kit --check` | Every input in [demo-runbook.md](demo-runbook.md) still gives the documented result; the printed QR codes decode to the same verdicts | `tests/unit/test_demo_kit.py` |

@@ -71,7 +71,8 @@ verification.
 | [docs/security.md](docs/security.md) | Security controls including SSRF protection, and the security audit |
 | [docs/testing.md](docs/testing.md) | Unit, integration, emulator, Newman and end-to-end tests |
 | [docs/evaluation.md](docs/evaluation.md) | Measured precision/recall on held-out data, and error analysis |
-| [docs/deployment.md](docs/deployment.md) | Firebase, Render, Vercel and EAS deployment, go-live checklist |
+| [docs/deployment.md](docs/deployment.md) | Firebase, Render, Vercel and EAS deployment, smoke test, go-live checklist |
+| [docs/demo-runbook.md](docs/demo-runbook.md) | Final Android + web demonstration script, demo QR sheet, fallbacks |
 | [docs/git-workflow.md](docs/git-workflow.md) | Branching, PRs, reviews, CI for a 4-member team |
 | [docs/roadmap.md](docs/roadmap.md) | 12-week plan by member |
 | [docs/risks.md](docs/risks.md) | Technical and security risks |
