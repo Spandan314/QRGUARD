@@ -111,8 +111,13 @@ defaults only; every secret is `sync: false`, so Render asks for it.
 3. Service **qrguard-api → Environment → Secret Files → Add**: file name
    `firebase-service-account.json`, contents = the JSON from Firebase step 5. Render mounts it at
    `/etc/secrets/firebase-service-account.json`, which is what `FIREBASE_CREDENTIALS_FILE`
-   points to. If the first deploy started before you added the file and failed with a
-   service-account error, click **Manual Deploy → Deploy latest commit**.
+   points to. Add it on the service's own **Environment** page (not an unlinked Environment
+   Group), with exactly that file name. The backend refuses to start without it:
+   `FileNotFoundError: … '/etc/secrets/firebase-service-account.json'` in the logs means the file
+   is missing or named differently. The Blueprint's first deploy usually starts before you can add
+   the file, so after adding it click **Manual Deploy → Deploy latest commit**. Alternative: put
+   the same JSON in a secret environment variable `FIREBASE_CREDENTIALS_JSON` (it takes
+   precedence over the file).
 4. Render builds `backend/Dockerfile` (Python 3.12 slim + Tesseract OCR, non-root user,
    Gunicorn 2 workers × 4 threads on Render's `$PORT`) and waits for `/api/health`.
 5. Smoke-test the deployment (no credentials needed; nothing is saved):
@@ -245,3 +250,11 @@ browser). Permissions: camera only (QR scanning); photos use the system picker.
 What needs real accounts and cannot be verified from the repository: the Render, Vercel and
 EAS deploys, a real Firebase project (rules/index deploy, service account), real
 threat-intelligence API keys, and camera scanning on a physical phone.
+
+## Deployment status
+
+- **Firebase** (`qrguard-demo`, Spark plan): rules and indexes deployed from `main` (83669df)
+  with `npm run deploy`; no field overrides, no TTL, no billing.
+- **Render** (`qrguard-api`, free plan): deployed from `main` with the Firebase service-account
+  Secret File.
+- **Vercel** (web) and **EAS** (Android): next, in that order.
