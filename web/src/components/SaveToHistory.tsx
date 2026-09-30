@@ -3,6 +3,8 @@ import { Link } from 'react-router'
 import { useAuth } from '../context/AuthContext'
 
 /** Opt-in "save to my history" choice. Signed-out users see a hint instead. */
+// The hook belongs next to the component that uses its state; fast refresh only matters in dev.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useSaveOption() {
   const { user, profile } = useAuth()
   const [choice, setChoice] = useState<boolean | null>(null)
