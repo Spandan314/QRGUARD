@@ -21,6 +21,8 @@ VALID_ENVIRONMENTS = ("development", "production", "testing")
 VALID_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
 # off: never contact links | shorteners_only: follow known shorteners | all: follow every link
 REDIRECT_MODES = ("off", "shorteners_only", "all")
+# firestore: Firebase (production) | memory: in-process store for local demos and tests | off
+HISTORY_STORES = ("firestore", "memory", "off")
 
 
 class ConfigError(ValueError):
@@ -115,6 +117,15 @@ class Config:
     google_safe_browsing_api_key: str = field(default="", repr=False)
     virustotal_api_key: str = field(default="", repr=False)
     phishtank_api_key: str = field(default="", repr=False)
+    # Firebase (auth + history). Without a project, sign-in and history answer 503.
+    firebase_project_id: str = ""
+    firebase_credentials_file: str = ""
+    firebase_credentials_json: str = field(default="", repr=False)
+    history_store: str = "off"
+    history_retention_days: int = 90
+    auth_dev_tokens: bool = False  # "dev-<uid>" tokens for local demos/tests; refused in production
+    ratelimit_analyze_auth: str = "40 per minute;500 per day"
+    ratelimit_reports: str = "10 per minute;50 per day"
     scoring: ScoringSettings = field(default_factory=load_scoring_settings)
 
     # ----- derived values -------------------------------------------------
@@ -150,6 +161,20 @@ class Config:
                 raise ConfigError(f"ALLOWED_ORIGINS entry must start with http(s)://: {origin!r}")
 
         scoring_path = env.get("SCORING_CONFIG_PATH", "").strip() or None
+
+        firebase_project_id = env.get("FIREBASE_PROJECT_ID", "").strip()
+        if firebase_project_id and not re.fullmatch(r"[a-z][a-z0-9-]{4,29}", firebase_project_id):
+            raise ConfigError("FIREBASE_PROJECT_ID must look like 'qrguard-demo'")
+        history_store = _get_choice(
+            env, "HISTORY_STORE", "firestore" if firebase_project_id else "off", HISTORY_STORES
+        )
+        if history_store == "firestore" and not firebase_project_id:
+            raise ConfigError("HISTORY_STORE=firestore needs FIREBASE_PROJECT_ID")
+        auth_dev_tokens = _get_bool(env, "AUTH_DEV_TOKENS", False)
+        if app_env == "production" and (auth_dev_tokens or history_store == "memory"):
+            raise ConfigError(
+                "AUTH_DEV_TOKENS and HISTORY_STORE=memory are not allowed in production"
+            )
 
         return cls(
             app_env=app_env,
@@ -191,5 +216,15 @@ class Config:
             google_safe_browsing_api_key=_get_secret(env, "GOOGLE_SAFE_BROWSING_API_KEY"),
             virustotal_api_key=_get_secret(env, "VIRUSTOTAL_API_KEY"),
             phishtank_api_key=_get_secret(env, "PHISHTANK_API_KEY"),
+            firebase_project_id=firebase_project_id,
+            firebase_credentials_file=env.get("FIREBASE_CREDENTIALS_FILE", "").strip(),
+            firebase_credentials_json=env.get("FIREBASE_CREDENTIALS_JSON", "").strip(),
+            history_store=history_store,
+            history_retention_days=_get_int(env, "HISTORY_RETENTION_DAYS", 90, 1, 365),
+            auth_dev_tokens=auth_dev_tokens,
+            ratelimit_analyze_auth=env.get("RATELIMIT_ANALYZE_AUTH", "").strip()
+            or "40 per minute;500 per day",
+            ratelimit_reports=env.get("RATELIMIT_REPORTS", "").strip()
+            or "10 per minute;50 per day",
             scoring=load_scoring_settings(scoring_path),
         )

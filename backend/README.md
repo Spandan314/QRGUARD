@@ -7,8 +7,11 @@ image; OpenCV decoding, installed by `pip`) and the **QR generator** (`POST /api
 working, and so is **threat intelligence**: an offline local feed (demo blocklist plus optional
 downloaded OpenPhish/URLhaus feeds) is on by default, and URLhaus, Google Safe Browsing,
 VirusTotal (lookup only) and PhishTank are used when their API keys are set (see `.env.example`
-and `docs/threat-intelligence.md`). History endpoints answer `501 NOT_IMPLEMENTED` until
-authentication is built.
+and `docs/threat-intelligence.md`). **Sign-in and history** (Firebase Auth ID tokens + Firestore)
+are implemented: `/api/history`, `/api/me`, `/api/reports` and `/api/admin/*`. Without
+`FIREBASE_PROJECT_ID` analysis works normally and those endpoints answer `503`; for a local demo
+without Firebase set `AUTH_DEV_TOKENS=true HISTORY_STORE=memory` (refused in production). Setup:
+`docs/database-design.md`.
 
 ## Requirements
 
@@ -136,7 +139,7 @@ error.
 ## 4. Run the tests and linter
 
 ```bash
-pytest                                   # expected: 750 passed (no internet needed)
+pytest                                   # expected: 806 passed, 3 skipped Firestore-emulator tests (no internet needed)
 pytest --cov=app --cov-report=term-missing
 ruff check . && ruff format --check .    # expected: All checks passed!
 ```

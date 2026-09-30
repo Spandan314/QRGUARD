@@ -33,6 +33,24 @@ class AnalyzeQrContentRequest(_Request):
     save_to_history: StrictBool = False
 
 
+SCAN_ID_PATTERN = r"^[A-Za-z0-9_-]{8,64}$"
+
+
+class UpdateSettingsRequest(_Request):
+    save_history: StrictBool
+
+
+class CreateReportRequest(_Request):
+    reported_as: Literal["false_positive", "false_negative", "scam"]
+    # Users are warned not to include personal data; the note is shown to admins only.
+    note: StrictStr = Field(default="", max_length=280)
+    scan_id: StrictStr | None = Field(default=None, pattern=SCAN_ID_PATTERN)
+
+
+class UpdateReportRequest(_Request):
+    status: Literal["open", "reviewed"]
+
+
 class GenerateQrRequest(_Request):
     type: Literal["text", "url", "wifi", "email", "phone"]
     data: dict[StrictStr, StrictStr] = Field(min_length=1, max_length=10)

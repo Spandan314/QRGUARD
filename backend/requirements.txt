@@ -1,5 +1,4 @@
 # QRGUARD backend: runtime dependencies (pinned for reproducible builds).
-# Later phases add their own libraries (e.g. opencv, pytesseract, firebase-admin).
 Flask==3.1.3              # web framework
 flask-cors==6.0.5         # CORS with an explicit origin allowlist
 Flask-Limiter==4.1.1      # rate limiting
@@ -21,3 +20,6 @@ Pillow==12.3.0            # image validation and OCR preprocessing
 opencv-python-headless==5.0.0.93  # QR detection/decoding (headless: no GUI libraries)
 numpy==2.4.6              # required by OpenCV
 qrcode==8.2               # QR generation (PNG via Pillow, SVG)
+
+# Sign-in and history (optional at runtime: without FIREBASE_PROJECT_ID history answers 503)
+firebase-admin==7.7.0     # ID-token verification + Firestore (google-cloud-firestore)

@@ -73,5 +73,6 @@ def test_screenshot_as_json_415(client):
     ("method", "path"),
     [("get", "/api/history"), ("delete", "/api/history"), ("delete", "/api/history/abc123")],
 )
-def test_history_stubs(client, method, path):
-    assert_error(getattr(client, method)(path), 501, "NOT_IMPLEMENTED")
+def test_history_without_firebase_is_unavailable(client, method, path):
+    # Formerly 501 stubs; without a Firebase project, history answers 503 (analysis still works).
+    assert_error(getattr(client, method)(path), 503, "SERVICE_UNAVAILABLE")

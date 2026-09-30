@@ -123,3 +123,18 @@ Implementation: `app/utils/net_safety.py` and `app/analyzers/redirect_resolver.p
 | Feed files | Loaded at startup only, 50 MB cap per file, unparseable lines skipped. `ti-update-feeds` downloads only the two fixed feed URLs, caps size and writes atomically. The demo list holds only reserved `.example`/`.test` names. |
 | Privacy of results | The cache key is a SHA-256 of provider + URL (no clear-text URLs), in memory only, with TTLs. URLs are not logged by TI code. |
 
+## Sign-in, history, reports and admin (implemented)
+
+| Concern | Control |
+|---|---|
+| Identity | Firebase ID tokens verified on the server (`firebase_admin.auth.verify_id_token`: signature, expiry, audience = project, issuer). Malformed/expired/revoked/foreign → `401 INVALID_TOKEN`; Google's keys unreachable → `503`. Tokens over 4096 chars are rejected. Tokens are never logged. |
+| Access control (IDOR) | Every history query uses the **token's** uid (`users/{uid}/scans`), never an id from the request; another user's scan id is simply `404`. Scan and report ids are validated against a strict pattern before use. Tests cover cross-user read and delete. |
+| Admin | Custom claim `admin: true` (set only with the Admin SDK, never from a client-writable document), checked by `@require_admin` on the server; the claim must be exactly `true`. Admin endpoints expose only anonymous daily counters and reports **without** the reporter's uid. |
+| Score forgery | Only the backend writes scans (Admin SDK). Firestore rules deny client create/update on `scans`, `reports`, `stats_daily` and everything else; a user may only read/delete their own scans and change `save_history` (typed bool) on their own settings. Rules are tested in the Firestore emulator (`firebase/tests/rules.test.js`). |
+| Data minimisation | Scans store verdicts only: no message/OCR text, images, QR payloads, Wi-Fi passwords, indicator evidence or full URLs (domain + SHA-256 hash; UPI: provider suffix only). Tests search saved records for fragments of the submitted content. |
+| Retention and deletion | `expire_at` = +90 days (`HISTORY_RETENTION_DAYS`) for a Firestore TTL policy; delete one scan, all scans, or everything (`DELETE /api/me`: scans, report uid, settings, Firebase account). |
+| Availability | History/statistics failures are logged without content and never fail the analysis. Without Firebase, analysis works and protected routes answer `503`. |
+| Rate limits | Per uid for signed-in users (40/min), per IP otherwise (20/min); reports 10/min. An invalid token falls back to the IP key. |
+| Credentials | `FIREBASE_CREDENTIALS_JSON` / `FIREBASE_CREDENTIALS_FILE` only from the environment, excluded from the Config `repr`; an invalid key is reported without its content. |
+| Demo/test mode | `AUTH_DEV_TOKENS=true` ("dev-<uid>" tokens) and `HISTORY_STORE=memory` exist for local demos and automated API tests without a Firebase project. **Startup fails** if either is set with `APP_ENV=production`. |
+
