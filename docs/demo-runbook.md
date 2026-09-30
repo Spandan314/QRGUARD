@@ -53,7 +53,7 @@ fails if a result changes.
 | 15 | Web (private window) | Continue without e-mail → **History** | "No saved results yet." | Each user sees only their own history. |
 | 16 | Web | On a result: **Is this result wrong? Report it** → send | "Thank you – your report was sent…" | |
 | 17 | Web (admin window) | **Admin** | Check counts; the report; **Mark as reviewed** | Only accounts with the admin claim; a normal user is refused. |
-| 18 | Phone | **Account → Delete my data** → confirm | History empty, signed out | Right to erasure; history also expires after 90 days. |
+| 18 | Phone | **Account → Delete my data** → confirm | History empty, signed out | Right to erasure; history also expires after 90 days (hidden, then deleted at next sign-in or by the admin purge; free plan, no paid TTL). |
 | 19 | Slides | docs/evaluation.md | Held-out precision/recall and the four known errors | Honest numbers, including failures. |
 
 Messages to paste (from `demo-data/messages.yaml`):

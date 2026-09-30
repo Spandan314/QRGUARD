@@ -9,14 +9,18 @@ from flask import Blueprint, current_app, jsonify, request
 from app.errors import APIError
 from app.schemas import SCAN_ID_PATTERN
 from app.services.auth import require_auth, signed_in_user
-from app.services.history_service import public_scan
+from app.services.history_service import is_expired, public_scan
 from app.services.history_store import InvalidCursorError
 
 history_bp = Blueprint("history", __name__)
 
 
+def _history():
+    return current_app.extensions["qrguard.history"]
+
+
 def _store():
-    return current_app.extensions["qrguard.history"].store
+    return _history().store
 
 
 def _scan_id(value: str) -> str:
@@ -37,18 +41,23 @@ def list_history():
     cursor = request.args.get("cursor") or None
     if cursor is not None and not re.fullmatch(SCAN_ID_PATTERN, cursor):
         raise APIError(400, "VALIDATION_ERROR", "Invalid cursor.")
+    uid = signed_in_user().uid
+    if cursor is None:  # first page: delete this user's expired scans (retention, no paid TTL)
+        _history().purge_expired(uid)
     try:
-        items, next_cursor = _store().list_scans(signed_in_user().uid, limit, cursor)
+        items, next_cursor = _store().list_scans(uid, limit, cursor)
     except InvalidCursorError as exc:
         raise APIError(400, "VALIDATION_ERROR", "Invalid cursor.") from exc
-    return jsonify({"items": [public_scan(item) for item in items], "next_cursor": next_cursor})
+    # Expired scans are never shown, even if deleting them failed.
+    visible = [public_scan(item) for item in items if not is_expired(item)]
+    return jsonify({"items": visible, "next_cursor": next_cursor})
 
 
 @history_bp.get("/history/<string:scan_id>")
 @require_auth
 def get_history_item(scan_id: str):
     scan = _store().get_scan(signed_in_user().uid, _scan_id(scan_id))
-    if scan is None:
+    if scan is None or is_expired(scan):
         raise APIError(404, "NOT_FOUND", "This scan does not exist.")
     return jsonify(public_scan(scan))
 

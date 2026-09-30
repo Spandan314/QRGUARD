@@ -248,6 +248,7 @@ describe('admin', () => {
           ],
         }),
       'PATCH .*/api/admin/reports/rep1234567$': () => jsonResponse({ id: 'rep1234567', status: 'reviewed' }),
+      'POST .*/api/admin/history/purge-expired$': () => jsonResponse({ deleted: 3 }),
     })
     renderRoute('/admin', new DevAuthClient())
     await screen.findByText(/Local blocklist: enabled/)
@@ -258,6 +259,9 @@ describe('admin', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Mark as reviewed' }))
     await waitFor(() => expect(screen.queryByTestId('admin-report')).toBeNull())
     expect(calls.some((c) => c.init.method === 'PATCH')).toBe(true)
+    await userEvent.click(screen.getByRole('button', { name: 'Delete expired history now' }))
+    expect(await screen.findByText('Deleted 3 expired results.')).toBeInTheDocument()
+    expect(calls.some((c) => c.init.method === 'POST' && String(c.url).endsWith('/api/admin/history/purge-expired'))).toBe(true)
     expect(screen.getByRole('link', { name: 'Admin' })).toBeInTheDocument()
   })
 })
