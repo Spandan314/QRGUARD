@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { buttonClass, CheckPage, inputClass } from '../components/CheckPage'
+import { SaveToHistory, useSaveOption } from '../components/SaveToHistory'
 import { useAnalysis } from '../hooks/useAnalysis'
 import { api } from '../services/api'
 
@@ -8,10 +9,11 @@ const MAX_CHARS = 5000
 export default function MessageCheck() {
   const [text, setText] = useState('')
   const { state, run } = useAnalysis(api.analyzeMessage)
+  const saveOption = useSaveOption()
 
   function submit(event: FormEvent) {
     event.preventDefault()
-    if (text.trim()) void run(text)
+    if (text.trim()) void run(text, { save: saveOption.save })
   }
 
   return (
@@ -34,6 +36,7 @@ export default function MessageCheck() {
           onChange={(event) => setText(event.target.value)}
           className={inputClass}
         />
+        <SaveToHistory option={saveOption} />
         <div className="flex items-center justify-between">
           <button type="submit" className={buttonClass} disabled={!text.trim() || state.status === 'loading'}>
             Check message

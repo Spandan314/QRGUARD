@@ -1,16 +1,18 @@
 import { useState, type FormEvent } from 'react'
 import { buttonClass, CheckPage, inputClass } from '../components/CheckPage'
+import { SaveToHistory, useSaveOption } from '../components/SaveToHistory'
 import { useAnalysis } from '../hooks/useAnalysis'
 import { api } from '../services/api'
 
 export default function UrlCheck() {
   const [url, setUrl] = useState('')
   const { state, run } = useAnalysis(api.analyzeUrl)
+  const saveOption = useSaveOption()
 
   function submit(event: FormEvent) {
     event.preventDefault()
     const value = url.trim()
-    if (value) void run(value)
+    if (value) void run(value, { save: saveOption.save })
   }
 
   return (
@@ -36,6 +38,7 @@ export default function UrlCheck() {
           onChange={(event) => setUrl(event.target.value)}
           className={inputClass}
         />
+        <SaveToHistory option={saveOption} />
         <button type="submit" className={buttonClass} disabled={!url.trim() || state.status === 'loading'}>
           Check link
         </button>

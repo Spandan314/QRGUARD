@@ -1,4 +1,14 @@
-import type { AnalysisResult, ApiErrorBody, HealthResponse } from '../types/api'
+import type {
+  AdminReport,
+  AdminStats,
+  AnalysisResult,
+  ApiErrorBody,
+  HealthResponse,
+  HistoryItem,
+  HistoryPage,
+  Profile,
+  ReportKind,
+} from '../types/api'
 
 // The backend does every check. This module only sends the user's input and returns the answer.
 const DEFAULT_TIMEOUT_MS = 45_000 // OCR plus redirect and threat-intel checks can take a while
@@ -25,6 +35,14 @@ export class ApiError extends Error {
   }
 }
 
+/** Set by AuthProvider: returns a fresh ID token for the signed-in user, or null. */
+type TokenProvider = () => Promise<string | null>
+let tokenProvider: TokenProvider = async () => null
+
+export function setTokenProvider(provider: TokenProvider): void {
+  tokenProvider = provider
+}
+
 function isErrorBody(value: unknown): value is ApiErrorBody {
   if (typeof value !== 'object' || value === null || !('error' in value)) return false
   const error = (value as { error: unknown }).error
@@ -41,10 +59,15 @@ async function request<T>(
   const timer = setTimeout(() => controller.abort(new DOMException('timeout', 'TimeoutError')), timeoutMs)
   const onAbort = () => controller.abort(signal?.reason)
   signal?.addEventListener('abort', onAbort)
+  const headers = new Headers(init.headers)
   let response: Response
   try {
+    const token = await tokenProvider().catch(() => null)
+    if (token) headers.set('Authorization', `Bearer ${token}`)
+    if (controller.signal.aborted) throw controller.signal.reason ?? new DOMException('aborted', 'AbortError')
     response = await fetch(`${apiBaseUrl()}${path}`, {
       ...init,
+      headers,
       signal: controller.signal,
       credentials: 'omit', // no cookies: the API uses Authorization headers only
       referrerPolicy: 'no-referrer',
@@ -60,6 +83,7 @@ async function request<T>(
     signal?.removeEventListener('abort', onAbort)
   }
 
+  if (response.status === 204) return undefined as T
   let body: unknown
   try {
     body = await response.json()
@@ -78,30 +102,70 @@ async function request<T>(
   return body as T
 }
 
-function postJson<T>(path: string, payload: unknown, signal?: AbortSignal): Promise<T> {
+function sendJson<T>(method: string, path: string, payload: unknown, signal?: AbortSignal): Promise<T> {
   return request<T>(
     path,
-    { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
+    { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) },
     signal,
   )
 }
 
-function postFile<T>(path: string, file: File, signal?: AbortSignal): Promise<T> {
+function postFile<T>(path: string, file: File, save: boolean, signal?: AbortSignal): Promise<T> {
   const form = new FormData()
   form.append('file', file)
+  form.append('save_to_history', save ? 'true' : 'false')
   return request<T>(path, { method: 'POST', body: form }, signal)
+}
+
+export interface AnalyzeOptions {
+  save?: boolean
 }
 
 export const api = {
   health: (signal?: AbortSignal) => request<HealthResponse>('/api/health', { method: 'GET' }, signal, 10_000),
-  analyzeUrl: (url: string, signal?: AbortSignal) =>
-    postJson<AnalysisResult>('/api/analyze/url', { url }, signal),
-  analyzeMessage: (text: string, signal?: AbortSignal) =>
-    postJson<AnalysisResult>('/api/analyze/message', { text }, signal),
-  analyzeScreenshot: (file: File, signal?: AbortSignal) =>
-    postFile<AnalysisResult>('/api/analyze/screenshot', file, signal),
-  analyzeQrImage: (file: File, signal?: AbortSignal) =>
-    postFile<AnalysisResult>('/api/analyze/qr', file, signal),
-  analyzeQrContent: (content: string, signal?: AbortSignal) =>
-    postJson<AnalysisResult>('/api/analyze/qr', { content, source: 'camera' }, signal),
+  analyzeUrl: (url: string, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
+    sendJson<AnalysisResult>('POST', '/api/analyze/url', { url, save_to_history: options.save ?? false }, signal),
+  analyzeMessage: (text: string, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
+    sendJson<AnalysisResult>('POST', '/api/analyze/message', { text, save_to_history: options.save ?? false }, signal),
+  analyzeScreenshot: (file: File, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
+    postFile<AnalysisResult>('/api/analyze/screenshot', file, options.save ?? false, signal),
+  analyzeQrImage: (file: File, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
+    postFile<AnalysisResult>('/api/analyze/qr', file, options.save ?? false, signal),
+  analyzeQrContent: (content: string, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
+    sendJson<AnalysisResult>(
+      'POST',
+      '/api/analyze/qr',
+      { content, source: 'camera', save_to_history: options.save ?? false },
+      signal,
+    ),
+
+  // ----- signed-in features ---------------------------------------------------------------------
+  history: (cursor: string | null = null, limit = 20, signal?: AbortSignal) => {
+    const query = new URLSearchParams({ limit: String(limit) })
+    if (cursor) query.set('cursor', cursor)
+    return request<HistoryPage>(`/api/history?${query}`, { method: 'GET' }, signal)
+  },
+  historyItem: (id: string, signal?: AbortSignal) =>
+    request<HistoryItem>(`/api/history/${encodeURIComponent(id)}`, { method: 'GET' }, signal),
+  deleteHistoryItem: (id: string) =>
+    request<undefined>(`/api/history/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  deleteAllHistory: () => request<{ deleted: number }>('/api/history', { method: 'DELETE' }),
+  me: (signal?: AbortSignal) => request<Profile>('/api/me', { method: 'GET' }, signal),
+  updateMe: (saveHistory: boolean) => sendJson<Profile>('PATCH', '/api/me', { save_history: saveHistory }),
+  deleteMe: () =>
+    request<{ deleted_scans: number; anonymised_reports: number; account_deleted: boolean }>('/api/me', {
+      method: 'DELETE',
+    }),
+  report: (reportedAs: ReportKind, note: string, scanId?: string) =>
+    sendJson<{ id: string }>('POST', '/api/reports', {
+      reported_as: reportedAs,
+      note,
+      ...(scanId ? { scan_id: scanId } : {}),
+    }),
+  adminStats: (days = 30, signal?: AbortSignal) =>
+    request<AdminStats>(`/api/admin/stats?days=${days}`, { method: 'GET' }, signal),
+  adminReports: (status: 'open' | 'reviewed', signal?: AbortSignal) =>
+    request<{ items: AdminReport[] }>(`/api/admin/reports?status=${status}`, { method: 'GET' }, signal),
+  adminUpdateReport: (id: string, status: 'open' | 'reviewed') =>
+    sendJson<{ id: string; status: string }>('PATCH', `/api/admin/reports/${encodeURIComponent(id)}`, { status }),
 }

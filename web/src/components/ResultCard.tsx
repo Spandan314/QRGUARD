@@ -2,6 +2,7 @@ import type { AnalysisResult } from '../types/api'
 import { CONFIDENCE_TEXT, LEVEL_STYLE } from '../utils/format'
 import { AnalysisDetailsView } from './AnalysisDetails'
 import { IndicatorList } from './IndicatorList'
+import { ReportForm } from './ReportForm'
 import { RiskBadge } from './RiskBadge'
 import { ScoreGauge } from './ScoreGauge'
 import { ThreatIntelStatus } from './ThreatIntelStatus'
@@ -26,6 +27,24 @@ function VerificationNote({ result }: { result: AnalysisResult }) {
         </p>
       ) : null}
     </div>
+  )
+}
+
+const HISTORY_REASON: Record<string, string> = {
+  sign_in_required: 'Not saved: sign in to keep a history.',
+  history_disabled: 'Not saved: saving is switched off in your account settings.',
+  history_unavailable: 'Not saved: history is not available on this server.',
+  history_error: 'Not saved: history is temporarily unavailable. Your result is still valid.',
+}
+
+function HistoryNotice({ result }: { result: AnalysisResult }) {
+  if (!result.history) return null
+  return (
+    <p className="text-sm text-slate-600 dark:text-slate-300" data-testid="history-notice">
+      {result.history.saved
+        ? '💾 Saved to your history (verdict only).'
+        : (HISTORY_REASON[result.history.reason ?? ''] ?? 'Not saved.')}
+    </p>
   )
 }
 
@@ -77,6 +96,9 @@ export function ResultCard({ result }: { result: AnalysisResult }) {
         <h3 className="mb-2 font-semibold">Threat-intelligence checks</h3>
         <ThreatIntelStatus threatIntel={result.threat_intel} />
       </section>
+
+      <HistoryNotice result={result} />
+      <ReportForm scanId={result.history?.scan_id} />
 
       <footer className="border-t border-slate-200 pt-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
         <p>{result.disclaimer}</p>

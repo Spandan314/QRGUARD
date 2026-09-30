@@ -56,7 +56,9 @@ describe('URL check', () => {
     await userEvent.type(screen.getByLabelText('Link'), '  http://sbi.co.in.kyc-verify.xyz/login ')
     await userEvent.click(button)
     expect(await screen.findByRole('article', { name: 'Analysis result' })).toHaveTextContent('MALICIOUS')
-    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ url: 'http://sbi.co.in.kyc-verify.xyz/login' }))
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(
+      JSON.stringify({ url: 'http://sbi.co.in.kyc-verify.xyz/login', save_to_history: false }),
+    )
   })
 
   it('shows backend errors with the request id', async () => {
@@ -79,7 +81,7 @@ describe('message check', () => {
     expect(screen.getByText('14 / 5000')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Check message' }))
     await screen.findByRole('article', { name: 'Analysis result' })
-    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ text: 'Share your OTP' }))
+    expect(fetchMock.mock.calls[0]?.[1]?.body).toBe(JSON.stringify({ text: 'Share your OTP', save_to_history: false }))
   })
 })
 
