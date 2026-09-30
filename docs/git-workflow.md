@@ -178,8 +178,9 @@ git push origin v0.1-alpha
 ## 5. How four people avoid breaking each other
 
 1. **Contract first (Week 1).** `docs/api-spec.md` plus example JSON responses are agreed and frozen.
-   The web and mobile teams build against **mock responses** (`services/mockApi.ts`, switched on by
-   `USE_MOCK_API=true`) until the real endpoint exists.
+   (Originally planned: mock responses until each endpoint existed. In practice the backend endpoints
+   were built first, so the web and mobile apps only ever call the real API; their unit tests stub
+   `fetch` instead.)
 2. **Folder ownership + CODEOWNERS.** Members rarely edit the same files.
 3. **Shared `Indicator` contract.** M2 and M3 write different analyzers that emit the same object, so
    they don't need to touch each other's code.

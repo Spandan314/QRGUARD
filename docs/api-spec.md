@@ -10,7 +10,7 @@
 
 ## 1. Common result object (`AnalysisResult`)
 
-Returned by all four `/api/analyze/*` endpoints. Implemented for `/api/analyze/url` (v0.1.0).
+Returned by all four `/api/analyze/*` endpoints.
 The example below is a real response for `http://sbi.co.in.kyc-verify.xyz/login` (shortened).
 
 ```json
@@ -69,7 +69,7 @@ The example below is a real response for `http://sbi.co.in.kyc-verify.xyz/login`
   },
   "analysis": { "…": "endpoint-specific, see below" },
   "disclaimer": "This is an automated security assessment, not a guarantee.",
-  "engine_version": "0.1.0"
+  "engine_version": "1.0.0"
 }
 ```
 
@@ -148,7 +148,7 @@ Examples (real output):
 ### `GET /api/health`
 Public and exempt from rate limiting.
 ```json
-{ "status": "ok", "service": "qrguard-backend", "engine_version": "0.1.0", "time": "2026-09-29T10:00:00+00:00",
+{ "status": "ok", "service": "qrguard-backend", "engine_version": "1.0.0", "time": "2026-09-29T10:00:00+00:00",
   "components": { "api": "ok",
                   "scoring_config": { "status": "loaded", "version": 2, "thresholds": { "suspicious": 30, "malicious": 60 } },
                   "ocr_engine": "available",
@@ -287,7 +287,7 @@ Real response (shortened; the redirect check was not needed because the link is 
     "entities": { "emails": [], "upi_ids": [], "amounts": [], "phone_numbers": [] }
   },
   "disclaimer": "This is an automated security assessment, not a guarantee.",
-  "engine_version": "0.1.0"
+  "engine_version": "1.0.0"
 }
 ```
 
@@ -489,7 +489,7 @@ Newest first. `limit` 1–50; `next_cursor` is `null` on the last page.
                "verification": { "status": "UNVERIFIED", "source": null }, "categories": ["phishing"],
                "indicators": [ { "id": "BRAND_IN_DOMAIN_NAME", "title": "…", "severity": "high", "score_contribution": 22.5, "source": "link" } ],
                "recommended_action": "…", "target": { "kind": "url", "domain": "sbi-kyc-update.xyz", "url_hash": "9f2c…" },
-               "threat_intel": [ { "provider": "local_feed", "status": "not_listed" } ], "engine_version": "0.1.0" } ],
+               "threat_intel": [ { "provider": "local_feed", "status": "not_listed" } ], "engine_version": "1.0.0" } ],
   "next_cursor": null }
 ```
 

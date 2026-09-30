@@ -1,8 +1,8 @@
 # Risk-Scoring Architecture
 
-> **Status (v0.1.0):** the scoring engine, the URL module and the **scam-message module** are
-> implemented (`backend/app/scoring/engine.py`). The OCR and QR-payload indicators in section 3.3
-> are the **planned** design for the next phases.
+> **Status (v1.0.0):** every module described here is implemented (`backend/app/scoring/engine.py`):
+> URL/QR, threat intelligence (§3.2 and `docs/threat-intelligence.md`), scam messages (§11), screenshots/OCR (§12) and QR payloads
+> (§13).
 >
 > **Single source of truth:** every weight, cap, floor, threshold, category label and indicator
 > text lives in `backend/app/scoring/scoring_config.yaml`. The tables below describe the defaults. If
@@ -116,7 +116,10 @@ Category caps: url_structure **45**, lexical **15**, brand **40**, redirect **40
 
 See **section 11** for the full catalogue, the matching rules and the scoring design for messages.
 
-### 3.4 Planned modules (next phases)
+### 3.4 QR payload and OCR modules, implemented
+
+Original design summary; the implemented catalogues are in **section 13** (QR) and **section 12**
+(OCR), and the YAML file holds the actual weights.
 
 **QR payload** (`url_qr`): `QR_UPI_PAYMENT` (info: scanning *sends* money), `QR_UPI_PREFILLED_AMOUNT` 10,
 `QR_UPI_RECEIVE_CONTEXT` 30 (floor 60), `QR_UPI_NAME_MISMATCH` 15, `QR_WIFI_OPEN` info, `QR_SMS_PREFILLED` 10.

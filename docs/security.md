@@ -1,7 +1,8 @@
 # Security Design (controls overview)
 
-This is the design-level summary. Each control is implemented and tested in a later phase, and
-Phase 10 expands this into the report chapter.
+Summary of the security controls. Every control below is implemented and covered by tests; the
+sections after the table give the implementation details, and the last section records the security
+audit.
 
 | Control | Design | Why |
 |---|---|---|
@@ -154,6 +155,7 @@ Implementation: `app/utils/net_safety.py` and `app/analyzers/redirect_resolver.p
 | Production guards | container with `APP_ENV=production AUTH_DEV_TOKENS=true` | Refuses to start |
 | Auth and isolation | production container + Firebase emulators with real ID tokens: dev tokens rejected, user B cannot see user A's history, non-admin gets 403 on `/api/admin/*` | Pass |
 | Logs | backend logs after the full E2E run (URLs, messages, a camera QR, sign-ins) searched for tokens (`eyJ…`), message text, URLs and QR payloads | None found (`e2e/run.sh` fails if any appear) |
+| Exception logging | Final audit: unhandled-error logs keep stack frames and exception **types** only; exception messages (which a library may fill with the submitted URL, text or QR payload) are withheld | Fixed and tested (`tests/unit/test_logging.py`) |
 | Storage minimisation | history records hold domain + SHA-256 URL hash, message length / link count, UPI payee domain; no text, OCR output, screenshots or full QR payloads | Verified by `tests/integration/test_api_history.py` and the E2E history checks |
 
 **Mobile advisories (accepted, reviewed).** All 14 come from two packages:

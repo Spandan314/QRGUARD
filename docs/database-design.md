@@ -55,7 +55,7 @@ one-off script, so a user cannot grant themselves admin by editing a document.
 | `recommended_action` | string | |
 | `target` | map | `{kind:"url", domain:"bit.ly", url_hash:"9f2c…"}` or `{kind:"message", length:212, url_count:1}` or `{kind:"upi", payee_domain:"@okaxis"}` |
 | `threat_intel` | array<map> | `[{provider:"urlhaus", status:"not_listed"}]` |
-| `engine_version` | string | `0.1.0` (lets us explain why old results differ) |
+| `engine_version` | string | e.g. `1.0.0` (lets us explain why old results differ) |
 | `schema_version` | int | `1` |
 
 ### `reports/{reportId}` (user-submitted feedback)

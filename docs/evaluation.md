@@ -24,7 +24,7 @@ A result counts as a **positive** (flagged) when it is SUSPICIOUS or MALICIOUS.
 
 All items are synthetic DEMO / TEST DATA (no real people's data; reserved or fake domains).
 
-## Results (engine 0.1.0, scoring config v2)
+## Results (engine 1.0.0, scoring config v2)
 
 | Set | Items (scam/genuine) | Recall | Precision | F1 | Accuracy | False alarms | Missed | Genuine → MALICIOUS |
 |---|---|---|---|---|---|---|---|---|
