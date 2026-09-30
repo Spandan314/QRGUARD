@@ -1,6 +1,18 @@
 import type { ExpoConfig } from 'expo/config'
 
 // Only EXPO_PUBLIC_* values reach the app bundle, and they are public: never put secrets there.
+
+// Release builds (EAS preview/production) must talk to the deployed HTTPS backend: Android
+// blocks plain http:// in release builds, and the development default (10.0.2.2) would point at
+// nothing on a real phone. Fail the build early instead of shipping an app that cannot connect.
+const releaseProfile = ['preview', 'production'].includes(process.env.EAS_BUILD_PROFILE ?? '')
+if (releaseProfile && !(process.env.EXPO_PUBLIC_API_BASE_URL ?? '').startsWith('https://')) {
+  throw new Error(
+    `EXPO_PUBLIC_API_BASE_URL must be the https:// backend URL for the "${process.env.EAS_BUILD_PROFILE}" build ` +
+      '(set it with `eas env:create`, see docs/deployment.md).',
+  )
+}
+
 const config: ExpoConfig = {
   name: 'QRGUARD',
   slug: 'qrguard',
@@ -43,6 +55,8 @@ const config: ExpoConfig = {
     ],
   ],
   experiments: { typedRoutes: true },
+  // Written by `eas init`; kept in an env var so the repository does not hard-code one account.
+  ...(process.env.EAS_PROJECT_ID ? { extra: { eas: { projectId: process.env.EAS_PROJECT_ID } } } : {}),
 }
 
 export default config

@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "test:rules": "firebase emulators:exec --only firestore --project demo-qrguard \"node --test tests/rules.test.js\"",
-    "test:backend": "firebase emulators:exec --only firestore --project demo-qrguard \"cd ../backend && python -m pytest -m firestore_emulator -o addopts=''\""
+    "test:backend": "firebase emulators:exec --only firestore --project demo-qrguard \"cd ../backend && python -m pytest -m firestore_emulator -o addopts=''\"",
+    "deploy": "firebase deploy --only firestore:rules,firestore:indexes"
   },
   "devDependencies": {
     "@firebase/rules-unit-testing": "5.0.2",

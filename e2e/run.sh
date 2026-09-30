@@ -36,7 +36,9 @@ inner() {
       exec "$PYTHON" -m gunicorn -c gunicorn.conf.py wsgi:app
   ) >"$E2E_ARTIFACTS/backend.log" 2>&1 &
   PIDS+=($!)
-  (cd "$ROOT/web" && exec node_modules/.bin/vite preview --outDir "$BUILD/web" --port 4174 --strictPort) >/dev/null 2>&1 &
+  # The web build is served with web/vercel.json's production headers (CSP, Permissions-Policy).
+  node "$E2E_DIR/static-server.mjs" "$BUILD/web" 4174 "$ROOT/web/vercel.json" \
+    "http://127.0.0.1:$BACKEND_PORT http://127.0.0.1:9099" >"$E2E_ARTIFACTS/web-server.log" 2>&1 &
   PIDS+=($!)
   if [ "$TARGET" != web ]; then
     "$PYTHON" -m http.server 8083 --bind 127.0.0.1 --directory "$BUILD/mobile" >/dev/null 2>&1 &
