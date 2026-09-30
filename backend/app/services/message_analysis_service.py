@@ -221,11 +221,10 @@ class MessageAnalysisService:
                 "providers": [
                     r.to_public_dict() for r in (riskiest.analysis.ti_results if riskiest else [])
                 ],
-                "note": (
-                    "Not being listed in a threat database does not mean a link is safe."
-                    if ti_configured
-                    else "Threat-intelligence lookups are not enabled yet; links were analysed "
-                    "by their structure only."
+                "note": self.url_service.threat_intel.note(
+                    riskiest.analysis.ti_results if riskiest else [],
+                    "Threat-intelligence lookups are not enabled; links were analysed by their "
+                    "structure only.",
                 ),
             },
             "analysis": {

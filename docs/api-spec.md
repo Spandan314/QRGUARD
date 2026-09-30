@@ -56,9 +56,15 @@ The example below is a real response for `http://sbi.co.in.kyc-verify.xyz/login`
     "final_score": 73
   },
   "threat_intel": {
-    "checked": false,
-    "providers": [],
-    "note": "Threat-intelligence lookups are not enabled yet; this result is based on the link's structure only."
+    "checked": true,
+    "providers": [
+      { "provider": "local_feed", "status": "not_listed", "limited_coverage": true },
+      { "provider": "urlhaus", "status": "disabled" },
+      { "provider": "google_safe_browsing", "status": "disabled" },
+      { "provider": "virustotal", "status": "disabled" },
+      { "provider": "phishtank", "status": "disabled" }
+    ],
+    "note": "Only QRGUARD's small demo blocklist could be checked. Not being listed does not mean a link is safe."
   },
   "analysis": { "…": "endpoint-specific, see below" },
   "disclaimer": "This is an automated security assessment, not a guarantee.",
@@ -80,6 +86,8 @@ The example below is a real response for `http://sbi.co.in.kyc-verify.xyz/login`
 | `indicators[].evidence` | Short, user-safe detail. It never contains resolved IPs or raw provider data. |
 | `score_breakdown.floor_applied` | `{indicator, minimum_score, points_added}` when a critical finding raised the score |
 | `threat_intel.providers[].status` | `listed` · `partial` · `not_listed` · `unavailable` · `disabled` · `error` |
+| `threat_intel.providers[]` (optional fields) | `threat_type` (listed/partial only), `detail` (e.g. `timeout`, `rate limited`, `configuration`, `5/94 engines`), `limited_coverage: true` (demo blocklist only), `cached: true` |
+| `threat_intel.checked` / `note` | `checked` is true when at least one source is enabled. `not_listed` never lowers a score; see docs/threat-intelligence.md |
 
 ### Risk levels and verification
 
@@ -142,8 +150,16 @@ Public and exempt from rate limiting.
 { "status": "ok", "service": "qrguard-backend", "engine_version": "0.1.0", "time": "2026-09-29T10:00:00+00:00",
   "components": { "api": "ok",
                   "scoring_config": { "status": "loaded", "version": 2, "thresholds": { "suspicious": 30, "malicious": 60 } },
-                  "ocr_engine": "available" } }
+                  "ocr_engine": "available",
+                  "threat_intel": { "enabled": true,
+                                    "providers": [ { "provider": "local_feed", "enabled": true, "external": false },
+                                                   { "provider": "urlhaus", "enabled": false, "external": true },
+                                                   { "provider": "google_safe_browsing", "enabled": false, "external": true },
+                                                   { "provider": "virustotal", "enabled": false, "external": true },
+                                                   { "provider": "phishtank", "enabled": false, "external": true } ] } } }
 ```
+`threat_intel` shows only which sources are on (an API key is set) and whether they send URLs to a
+third party (`external`). It never contains keys, feed paths or quotas.
 
 ### `POST /api/analyze/url` ✅ implemented
 
@@ -255,7 +271,7 @@ Real response (shortened; the redirect check was not needed because the link is 
                  { "source": "link", "points": 0.0, "indicator_ids": ["BRAND_IN_DOMAIN_NAME", "URL_SUSPICIOUS_TLD", "…"] },
                  { "source": "combination", "points": 15.0, "indicator_ids": ["MSG_COMBO_THREAT_URGENCY_ACTION"] } ]
   },
-  "threat_intel": { "checked": false, "providers": [], "note": "Threat-intelligence lookups are not enabled yet; links were analysed by their structure only." },
+  "threat_intel": { "checked": true, "providers": [ { "provider": "local_feed", "status": "not_listed", "limited_coverage": true }, { "provider": "urlhaus", "status": "disabled" }, "…" ], "note": "Only QRGUARD's small demo blocklist could be checked. Not being listed does not mean a link is safe." },
   "analysis": {
     "text_length": 115,
     "language": { "script": "latin", "supported": true },
@@ -453,7 +469,7 @@ are escaped as the Wi-Fi QR format requires; the password appears only inside th
 | Rate limit, anonymous | 20/min, 200/day per IP |
 | Rate limit, authenticated | 40/min, 500/day per uid |
 | `/api/analyze/screenshot` | additional `RATELIMIT_SCREENSHOT` = 6/min, 60/day (CPU-heavy OCR); OCR timeout 20 s, max 2 concurrent OCR jobs per process |
-| Threat-intel time budget | 6 s total, 3 s per provider (when providers are added) |
+| Threat-intel time budget | `THREAT_INTEL_BUDGET_SECONDS` = 6 s total, `THREAT_INTEL_TIMEOUT_SECONDS` = 3 s per provider request; VirusTotal max 4 lookups/min per process; cache 24 h (listed) / 1 h (not listed) |
 | Redirect checking | `REDIRECT_RESOLUTION=shorteners_only`, max 5 redirects, 3 s per request, 8 s total, ports 80/443 only, 0 body bytes read |
 
 ## 5. CORS

@@ -43,3 +43,6 @@ firestore-debug.log
 Thumbs.db
 .idea/
 .vscode/
+
+# Downloaded threat-intelligence feeds (THREAT_INTEL_FEED_DIR); regenerate with ti-update-feeds
+backend/instance/

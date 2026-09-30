@@ -102,7 +102,7 @@ Category caps: url_structure **45**, lexical **15**, brand **40**, redirect **40
   Only structural deception (lookalike characters, or an official domain used as a disguise) carries
   a floor.
 
-### 3.2 Threat intelligence (`threat_intel`), interface implemented, providers later
+### 3.2 Threat intelligence (`threat_intel`), implemented (providers: docs/threat-intelligence.md)
 
 | ID | Condition | Category | Weight | Floor |
 |---|---|---|---|---|

@@ -38,7 +38,7 @@ class JsonFormatter(logging.Formatter):
     """Formats each log record as a single JSON line."""
 
     # Extra attributes we allow callers to attach with logger.info(..., extra={...}).
-    EXTRA_FIELDS = ("method", "path", "status", "duration_ms", "event")
+    EXTRA_FIELDS = ("method", "path", "status", "duration_ms", "event", "provider")
 
     def format(self, record: logging.LogRecord) -> str:
         entry: dict[str, object] = {

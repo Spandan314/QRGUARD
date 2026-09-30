@@ -25,7 +25,8 @@ from app.services.message_analysis_service import MessageAnalysisService
 from app.services.qr_analysis_service import QrAnalysisService
 from app.services.screenshot_analysis_service import ScreenshotAnalysisService
 from app.services.url_analysis_service import UrlAnalysisService
-from app.threat_intelligence.service import ThreatIntelService
+from app.threat_intelligence.factory import build_threat_intel
+from app.threat_intelligence.feeds import update_feeds_command
 from app.version import __version__
 
 __all__ = ["create_app", "__version__"]
@@ -66,9 +67,9 @@ def create_app(config: Config | None = None) -> Flask:
     limiter.init_app(app)
 
     # Analysis services are created once per app (rule files are validated at startup).
-    # No threat-intelligence providers are configured yet (added in a later phase).
-    threat_intel = ThreatIntelService(providers=[])
     url_rules = load_url_rules()
+    # Local feeds are on by default; external providers only when their API key is set.
+    threat_intel = build_threat_intel(config, url_rules)
     url_service = UrlAnalysisService(
         rules=url_rules,
         scoring=config.scoring,
@@ -110,4 +111,5 @@ def create_app(config: Config | None = None) -> Flask:
     register_blueprints(app)
 
     app.logger.info("QRGUARD backend started (env=%s, version=%s)", config.app_env, __version__)
+    app.cli.add_command(update_feeds_command)
     return app

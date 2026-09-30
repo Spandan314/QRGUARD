@@ -4,8 +4,11 @@
 **scam-message detector** (`POST /api/analyze/message`), **screenshot analysis with OCR**
 (`POST /api/analyze/screenshot`), **QR analysis** (`POST /api/analyze/qr`, decoded content or an
 image; OpenCV decoding, installed by `pip`) and the **QR generator** (`POST /api/generate/qr`) are
-working. History endpoints answer `501 NOT_IMPLEMENTED` until authentication is built. No
-threat-intelligence provider is connected yet; responses say so explicitly.
+working, and so is **threat intelligence**: an offline local feed (demo blocklist plus optional
+downloaded OpenPhish/URLhaus feeds) is on by default, and URLhaus, Google Safe Browsing,
+VirusTotal (lookup only) and PhishTank are used when their API keys are set (see `.env.example`
+and `docs/threat-intelligence.md`). History endpoints answer `501 NOT_IMPLEMENTED` until
+authentication is built.
 
 ## Requirements
 
@@ -133,7 +136,7 @@ error.
 ## 4. Run the tests and linter
 
 ```bash
-pytest                                   # expected: 627 passed (no internet needed)
+pytest                                   # expected: 750 passed (no internet needed)
 pytest --cov=app --cov-report=term-missing
 ruff check . && ruff format --check .    # expected: All checks passed!
 ```
