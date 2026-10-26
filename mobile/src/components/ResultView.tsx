@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import { colors, LEVEL_THEME } from '../constants/theme'
-import type { AnalysisResult } from '../types/api'
+import { colors, LEVEL_THEME, VERDICT_THEME } from '../constants/theme'
+import type { AnalysisResult, CheckStatus, RiskLevel } from '../types/api'
 import { CONFIDENCE_TEXT, PROVIDER_NAME, TI_STATUS_TEXT } from '../utils/format'
+import { verdictOf } from '../utils/verdict'
 import { IndicatorList } from './IndicatorList'
 import { OpenLinkGuard } from './OpenLinkGuard'
 import { ReportForm } from './ReportForm'
@@ -29,16 +30,46 @@ function openableTarget(result: AnalysisResult): string | null {
   return null
 }
 
+const CHECK_ICON: Record<CheckStatus, string> = {
+  completed: '✔',
+  limited: '◐',
+  not_run: '–',
+  incomplete: '⚠️',
+  unavailable: '⚠️',
+}
+
+const CHECK_STATUS_TEXT: Record<CheckStatus, string> = {
+  completed: 'done',
+  limited: 'limited',
+  not_run: 'not checked',
+  incomplete: 'could not be completed',
+  unavailable: 'unavailable',
+}
+
+/** A per-link score band. A clean link is shown neutrally: no warning signs is not "safe". */
+function linkIcon(level: RiskLevel): string {
+  return level === 'SAFE' ? '❔' : LEVEL_THEME[level].icon
+}
+
 export function ResultView({ result }: { result: AnalysisResult }) {
-  const theme = LEVEL_THEME[result.risk_level]
+  const verdict = verdictOf(result)
+  const theme = VERDICT_THEME[verdict.label]
   const verified = result.verification.status === 'VERIFIED'
   const a = result.analysis
   const target = openableTarget(result)
+  const redirects = a.redirects
+  const finalUrl =
+    result.input_type === 'url' && redirects?.final_url && redirects.final_url !== a.normalized_url
+      ? redirects.final_url
+      : null
 
   return (
     <View style={{ gap: 16 }} testID="result-view">
       <View style={[styles.banner, { backgroundColor: theme.background, borderColor: theme.bar }]}>
-        <RiskBadge level={result.risk_level} large />
+        <RiskBadge verdict={verdict.label} large />
+        <Text style={[styles.title, { color: theme.foreground }]} testID="verdict-title">
+          {verdict.title}
+        </Text>
         <Text style={[styles.summary, { color: theme.foreground }]}>{result.summary}</Text>
         <Text style={{ color: theme.foreground }}>{CONFIDENCE_TEXT[result.confidence]}</Text>
       </View>
@@ -52,13 +83,30 @@ export function ResultView({ result }: { result: AnalysisResult }) {
             {result.verification.source === 'trusted_domain_list' ? ' – recognised legitimate website' : ''}
           </Text>
           <Text style={ui.body}>{result.verification.message}</Text>
-          {result.risk_level === 'SAFE' && !verified ? (
-            <Text style={[ui.body, { fontWeight: '600' }]}>
-              No warning signs were found, but this is not a guarantee that it is safe.
-            </Text>
-          ) : null}
         </View>
       </Card>
+
+      {result.checks?.length ? (
+        <Section title="What QRGUARD checked">
+          {result.checks.map((check) => (
+            <Text key={check.id} style={ui.body} testID={`check-${check.id}`}>
+              {CHECK_ICON[check.status]} {check.label}: {CHECK_STATUS_TEXT[check.status]}
+              {check.detail ? ` (${check.detail})` : ''}
+            </Text>
+          ))}
+        </Section>
+      ) : null}
+
+      {finalUrl ? (
+        <Section title="Where this link leads">
+          <Text style={ui.body}>
+            When opened, this link forwards to a different address. QRGUARD checked both.
+          </Text>
+          <Text style={ui.mono} selectable testID="final-url">
+            {finalUrl}
+          </Text>
+        </Section>
+      ) : null}
 
       {result.categories.length > 0 ? (
         <Section title="Possible scam type">
@@ -108,7 +156,7 @@ export function ResultView({ result }: { result: AnalysisResult }) {
         <Section title="Links found">
           {a.links.map((link, index) => (
             <Text key={`${link.url}-${index}`} style={ui.mono} selectable>
-              {link.risk_level ? `${LEVEL_THEME[link.risk_level].icon} ` : ''}
+              {link.risk_level ? `${linkIcon(link.risk_level)} ` : ''}
               {link.url}
             </Text>
           ))}
@@ -120,7 +168,7 @@ export function ResultView({ result }: { result: AnalysisResult }) {
           <Text style={ui.mono} selectable>
             {target}
           </Text>
-          <OpenLinkGuard url={target} level={result.risk_level} />
+          <OpenLinkGuard url={target} verdict={verdict.label} finalUrl={finalUrl} />
         </Section>
       ) : null}
 
@@ -161,6 +209,7 @@ const HISTORY_REASON: Record<string, string> = {
 
 const styles = StyleSheet.create({
   banner: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 8 },
-  summary: { fontSize: 17, fontWeight: '600' },
+  title: { fontSize: 19, fontWeight: '700' },
+  summary: { fontSize: 16, fontWeight: '500' },
   muted: { color: colors.muted },
 })

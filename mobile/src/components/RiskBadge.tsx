@@ -1,15 +1,15 @@
 import { StyleSheet, Text, View } from 'react-native'
-import { LEVEL_THEME } from '../constants/theme'
-import type { RiskLevel } from '../types/api'
+import { VERDICT_THEME } from '../constants/theme'
+import type { VerdictLabel } from '../types/api'
 
-/** Icon + word + colour, so the level never depends on colour alone. */
-export function RiskBadge({ level, large = false }: { level: RiskLevel; large?: boolean }) {
-  const theme = LEVEL_THEME[level]
+/** Icon + word + colour, so the verdict never depends on colour alone. */
+export function RiskBadge({ verdict, large = false }: { verdict: VerdictLabel; large?: boolean }) {
+  const theme = VERDICT_THEME[verdict]
   return (
     <View
       style={[styles.badge, { backgroundColor: theme.background, borderColor: theme.bar }, large && styles.large]}
       accessible
-      accessibilityLabel={`Risk level ${level}`}
+      accessibilityLabel={`Result: ${theme.label}`}
       testID="risk-badge"
     >
       <Text style={[styles.text, { color: theme.foreground }, large && styles.largeText]}>

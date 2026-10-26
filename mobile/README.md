@@ -10,13 +10,12 @@ Screens (Expo Router, `src/app/`):
 |---|---|---|
 | Home | `/(tabs)/index` | Action cards, live backend status |
 | About & settings | `/(tabs)/settings` | Server, how it decides, privacy, 1930 helpline |
-| Scan a QR code | `/scan/camera` | `CameraView` QR scanning, **scans once, never opens the code** |
-| QR code from a photo | `/scan/image` | Gallery image → `/api/analyze/qr` |
+| Scan a QR code | `/scan/camera` | `CameraView` QR scanning, **scans once, never opens the code**; permission flow with Open settings, re-check on return, alternatives |
 | Check a link | `/check/url` | Paste button |
 | Check a message | `/check/message` | "We do not store message text" |
-| Check a screenshot | `/check/screenshot` | Gallery image → OCR on the server |
+| Choose image to check | `/check/image` | Screenshot **or** QR photo → resized/re-encoded on the phone (≤ 2000 px JPEG, no metadata) → `/api/analyze/screenshot` (QR decode + OCR); interrupted uploads are diagnosed, Try again |
 | Make a QR code | `/generate` | **Utility**, visually separate, generated on the phone, share/save |
-| Result | `/result` | Level (icon + word + colour), score, verification, "why", advice, TI status, `OpenLinkGuard` |
+| Result | `/result` | Verdict (✅ SAFE only for recognised sites, ❔ NOT VERIFIED, ⚠️, ⛔), score, checks performed, where the link leads, "why", advice, TI status, `OpenLinkGuard` (exact URL, host named, never `user@host`) |
 
 | History (tab) | `/(tabs)/history` | Signed-in users: saved verdicts (never content), details, load more, delete one / all |
 | Account & about (tab) | `/(tabs)/settings` | Sign-in (Firebase anonymous or e-mail, or demo), save-history switch, delete my data, sign out, about |
