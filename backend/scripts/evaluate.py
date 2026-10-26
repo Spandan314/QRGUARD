@@ -9,6 +9,7 @@ is contacted. Positive = SUSPICIOUS or MALICIOUS.
 Sets:
   holdout  demo-data/evaluation/holdout.yaml  written after the rules were frozen, never tuned on
   tuning   demo-data/messages.yaml            used while writing the rules (in-sample, optimistic)
+  audit    demo-data/evaluation/audit-2026-10.yaml  scam families + genuine look-alikes (Oct 2026)
 """
 
 from __future__ import annotations
@@ -109,6 +110,11 @@ def _tuning_items() -> list[dict[str, Any]]:
     ]
 
 
+def _audit_items() -> list[dict[str, Any]]:
+    path = ROOT / "demo-data" / "evaluation" / "audit-2026-10.yaml"
+    return yaml.safe_load(path.read_text(encoding="utf-8"))["messages"]
+
+
 def evaluate() -> dict[str, Any]:
     client = _client()
     holdout = yaml.safe_load(
@@ -118,6 +124,7 @@ def evaluate() -> dict[str, Any]:
         "holdout_messages": _run(client, "message", holdout["messages"]),
         "holdout_urls": _run(client, "url", holdout["urls"]),
         "tuning_messages": _run(client, "message", _tuning_items()),
+        "audit_messages": _run(client, "message", _audit_items()),
     }
     return {name: {"metrics": metrics(rows), "rows": rows} for name, rows in runs.items()}
 

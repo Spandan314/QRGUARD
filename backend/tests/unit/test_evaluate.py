@@ -25,7 +25,7 @@ def test_metrics_of_an_empty_set():
 
 def test_every_item_is_analysed():
     report = evaluate()
-    assert set(report) == {"holdout_messages", "holdout_urls", "tuning_messages"}
+    assert set(report) == {"holdout_messages", "holdout_urls", "tuning_messages", "audit_messages"}
     for result in report.values():
         assert result["metrics"]["errors"] == 0
         assert result["metrics"]["genuine_malicious"] == 0
