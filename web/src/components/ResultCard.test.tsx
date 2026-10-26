@@ -57,7 +57,8 @@ describe('ResultCard', () => {
     expect(container.querySelector('img')).toBeNull()
     expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument()
     expect(container.querySelectorAll('a')).toHaveLength(0)
-    expect(screen.getByText('http://sbi.co.in.kyc-verify.xyz/login').tagName).toBe('SPAN')
+    // The checked URL appears in the open-link section and the details: always as plain text.
+    for (const node of screen.getAllByText('http://sbi.co.in.kyc-verify.xyz/login')) expect(node.tagName).not.toBe('A')
   })
 
   it('shows provider problems honestly', () => {

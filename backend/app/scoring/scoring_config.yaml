@@ -375,6 +375,16 @@ indicators:
     scam_categories: [malicious_url]
     title: Listed as malicious by a threat-intelligence source
     message: This link appears in a database of known malicious or phishing links.
+  TI_DEMO_LISTED:
+    module: threat_intel
+    category: reputation
+    weight: 100
+    floor: 90
+    scam_categories: [malicious_url]
+    title: On QRGUARD's demo blocklist (demonstration data)
+    message: >-
+      This link is on QRGUARD's small built-in demo blocklist of synthetic test links. It is
+      demonstration data, not a real threat-intelligence listing.
   TI_PARTIAL:
     module: threat_intel
     category: reputation

@@ -2269,8 +2269,8 @@
                 "exec": [
                   "pm.test('status is 200', () => pm.response.to.have.status(200));",
                   "pm.test('score is 90 MALICIOUS', () => { const b = pm.response.json(); pm.expect(b.risk_score).to.eql(90); pm.expect(b.risk_level).to.eql('MALICIOUS'); });",
-                  "pm.test('verified by threat intelligence', () => pm.expect(pm.response.json().verification.source).to.eql('threat_intelligence'));",
-                  "pm.test('TI_LISTED from source threat_intelligence', () => pm.expect(pm.response.json().indicators.find(i => i.id === 'TI_LISTED').source).to.eql('threat_intelligence'));",
+                  "pm.test('demo blocklist hit is never reported as verified threat intelligence', () => { const b = pm.response.json(); pm.expect(b.verification.status).to.eql('UNVERIFIED'); pm.expect(b.verdict.confirmed).to.eql(false); });",
+                  "pm.test('TI_DEMO_LISTED (demo data), verdict evidence demo_blocklist', () => { const b = pm.response.json(); pm.expect(b.indicators.find(i => i.id === 'TI_DEMO_LISTED').source).to.eql('threat_intelligence'); pm.expect(b.verdict.evidence).to.eql('demo_blocklist'); });",
                   "pm.test('local feed listed it (demo coverage)', () => { const p = pm.response.json().threat_intel.providers[0]; pm.expect(p.provider).to.eql('local_feed'); pm.expect(p.status).to.eql('listed'); pm.expect(p.limited_coverage).to.eql(true); });",
                   "pm.test('no API key material in response', () => { const t = pm.response.text(); ['Auth-Key','x-apikey','api_key','app_key','?key='].forEach(k => pm.expect(t).to.not.include(k)); });"
                 ]
@@ -2312,8 +2312,8 @@
                 "exec": [
                   "pm.test('status is 200', () => pm.response.to.have.status(200));",
                   "pm.test('score is 90 MALICIOUS', () => { const b = pm.response.json(); pm.expect(b.risk_score).to.eql(90); pm.expect(b.risk_level).to.eql('MALICIOUS'); });",
-                  "pm.test('verified by threat intelligence', () => pm.expect(pm.response.json().verification.source).to.eql('threat_intelligence'));",
-                  "pm.test('TI_LISTED from source threat_intelligence', () => pm.expect(pm.response.json().indicators.find(i => i.id === 'TI_LISTED').source).to.eql('threat_intelligence'));",
+                  "pm.test('demo blocklist hit is never reported as verified threat intelligence', () => { const b = pm.response.json(); pm.expect(b.verification.status).to.eql('UNVERIFIED'); pm.expect(b.verdict.confirmed).to.eql(false); });",
+                  "pm.test('TI_DEMO_LISTED (demo data), verdict evidence demo_blocklist', () => { const b = pm.response.json(); pm.expect(b.indicators.find(i => i.id === 'TI_DEMO_LISTED').source).to.eql('threat_intelligence'); pm.expect(b.verdict.evidence).to.eql('demo_blocklist'); });",
                   "pm.test('local feed listed it (demo coverage)', () => { const p = pm.response.json().threat_intel.providers[0]; pm.expect(p.provider).to.eql('local_feed'); pm.expect(p.status).to.eql('listed'); pm.expect(p.limited_coverage).to.eql(true); });",
                   "pm.test('no API key material in response', () => { const t = pm.response.text(); ['Auth-Key','x-apikey','api_key','app_key','?key='].forEach(k => pm.expect(t).to.not.include(k)); });"
                 ]
@@ -2398,7 +2398,7 @@
                 "exec": [
                   "pm.test('status is 200', () => pm.response.to.have.status(200));",
                   "pm.test('MALICIOUS', () => pm.expect(pm.response.json().risk_level).to.eql('MALICIOUS'));",
-                  "pm.test('verified by threat intelligence', () => pm.expect(pm.response.json().verification.source).to.eql('threat_intelligence'));",
+                  "pm.test('demo blocklist hit is never reported as verified threat intelligence', () => { const b = pm.response.json(); pm.expect(b.verification.status).to.eql('UNVERIFIED'); pm.expect(b.verdict.confirmed).to.eql(false); });",
                   "pm.test('no API key material in response', () => { const t = pm.response.text(); ['Auth-Key','x-apikey','api_key','app_key','?key='].forEach(k => pm.expect(t).to.not.include(k)); });"
                 ]
               }

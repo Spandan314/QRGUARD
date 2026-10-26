@@ -117,6 +117,9 @@ class Config:
     google_safe_browsing_api_key: str = field(default="", repr=False)
     virustotal_api_key: str = field(default="", repr=False)
     phishtank_api_key: str = field(default="", repr=False)
+    # PhishTank no longer issues new application keys. Its checkurl endpoint also answers
+    # requests without a key (with a lower rate limit); this opt-in enables that mode.
+    phishtank_anonymous: bool = False
     # Firebase (auth + history). Without a project, sign-in and history answer 503.
     firebase_project_id: str = ""
     firebase_credentials_file: str = ""
@@ -216,6 +219,7 @@ class Config:
             google_safe_browsing_api_key=_get_secret(env, "GOOGLE_SAFE_BROWSING_API_KEY"),
             virustotal_api_key=_get_secret(env, "VIRUSTOTAL_API_KEY"),
             phishtank_api_key=_get_secret(env, "PHISHTANK_API_KEY"),
+            phishtank_anonymous=_get_bool(env, "PHISHTANK_ANONYMOUS", False),
             firebase_project_id=firebase_project_id,
             firebase_credentials_file=env.get("FIREBASE_CREDENTIALS_FILE", "").strip(),
             firebase_credentials_json=env.get("FIREBASE_CREDENTIALS_JSON", "").strip(),

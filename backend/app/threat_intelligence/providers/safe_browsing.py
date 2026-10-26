@@ -50,6 +50,9 @@ class SafeBrowsingProvider(ApiProvider):
         )
 
     def _interpret(self, response: HttpResponse) -> ProviderResult:
+        if response.status == 400 and isinstance(response.data, dict) and "error" in response.data:
+            # Google answers an invalid or restricted API key with 400 INVALID_ARGUMENT.
+            return self._result(TIStatus.ERROR, detail="configuration")
         data = require_ok(response)
         if set(data) - {"matches"}:  # "{}" means no match; anything else is unexpected
             raise MalformedResponse("unexpected fields")

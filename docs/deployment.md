@@ -149,11 +149,31 @@ change these values on the **Environment** page and choose **Save, rebuild, and 
 | `REDIRECT_RESOLUTION` | `all` | Follows every checked link's redirects so a link that forwards to another website (e.g. `offer.com` → `offers.com`) is reported. The resolver only sends HEAD requests (GET only if HEAD is refused) and never reads a page body. It connects only to public IPs, with the IP pinned against DNS rebinding, ports 80/443, a maximum number of hops and strict time limits (`backend/app/analyzers/redirect_resolver.py`). Trade-off: the link's website sees one request from Render's IP. `shorteners_only` (the previous value) follows only bit.ly-style links; `off` contacts nothing. |
 | `URLHAUS_AUTH_KEY` | optional, **secret** | abuse.ch URLhaus lookups (malware URLs). Free: create an abuse.ch account and an Auth-Key at https://auth.abuse.ch/. |
 | `GOOGLE_SAFE_BROWSING_API_KEY` | optional, **secret** | Google Safe Browsing Lookup API v4 (phishing, malware). Needs a Google Cloud project with the *Safe Browsing API* enabled and an API key restricted to that API. Google offers this API free of charge for **non-commercial** use. **Do not add a billing account for it.** If Google asks for billing, leave this provider disabled. |
-| `VIRUSTOTAL_API_KEY` | optional, **secret** | VirusTotal v3 URL lookups (a URL is looked up, never submitted). The free public API is for non-commercial use and is rate-limited (about 4 requests/minute and a daily quota); QRGUARD paces itself to 4/min per process and reports "rate limited" when the quota is used up. |
-| `PHISHTANK_API_KEY` | optional, **secret** | PhishTank lookups. New API registrations have been closed for a long time; only usable with an existing key. |
+| `VIRUSTOTAL_API_KEY` | **leave unset until the terms are confirmed**, **secret** | VirusTotal v3 URL lookups (a URL is looked up, never submitted). The free public API is limited to non-commercial use and rate-limited (about 4 requests/minute plus daily and monthly quotas); QRGUARD paces itself to 4/min per process and reports "quota" / "rate limited". Read VirusTotal's current Terms of Service and public-API limits at https://docs.virustotal.com before setting it. |
+| `PHISHTANK_API_KEY` | optional, **secret** | PhishTank lookups with an existing application key (new registrations have been closed for a long time). |
+| `PHISHTANK_ANONYMOUS` | `false` (try `true` only after the self-test) | Uses PhishTank's checkurl endpoint **without** a key, which PhishTank answers with a lower rate limit (shown as "rate limited" when exceeded). Not a secret. Enable on Render only if `python -m scripts.ti_selftest` with `PHISHTANK_ANONYMOUS=true` reports `WORKING`. |
+
+**Prove a key works before you put it on Render** (the keys stay on your machine; nothing is
+printed or saved). In Google Cloud Shell:
+
+```bash
+cd ~/QRGUARD && git pull -q && cd backend
+python3 -m venv .venv && . .venv/bin/activate && pip install -q -r requirements.txt
+read -rsp "Safe Browsing key: " GOOGLE_SAFE_BROWSING_API_KEY && export GOOGLE_SAFE_BROWSING_API_KEY; echo
+read -rsp "URLhaus Auth-Key: " URLHAUS_AUTH_KEY && export URLHAUS_AUTH_KEY; echo
+# optional: export PHISHTANK_ANONYMOUS=true
+python -m scripts.ti_selftest
+```
+
+Expected: one line per provider, `WORKING` / `FAILED` / `OFF`. Safe Browsing is `WORKING` only
+when it also lists Google's official test page (`testsafebrowsing.appspot.com/s/phishing.html`).
+Then set the same variables on Render (**Environment → Add Environment Variable**, keys as
+secret values) and **Save, rebuild, and deploy**. `/api/health` then lists them as enabled, and
+results show "Threat-intelligence databases: done (Google Safe Browsing, URLhaus)".
 
 Each key only switches a provider on: without it the provider shows as "Not enabled" and the result
-says that only the demo blocklist was checked. A wrong key shows "Configuration problem", and a
+says that only the demo blocklist was checked (the demo blocklist is synthetic demonstration data
+and is never reported as threat intelligence). A wrong key shows "Configuration problem", and a
 timeout or rate limit shows "Could not be checked"; none of these ever makes a link look safer.
 The terms above were last verified with the provider integrations; free tiers and terms change, so
 confirm them on each provider's site before relying on a key. Keys stay on Render only: never in

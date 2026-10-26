@@ -1,5 +1,25 @@
 # Changelog
 
+## Link action, evidence and threat intelligence (October 2026, `feature/link-verdict-ti`)
+
+- **Web: "Open checked link".** The web app never had an open action (links were plain text by
+  design). It now has one: it opens only the exact analysed URL in a new tab without an opener,
+  never automatically, after a confirmation that names the host (and any redirect), with a caution
+  for unverified links and a ticked acknowledgement for malicious ones. `user@host` and non-web links
+  are never opened. The link policy is shared with the Android app.
+- **The demo blocklist is not threat intelligence.** A hit only on QRGUARD's synthetic demo list is
+  `TI_DEMO_LISTED`: still MALICIOUS (floor 90), but UNVERIFIED, `verdict.confirmed: false`,
+  `verdict.evidence: "demo_blocklist"`, and no HIGH confidence from that floor alone.
+- **Evidence:** `verdict.evidence` (`threat_intelligence`, `trusted_list`, `warning_signs`,
+  `demo_blocklist`, `insufficient`). A provider that times out, is rate limited or rejects its key
+  makes the check `incomplete` / `unavailable`, named with the reason, and lowers confidence: never
+  a clean result.
+- **Providers:** timeouts reported as "timeout"; HTTP 509 (PhishTank) as "rate limited"; Safe
+  Browsing's 400 invalid-key answer and URLhaus `unknown_auth_key` as configuration errors;
+  optional `PHISHTANK_ANONYMOUS`; tests with complete documented response bodies; and
+  `scripts/ti_selftest.py`, which proves a key works (Safe Browsing must list Google's official test
+  page) without printing it. No provider is live-verified yet: no keys are configured.
+
 ## Mobile production hardening (October 2026, `feature/mobile-production-hardening`)
 
 Details and root causes: docs/mobile-audit-2026-10.md.

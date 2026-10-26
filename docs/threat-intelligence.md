@@ -63,7 +63,20 @@ The URL analyzer checks the normalised URL and, for shortened links, also the fi
 | **URLhaus** (`urlhaus`) | `POST https://urlhaus-api.abuse.ch/v1/url/`, `Auth-Key` header, form field `url` | `URLHAUS_AUTH_KEY` | Enabled if key set |
 | **Google Safe Browsing** (`google_safe_browsing`) | Lookup API v4 `threatMatches:find` (MALWARE, SOCIAL_ENGINEERING, UNWANTED_SOFTWARE, POTENTIALLY_HARMFUL_APPLICATION) | `GOOGLE_SAFE_BROWSING_API_KEY` | Enabled if key set |
 | **VirusTotal** (`virustotal`) | `GET /api/v3/urls/{url_id}`, `x-apikey` header, **lookup only**, max 4 lookups/min per process | `VIRUSTOTAL_API_KEY` | Enabled if key set |
-| **PhishTank** (`phishtank`) | `POST https://checkurl.phishtank.com/checkurl/` | `PHISHTANK_API_KEY` | Enabled if key set (new registrations are closed; only for an existing key) |
+| **PhishTank** (`phishtank`) | `POST https://checkurl.phishtank.com/checkurl/` | `PHISHTANK_API_KEY`, or `PHISHTANK_ANONYMOUS=true` (no key, lower rate limit) | Enabled if key set or anonymous mode is on (new registrations are closed) |
+
+### Provider status (October 2026 audit)
+
+| Provider | Code | Tests | Configured on Render | Live-verified | Before production use |
+|---|---|---|---|---|---|
+| Google Safe Browsing | Implemented (v4 Lookup) | Unit + documented-response tests: match, no match, 400 invalid key → configuration, 403, 429, 5xx, timeout, malformed | No key, as far as the health check shows | **No**: needs a key; `scripts/ti_selftest.py` checks it against Google's official test page | Create a key (non-commercial use is free; do not add billing), run the self-test, set it on Render |
+| URLhaus | Implemented (v1 `/url/`, Auth-Key) | Unit + documented-response tests: listed, no_results, invalid_url, `unknown_auth_key` → configuration, 401/403, 429, timeout, malformed | No | **No**: needs a free abuse.ch Auth-Key | Get the key at https://auth.abuse.ch/, run the self-test, set it on Render |
+| PhishTank | Implemented (checkurl JSON), key or anonymous | Unit + documented-response tests: verified phish, unverified, not in database, 509 → rate limited, anonymous mode sends no key | No | **No**: no key can be obtained (registrations closed); anonymous mode is unconfirmed | Run the self-test with `PHISHTANK_ANONYMOUS=true`; enable only if `WORKING` |
+| VirusTotal | Implemented (v3 lookup only, 4/min pacing) | Unit + documented-response tests: ≥3 engines listed, 1–2 partial, clean, 404 not known, quota | No | **No** | Public API is non-commercial and tightly rate-limited: read the current terms first; keep it off if in doubt |
+
+"Live-verified" means a real request with a real key succeeded. This environment cannot reach the
+providers, so none is claimed. The self-test (`cd backend && python -m scripts.ti_selftest`)
+prints WORKING / FAILED / OFF per provider without printing any key.
 
 Local feed file format: one entry per line, `#` starts a comment. A full URL is matched exactly
 after the same normalisation as user input. A bare host name matches that host and its
@@ -114,7 +127,11 @@ look safer than local analysis says.
   `upi-refund-desk.example`. These can never resolve to a real site. A test enforces this.
 - When the demo list is the only local data, local-feed results carry `limited_coverage: true`.
   A limited `not_listed` does **not** raise confidence, and the note says "Only QRGUARD's small
-  demo blocklist could be checked". A hit is still a real TI hit (that is its purpose in demos).
+  demo blocklist could be checked". A demo-list hit becomes `TI_DEMO_LISTED`: it scores like a
+  listing (floor 90) so the demo works, but it is **never** reported as threat intelligence. The
+  verification stays UNVERIFIED with "Listed only on QRGUARD's demo blocklist (demonstration
+  data)…", `verdict.confirmed` is false and `verdict.evidence` is `demo_blocklist`. Feeds
+  downloaded with `ti-update-feeds` are real data and produce `TI_LISTED`.
 - Google publishes Safe Browsing test URLs (e.g. on `testsafebrowsing.appspot.com`) for a live
   `listed` demo when a GSB key is configured.
 - We **do not** copy live malware URLs into the repository.

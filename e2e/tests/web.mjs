@@ -42,14 +42,14 @@ await check('anonymous Firebase sign-in (Auth emulator) and profile from Flask',
   if (!(await a.getByRole('link', { name: 'History', exact: true }).isVisible())) throw new Error('no history link')
 })
 
-await check('URL check -> TI hit 90 MALICIOUS VERIFIED, saved to Firestore history', async () => {
+await check('URL check -> demo blocklist hit 90 MALICIOUS (labelled demo data, not verified TI), saved to Firestore history', async () => {
   await a.getByRole('link', { name: 'Link', exact: true }).click()
   await a.locator('#url').fill('http://secure-sbi-kyc-update.example/login')
   if (!(await a.getByLabel(/Save the result to my history/).isChecked())) throw new Error('save not preselected')
   await a.getByRole('button', { name: 'Check link' }).click()
   await a.getByTestId('history-notice').waitFor({ timeout: 20000 })
   const text = await a.getByRole('article').innerText()
-  if (!text.includes('MALICIOUS') || !text.includes('Verified by threat intelligence')) throw new Error(text.slice(0, 150))
+  if (!text.includes('MALICIOUS') || !text.includes("demo blocklist") || text.includes('Verified by threat intelligence')) throw new Error(text.slice(0, 150))
   if (!(await a.getByTestId('history-notice').innerText()).includes('Saved')) throw new Error('not saved')
   await a.screenshot({ path: `${ARTIFACTS}/web-e2e-url.png`, fullPage: true })
 })
