@@ -196,6 +196,15 @@ def normalize_url(raw: str, rules: UrlRules) -> ParsedURL:
         host_unicode = to_unicode_host(host)
         ip_disguised = False
 
+    if scheme_assumed and ip is None and "." not in host and host not in rules.local_host_suffixes:
+        # A bare word such as "offer" is not a web address. It is rejected instead of being
+        # guessed (never "corrected" to another domain) or scored as if it were a link.
+        raise URLValidationError(
+            "INCOMPLETE_URL",
+            f'"{host}" is not a complete web address. A web address needs a domain ending '
+            "such as .com or .in. Please check the link and try again.",
+        )
+
     port = explicit_port if explicit_port not in (None, DEFAULT_PORTS[scheme]) else None
 
     if ip is not None:
@@ -221,8 +230,13 @@ def normalize_url(raw: str, rules: UrlRules) -> ParsedURL:
         netloc = f"{userinfo}@{netloc}"
     normalized = f"{scheme}://{netloc}{path}" + (f"?{parts.query}" if parts.query else "")
 
+    original = raw.strip()
+    if userinfo and ":" in raw_userinfo:
+        # Never echo a password typed into a link (user:password@host), not even back to the user.
+        original = original.replace(raw_userinfo + "@", userinfo + "@", 1)
+
     return ParsedURL(
-        original=raw.strip(),
+        original=original,
         normalized=normalized,
         scheme=scheme,
         host=host,

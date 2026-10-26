@@ -35,9 +35,18 @@ const config: ExpoConfig = {
       backgroundImage: './assets/android-icon-background.png',
       monochromeImage: './assets/android-icon-monochrome.png',
     },
-    // Only what the app needs: the camera for scanning. No location, contacts or storage.
+    // Only what the app needs: the camera for scanning. No location, contacts or storage. Images
+    // come from the system photo picker, which needs no storage permission, and files are only
+    // written to the app's own cache, so the storage permissions that libraries declare are removed.
     permissions: ['android.permission.CAMERA'],
-    blockedPermissions: ['android.permission.RECORD_AUDIO'],
+    blockedPermissions: [
+      'android.permission.RECORD_AUDIO',
+      'android.permission.READ_EXTERNAL_STORAGE',
+      'android.permission.WRITE_EXTERNAL_STORAGE',
+      'android.permission.READ_MEDIA_IMAGES',
+      'android.permission.READ_MEDIA_VIDEO',
+      'android.permission.READ_MEDIA_AUDIO',
+    ],
     predictiveBackGestureEnabled: false,
   },
   web: { favicon: './assets/favicon.png' },

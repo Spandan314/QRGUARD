@@ -1,5 +1,6 @@
-import type { AnalysisResult } from '../types/api'
-import { CONFIDENCE_TEXT, LEVEL_STYLE } from '../utils/format'
+import type { AnalysisResult, CheckStatus } from '../types/api'
+import { CONFIDENCE_TEXT, VERDICT_STYLE } from '../utils/format'
+import { verdictOf } from '../utils/verdict'
 import { AnalysisDetailsView } from './AnalysisDetails'
 import { IndicatorList } from './IndicatorList'
 import { ReportForm } from './ReportForm'
@@ -8,7 +9,7 @@ import { ScoreGauge } from './ScoreGauge'
 import { ThreatIntelStatus } from './ThreatIntelStatus'
 
 function VerificationNote({ result }: { result: AnalysisResult }) {
-  const { verification, risk_level: level } = result
+  const { verification } = result
   const verified = verification.status === 'VERIFIED'
   return (
     <div
@@ -21,12 +22,33 @@ function VerificationNote({ result }: { result: AnalysisResult }) {
         {verification.source === 'trusted_domain_list' ? ' – recognised legitimate website' : ''}
       </p>
       <p className="mt-1 text-slate-700 dark:text-slate-300">{verification.message}</p>
-      {level === 'SAFE' && !verified ? (
-        <p className="mt-1 font-medium text-slate-800 dark:text-slate-200">
-          No warning signs were found, but this is not a guarantee that it is safe.
-        </p>
-      ) : null}
     </div>
+  )
+}
+
+const CHECK_ICON: Record<CheckStatus, string> = { completed: '✔', limited: '◐', not_run: '–', incomplete: '⚠️', unavailable: '⚠️' }
+const CHECK_TEXT: Record<CheckStatus, string> = {
+  completed: 'done',
+  limited: 'limited',
+  not_run: 'not checked',
+  incomplete: 'could not be completed',
+  unavailable: 'unavailable',
+}
+
+function ChecksList({ result }: { result: AnalysisResult }) {
+  if (!result.checks?.length) return null
+  return (
+    <section>
+      <h3 className="mb-2 font-semibold">What QRGUARD checked</h3>
+      <ul className="space-y-1 text-sm">
+        {result.checks.map((check) => (
+          <li key={check.id} data-testid={`check-${check.id}`}>
+            <span aria-hidden="true">{CHECK_ICON[check.status]}</span> {check.label}: {CHECK_TEXT[check.status]}
+            {check.detail ? ` (${check.detail})` : ''}
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
@@ -49,23 +71,28 @@ function HistoryNotice({ result }: { result: AnalysisResult }) {
 }
 
 export function ResultCard({ result }: { result: AnalysisResult }) {
-  const level = LEVEL_STYLE[result.risk_level]
+  const verdict = verdictOf(result)
+  const style = VERDICT_STYLE[verdict.label]
   return (
     <article
       className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
       aria-live="polite"
       aria-label="Analysis result"
     >
-      <header className={`rounded-xl p-4 ring-1 ring-inset ${level.classes}`}>
+      <header className={`rounded-xl p-4 ring-1 ring-inset ${style.classes}`}>
         <div className="flex flex-wrap items-center gap-3">
-          <RiskBadge level={result.risk_level} size="lg" />
+          <RiskBadge verdict={verdict.label} size="lg" />
           <span className="text-sm">{CONFIDENCE_TEXT[result.confidence]}</span>
         </div>
-        <p className="mt-3 text-base font-medium">{result.summary}</p>
+        <p className="mt-3 text-lg font-semibold" data-testid="verdict-title">
+          {verdict.title}
+        </p>
+        <p className="mt-1 text-base font-medium">{result.summary}</p>
       </header>
 
       <ScoreGauge score={result.risk_score} level={result.risk_level} />
       <VerificationNote result={result} />
+      <ChecksList result={result} />
 
       {result.categories.length > 0 ? (
         <section>

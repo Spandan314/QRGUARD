@@ -128,6 +128,12 @@ def extract_url_features(
             indicators.append(Indicator("URL_OBFUSCATED_IP", f"decodes to {parsed.host}"))
     if local:
         indicators.append(Indicator("URL_PRIVATE_NETWORK_HOST", parsed.host))
+    elif parsed.ip is None and not parsed.has_public_suffix:
+        # Informational only (weight 0): e.g. a typo such as "offer.c", or a reserved demo
+        # ending such as ".example". It is never treated as a recognised public domain.
+        indicators.append(
+            Indicator("URL_UNKNOWN_TLD", f".{parsed.suffix}" if parsed.suffix else None)
+        )
     if parsed.userinfo is not None:
         indicators.append(Indicator("URL_USERINFO_AT", f"{parsed.userinfo}@…"))
     if parsed.port is not None:

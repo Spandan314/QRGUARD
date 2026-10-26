@@ -72,6 +72,7 @@ rules:
     patterns:
       - '\b(?:share|send|tell|forward|give|provide|confirm|disclose|read out|reply with|reply)\b{gap}(?:otp|one\W?time\W?password|verification code|security code|\d\W?digit code)\b'
       - '\b(?:otp|verification code|security code)\b{gap}(?:share|send|tell|forward|give)\w*\b'
+      - '\b(?:share|send|tell|forward|give|provide|read out|reply with)\b{gap}(?:the |that |this )?code\b{gap}(?:sent|received|you (?:just )?(?:got|received)|on your (?:phone|mobile|number))\b'
     negatable: true
 
   - id: MSG_CREDENTIAL_REQUEST
@@ -111,6 +112,7 @@ rules:
     patterns:
       - '\b(?:registration|processing|verification|joining|application|security|documentation|clearance|release|activation|onboarding|training|kit|customs|courier|redelivery|re-delivery|unlock) (?:fee|fees|charge|charges|deposit)\b'
       - '\brefundable (?:security )?(?:deposit|amount|fee)\b'
+      - '\b(?:only|just) (?:pay )?(?:shipping|delivery) (?:fee|fees|charge|charges)\b'
       - '\b(?:pay|deposit)\b{gap}(?:claim|release|receive|unlock|activate|process)\b'
     negatable: true
 
@@ -148,6 +150,7 @@ rules:
       - '\b(?:you|u)\b{gap}(?:won|win|winner)\b'
       - '\b(?:lottery|lucky draw|jackpot|bumper prize|kbc|kaun banega crorepati|lucky winner|prize money|scratch card|spin the wheel)\b'
       - '\b(?:selected|chosen|eligible)\b{gap}(?:gift|prize|reward|cash prize)\b'
+      - '\b(?:lucky customer|lucky user|lucky person|claim your free|free (?:iphone|gift|phone|smartphone|laptop|recharge|gold))\b'
       - '\bcashback\b{gap}qrgamount\b'
       - '\bqrgamount\b{gap}cashback\b'
 
@@ -171,6 +174,15 @@ rules:
   - id: MSG_INVESTMENT_TOPIC
     patterns:
       - '\b(?:crypto|bitcoin|btc|usdt|forex|stock tips|trading tips|intraday|options trading|ipo allotment|vip group|premium group|investment plan|investment scheme|investment opportunity)\b'
+
+  # Classic "hi mum, new number" and CEO-fraud openers. Low weight alone; with a payment request
+  # they form MSG_COMBO_IMPERSONATION_PAYMENT.
+  - id: MSG_IMPERSONATION_PRETEXT
+    patterns:
+      - '\b(?:this is my new number|my new number|new phone number|i (?:have )?(?:lost|broke|broken|dropped) my phone|my phone (?:is )?(?:lost|broken|not working))\b'
+      - '\b(?:i am|i''m|im) (?:in a meeting|busy in a meeting)\b'
+      - '\b(?:cannot|can''t|cant) (?:talk|speak|call|pick up)\b{gap}(?:now|right now|meeting|later)\b'
+      - '\bkeep (?:it|this) (?:confidential|secret|between us)\b'
 
   # ---- contact ---------------------------------------------------------------------------------
   - id: MSG_OFF_PLATFORM_CONTACT
@@ -214,6 +226,14 @@ combinations:
     all_of:
       - [MSG_REMOTE_ACCESS]
       - [MSG_SUPPORT_REFERENCE, MSG_REFUND_PRETEXT]
+  MSG_COMBO_IMPERSONATION_PAYMENT:
+    all_of:
+      - [MSG_IMPERSONATION_PRETEXT]
+      - [MSG_PAYMENT_REQUEST]
+  MSG_COMBO_THREAT_LINK:
+    all_of:
+      - [MSG_ACCOUNT_THREAT, MSG_KYC_PRETEXT]
+      - ["@link"]
   MSG_COMBO_RETURNS_PRIVATE_GROUP:
     all_of:
       - [MSG_UNREALISTIC_RETURNS]

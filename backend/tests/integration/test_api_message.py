@@ -76,11 +76,14 @@ def test_response_shape(api):
 def test_kyc_scam_is_malicious_and_explained_by_source(api):
     client, _ = api
     _, body = post(client, KYC_SCAM)
-    assert body["risk_score"] == 65 and body["risk_level"] == "MALICIOUS"
+    assert body["risk_score"] == 75 and body["risk_level"] == "MALICIOUS"
     assert {"kyc_account_suspension", "phishing"} <= {c["id"] for c in body["categories"]}
     sources = {s["source"]: s for s in body["score_breakdown"]["sources"]}
     assert sources["message"]["points"] == 50.0
-    assert sources["combination"]["indicator_ids"] == ["MSG_COMBO_THREAT_URGENCY_ACTION"]
+    assert sources["combination"]["indicator_ids"] == [
+        "MSG_COMBO_THREAT_URGENCY_ACTION",
+        "MSG_COMBO_THREAT_LINK",
+    ]
     assert "BRAND_IN_DOMAIN_NAME" in sources["link"]["indicator_ids"]
     assert body["score_breakdown"]["rule_used"] == "primary_evidence"
     assert body["verification"]["status"] == "UNVERIFIED"

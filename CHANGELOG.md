@@ -1,5 +1,36 @@
 # Changelog
 
+## Mobile production hardening (October 2026, `feature/mobile-production-hardening`)
+
+Details and root causes: docs/mobile-audit-2026-10.md.
+
+### Changed
+
+- **Evidence-based verdicts.** Every analysis response has a `verdict` (`MALICIOUS`,
+  `SUSPICIOUS`, `UNVERIFIED`, `SAFE`). SAFE is reserved for positively recognised domains; an
+  unknown site with no warning signs is shown as **NOT VERIFIED**, never SAFE. Android and web show
+  the verdict as the headline. URL results list the `checks` behind the verdict (structure,
+  destination/redirects, threat intelligence: completed, limited, not run or unavailable).
+- **Exact links.** A bare word such as `offer` is rejected (`400 INCOMPLETE_URL`), never guessed.
+  Unknown domain endings are explained (`URL_UNKNOWN_TLD`, 0 points). Passwords in links are
+  masked in `analysis.input_url` too. The app opens only the exact checked URL, names its host and
+  any redirect target before opening, cautions on unverified links, and never opens `user@host`
+  links.
+- **Redirects:** `render.yaml` now uses `REDIRECT_RESOLUTION=all` (same SSRF-hardened resolver), so
+  a link that forwards to another website is reported. The Render variable must be updated by
+  the account owner.
+- **Android camera:** full permission flow (explain → request → denied → permanently denied with
+  Open settings → re-check on return), camera start-up error recovery, and alternatives.
+- **Android images:** "Check a screenshot" and "QR code from a photo" merged into **Choose image to
+  check**. Images are resized/re-encoded on the phone (≤ 2000 px, JPEG, metadata removed). Uploads
+  are diagnosed precisely (interrupted upload vs. server unreachable vs. server starting), with
+  Try again. The server still analyses a QR code in an image when OCR fails or is unavailable.
+  Storage permissions merged in by libraries are blocked. **Requires a new APK.**
+- **Message rules:** four narrow additions found by a new labelled audit set (OTP "code sent to
+  your phone", prize "claim your free … / shipping fee", new-number / in-a-meeting impersonation
+  + money request, account threat or KYC demand + link). The fake-KYC demo now scores 75 instead
+  of 65 (still MALICIOUS). Measured before/after in docs/evaluation.md.
+
 ## Free-plan deployment fixes (after v1.0.0, on `main`)
 
 ### Changed

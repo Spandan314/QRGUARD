@@ -9,7 +9,7 @@ import { api } from '../../services/api'
 
 export default function UrlCheck() {
   const [url, setUrl] = useState('')
-  const { loading, error, run } = useAnalysis(api.analyzeUrl)
+  const { loading, error, run, retry } = useAnalysis(api.analyzeUrl)
   const saveOption = useSaveOption()
 
   return (
@@ -44,7 +44,7 @@ export default function UrlCheck() {
           </View>
         </View>
       </Card>
-      {error ? <ErrorBanner error={error} /> : null}
+      {error ? <ErrorBanner error={error} onRetry={loading ? undefined : () => void retry()} /> : null}
     </Screen>
   )
 }

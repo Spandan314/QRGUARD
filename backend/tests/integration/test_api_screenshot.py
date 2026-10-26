@@ -139,7 +139,7 @@ def test_4_suspicious_url_in_screenshot(app, client):
 def test_5_scam_message_and_suspicious_url(app, client):
     use_ocr(app, text=KYC_TEXT)
     body = upload(client, blank()).get_json()
-    assert body["risk_score"] == 65 and body["risk_level"] == "MALICIOUS"
+    assert body["risk_score"] == 75 and body["risk_level"] == "MALICIOUS"
     sources = {s["source"] for s in body["score_breakdown"]["sources"]}
     assert {"message", "link", "combination"} <= sources
     assert body["analysis"]["links"][0]["url"] == "http://sbi-kyc-update.xyz/login"
@@ -342,7 +342,7 @@ def test_real_ocr_scam_screenshot(client):
             ]
         ),
     ).get_json()
-    assert body["risk_level"] == "MALICIOUS" and body["risk_score"] == 65
+    assert body["risk_level"] == "MALICIOUS" and body["risk_score"] == 75
     assert body["analysis"]["ocr"]["quality"] == "good"
     assert "BRAND_IN_DOMAIN_NAME" in ids(body, "link")
 

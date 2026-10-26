@@ -11,6 +11,9 @@ import type {
 
 // The backend does every check; this module only sends the input and returns the answer.
 const DEFAULT_TIMEOUT_MS = 45_000
+// Images: upload on mobile data + OCR on a small (free-tier) server, possibly after a cold start.
+const UPLOAD_TIMEOUT_MS = 90_000
+const HEALTH_PROBE_MS = 10_000
 
 export interface PickedImage {
   uri: string
@@ -80,6 +83,13 @@ async function request<T>(path: string, init: RequestInit, signal?: AbortSignal,
   }
   if (!response.ok) {
     if (isErrorBody(body)) throw new ApiError(response.status, body.error.code, body.error.message, body.error.request_id)
+    if (response.status === 413) {
+      throw new ApiError(413, 'PAYLOAD_TOO_LARGE', 'The image is too large for the server (maximum 5 MB).')
+    }
+    if (response.status >= 500) {
+      // Not a QRGUARD answer: the hosting platform's own page while the server starts or restarts.
+      throw new ApiError(response.status, 'SERVER_UNAVAILABLE', 'The QRGUARD server is starting up or temporarily unavailable.')
+    }
     throw new ApiError(response.status, 'HTTP_ERROR', `The server answered with an error (${response.status}).`)
   }
   if (body === null) throw new ApiError(response.status, 'BAD_RESPONSE', 'The server sent an unreadable answer.')
@@ -94,12 +104,36 @@ function sendJson<T>(method: string, path: string, payload: unknown, signal?: Ab
   )
 }
 
-function postImage<T>(path: string, image: PickedImage, save: boolean, signal?: AbortSignal): Promise<T> {
+/** True when the server answers its health check, i.e. it is reachable from this phone now. */
+async function serverReachable(): Promise<boolean> {
+  try {
+    await request<HealthResponse>('/api/health', { method: 'GET' }, undefined, HEALTH_PROBE_MS)
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function postImage<T>(path: string, image: PickedImage, save: boolean, signal?: AbortSignal): Promise<T> {
   const form = new FormData()
-  // React Native's FormData accepts a { uri, name, type } descriptor for files.
+  // React Native's FormData accepts a { uri, name, type } descriptor for files. The Content-Type
+  // header (with the multipart boundary) is set by fetch itself and must not be set here.
   form.append('file', { uri: image.uri, name: image.name, type: image.mimeType } as unknown as Blob)
   form.append('save_to_history', save ? 'true' : 'false')
-  return request<T>(path, { method: 'POST', body: form }, signal)
+  try {
+    return await request<T>(path, { method: 'POST', body: form }, signal, UPLOAD_TIMEOUT_MS)
+  } catch (error) {
+    // "Network request failed" during an upload does not always mean the phone is offline: the
+    // connection can also be cut off mid-upload. Ask the server directly to tell which it was.
+    if (error instanceof ApiError && error.code === 'NETWORK_ERROR' && !signal?.aborted && (await serverReachable())) {
+      throw new ApiError(
+        0,
+        'UPLOAD_FAILED',
+        'The server is reachable, but the image upload was interrupted before the check could finish.',
+      )
+    }
+    throw error
+  }
 }
 
 export interface AnalyzeOptions {
@@ -112,10 +146,9 @@ export const api = {
     sendJson<AnalysisResult>('POST', '/api/analyze/url', { url, save_to_history: options.save ?? false }, signal),
   analyzeMessage: (text: string, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
     sendJson<AnalysisResult>('POST', '/api/analyze/message', { text, save_to_history: options.save ?? false }, signal),
-  analyzeScreenshot: (image: PickedImage, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
+  /** Screenshots and photos of QR codes: the server decodes QR codes AND reads the text. */
+  analyzeImage: (image: PickedImage, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
     postImage<AnalysisResult>('/api/analyze/screenshot', image, options.save ?? false, signal),
-  analyzeQrImage: (image: PickedImage, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
-    postImage<AnalysisResult>('/api/analyze/qr', image, options.save ?? false, signal),
   analyzeQrContent: (content: string, options: AnalyzeOptions = {}, signal?: AbortSignal) =>
     sendJson<AnalysisResult>(
       'POST',

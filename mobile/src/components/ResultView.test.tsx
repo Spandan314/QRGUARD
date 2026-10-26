@@ -22,9 +22,43 @@ describe('ResultView', () => {
     expect(items[0]).toHaveTextContent(/\+40 pts/)
   })
 
-  it('says SAFE + UNVERIFIED is not a guarantee', async () => {
+  it('never shows an unverified site as SAFE', async () => {
     await render(<ResultView result={safeUnverified} />)
-    expect(screen.getByTestId('verification')).toHaveTextContent(/not a guarantee/)
+    expect(screen.getAllByTestId('risk-badge')[0]).toHaveTextContent('❔ NOT VERIFIED')
+    expect(screen.queryByText(/✅ SAFE/)).toBeNull()
+    expect(screen.getByTestId('verdict-title')).toHaveTextContent('Not verified – no known risks found')
+  })
+
+  it("uses the backend's verdict and lists the checks behind it", async () => {
+    await render(
+      <ResultView
+        result={{
+          ...safeUnverified,
+          verdict: { label: 'UNVERIFIED', confirmed: false, title: 'Not verified – no known risks found', explanation: 'x' },
+          checks: [
+            { id: 'url_structure', label: 'Link structure and look-alike domains', status: 'completed', detail: null },
+            { id: 'destination', label: 'Where the link leads (redirects)', status: 'completed', detail: 'leads to another website: offers.com' },
+            { id: 'threat_intelligence', label: 'Threat-intelligence databases', status: 'limited', detail: "only QRGUARD's small demo blocklist" },
+          ],
+          analysis: { normalized_url: 'https://offer.com/', redirects: { checked: true, status: 'completed', final_url: 'https://www.offers.com/' } },
+        }}
+      />,
+    )
+    expect(screen.getByTestId('check-threat_intelligence')).toHaveTextContent(/◐ Threat-intelligence databases: limited/)
+    expect(screen.getByTestId('check-destination')).toHaveTextContent(/leads to another website: offers.com/)
+    expect(screen.getByTestId('final-url')).toHaveTextContent('https://www.offers.com/')
+  })
+
+  it('shows SAFE only for a recognised website', async () => {
+    await render(
+      <ResultView
+        result={{
+          ...safeUnverified,
+          verification: { status: 'VERIFIED', source: 'trusted_domain_list', message: 'Recognised.' },
+        }}
+      />,
+    )
+    expect(screen.getAllByTestId('risk-badge')[0]).toHaveTextContent('✅ SAFE')
   })
 
   it('shows threat-intelligence verification and provider status', async () => {
@@ -71,16 +105,44 @@ describe('OpenLinkGuard', () => {
     await fireEvent.press(screen.getByText(label))
   }
 
-  it('asks before opening a SAFE link and opens only after confirmation', async () => {
+  it('asks before opening a recognised link and opens exactly that URL after confirmation', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined)
     const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true)
-    await render(<ResultView result={{ ...safeUnverified, analysis: { normalized_url: 'https://www.sbi.co.in/' } }} />)
+    const verified = { status: 'VERIFIED' as const, source: 'trusted_domain_list' as const, message: 'Recognised.' }
+    await render(<ResultView result={{ ...safeUnverified, verification: verified, analysis: { normalized_url: 'https://www.sbi.co.in/' } }} />)
     await press('Open link')
     expect(open).not.toHaveBeenCalled()
-    const buttons = alert.mock.calls[0]?.[2] ?? []
-    expect(alert.mock.calls[0]?.[1]).toBe('https://www.sbi.co.in/')
-    buttons.find((b) => b.text === 'Open')?.onPress?.()
+    expect(alert.mock.calls[0]?.[0]).toBe('Open this link?')
+    expect(alert.mock.calls[0]?.[1]).toBe('You are about to open www.sbi.co.in:\nhttps://www.sbi.co.in/')
+    alert.mock.calls[0]?.[2]?.find((b) => b.text === 'Open')?.onPress?.()
     expect(open).toHaveBeenCalledWith('https://www.sbi.co.in/')
+  })
+
+  it('opens offer.com as offer.com, with a caution and the redirect it leads to', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined)
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true)
+    await render(
+      <ResultView
+        result={{
+          ...safeUnverified,
+          analysis: { normalized_url: 'https://offer.com/', redirects: { checked: true, status: 'completed', final_url: 'https://www.offers.com/' } },
+        }}
+      />,
+    )
+    await press('Open link')
+    expect(alert.mock.calls[0]?.[0]).toBe('Open an unverified link?')
+    const message = String(alert.mock.calls[0]?.[1])
+    expect(message).toContain('You are about to open offer.com:\nhttps://offer.com/')
+    expect(message).toContain('This link redirects to:\nhttps://www.offers.com/')
+    alert.mock.calls[0]?.[2]?.find((b) => b.text === 'Open')?.onPress?.()
+    expect(open).toHaveBeenCalledWith('https://offer.com/')
+    expect(open).toHaveBeenCalledTimes(1)
+  })
+
+  it('never opens a link that hides its host behind "@"', async () => {
+    await render(<ResultView result={{ ...maliciousUrl, analysis: { normalized_url: 'https://paypal.com@evil.example/login' } }} />)
+    expect(screen.queryByText(/Open link/)).toBeNull()
+    expect(screen.getByTestId('never-open-reason')).toHaveTextContent(/common trick/)
   })
 
   it('needs two confirmations for a MALICIOUS link', async () => {

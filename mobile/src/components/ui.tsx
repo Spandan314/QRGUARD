@@ -60,20 +60,40 @@ export function ActionButton({
 }
 
 const HINTS: Record<string, string> = {
-  NETWORK_ERROR: 'The server may be starting up (this can take up to a minute). Check that the phone is online.',
+  NETWORK_ERROR:
+    'Check that the phone is online. If it is, the free QRGUARD server may be waking up: this can take up to a minute, then try again.',
+  UPLOAD_FAILED:
+    'This usually happens on a slow or unstable connection. Try again on Wi-Fi, or crop the image to the part that matters.',
+  TIMEOUT: 'The server may be waking up or busy. Please try again.',
+  SERVER_UNAVAILABLE: 'Please try again in a minute.',
   RATE_LIMITED: 'You have made many checks in a short time. Please wait a minute.',
-  NO_TEXT_FOUND: 'Try a sharper screenshot where the message text is clearly visible.',
+  NO_TEXT_FOUND: 'Choose a screenshot where the message text is clearly visible, or a sharp photo of a QR code.',
   NO_QR_FOUND: 'Make sure the QR code is sharp, fully visible and not too small.',
-  OCR_UNAVAILABLE: 'Text recognition is not available on the server right now.',
+  OCR_FAILED: 'Choose a sharper screenshot, or crop it to the message.',
+  OCR_BUSY: 'Several images are being checked right now. Please try again in a moment.',
+  OCR_UNAVAILABLE: 'Text recognition is not available on the server right now. QR codes can still be scanned with the camera.',
+  FILE_TOO_LARGE: 'Choose a smaller image or crop it.',
+  PAYLOAD_TOO_LARGE: 'Choose a smaller image or crop it.',
+  IMAGE_TOO_LARGE: 'Choose a smaller image or crop it.',
+  IMAGE_TOO_SMALL: 'The image is too small to read. Choose a larger screenshot.',
+  UNSUPPORTED_MEDIA_TYPE: 'Choose a PNG, JPEG or WEBP image.',
+  UNPROCESSABLE_IMAGE: 'The image file could not be read. Take a new screenshot and try again.',
+  INCOMPLETE_URL: 'Type the full address, for example offer.com or https://www.example.in.',
+  INVALID_URL: 'Check the link for typing mistakes.',
+  AUTH_REQUIRED: 'Please sign in again in the Account tab.',
 }
 
-export function ErrorBanner({ error }: { error: ApiError }) {
+/** Problems worth retrying unchanged: the connection or the server, not the input. */
+const RETRYABLE = new Set(['NETWORK_ERROR', 'UPLOAD_FAILED', 'TIMEOUT', 'SERVER_UNAVAILABLE', 'OCR_BUSY', 'HTTP_ERROR'])
+
+export function ErrorBanner({ error, onRetry }: { error: ApiError; onRetry?: () => void }) {
   return (
     <View style={styles.error} accessibilityRole="alert" testID="error-banner">
       <Text style={styles.errorTitle}>Could not complete the check</Text>
       <Text style={styles.errorText}>{error.message}</Text>
       {HINTS[error.code] ? <Text style={styles.errorText}>{HINTS[error.code]}</Text> : null}
       {error.requestId ? <Text style={styles.small}>Request ID: {error.requestId}</Text> : null}
+      {onRetry && RETRYABLE.has(error.code) ? <ActionButton label="Try again" variant="secondary" onPress={onRetry} /> : null}
     </View>
   )
 }

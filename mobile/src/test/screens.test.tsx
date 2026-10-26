@@ -7,14 +7,15 @@ import { NoAuthClient, type AuthClient } from '../services/auth'
 import { jsonResponse, maliciousUrl, qrResult } from './fixtures'
 import UrlCheck from '../app/check/url'
 import MessageCheck from '../app/check/message'
-import CameraScan from '../app/scan/camera'
-import ScreenshotCheck from '../app/check/screenshot'
-import QrImageCheck from '../app/scan/image'
+import CameraScan, { cameraAccess } from '../app/scan/camera'
+import ImageCheck from '../app/check/image'
 import Generate from '../app/generate'
 import Home from '../app/(tabs)/index'
 import Settings from '../app/(tabs)/settings'
 import ResultScreen from '../app/result'
 import * as picker from 'expo-image-picker'
+import { AppState } from 'react-native'
+import { openAppSettings } from '../utils/systemSettings'
 
 const mockPush = jest.fn()
 const mockReplace = jest.fn()
@@ -26,14 +27,29 @@ jest.mock('expo-router', () => ({
   },
 }))
 
+type Permission = { granted: boolean; canAskAgain: boolean; status: string }
 let mockScan: ((event: { data: string }) => void) | undefined
-let mockPermission: { granted: boolean; canAskAgain: boolean } | null = { granted: true, canAskAgain: true }
+let mockMountError: (() => void) | undefined
+let mockPermission: Permission | null = { granted: true, canAskAgain: true, status: 'granted' }
 const mockRequestPermission = jest.fn()
+const mockGetPermission = jest.fn()
 jest.mock('expo-camera', () => ({
-  useCameraPermissions: () => [mockPermission, mockRequestPermission],
-  CameraView: function MockCameraView(props: { onBarcodeScanned?: (event: { data: string }) => void }) {
+  useCameraPermissions: () => [mockPermission, mockRequestPermission, mockGetPermission],
+  CameraView: function MockCameraView(props: { onBarcodeScanned?: (event: { data: string }) => void; onMountError?: () => void }) {
     mockScan = props.onBarcodeScanned
+    mockMountError = props.onMountError
     return null
+  },
+}))
+
+jest.mock('../utils/systemSettings', () => ({ openAppSettings: jest.fn(async () => true) }))
+
+const mockSaveAsync = jest.fn(async () => ({ uri: 'file:///prepared.jpg', width: 900, height: 2000 }))
+const mockResize = jest.fn()
+jest.mock('expo-image-manipulator', () => ({
+  SaveFormat: { JPEG: 'jpeg' },
+  ImageManipulator: {
+    manipulate: () => ({ resize: mockResize, renderAsync: async () => ({ saveAsync: mockSaveAsync }) }),
   },
 }))
 
@@ -49,17 +65,28 @@ jest.mock('react-native-qrcode-svg', () => {
   return MockQRCode
 })
 
+let appStateListeners: ((state: string) => void)[] = []
 const realFetch = global.fetch
 let fetchMock: jest.Mock<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>
 beforeEach(() => {
   mockPush.mockClear()
   mockScan = undefined
-  mockPermission = { granted: true, canAskAgain: true }
+  mockPermission = { granted: true, canAskAgain: true, status: 'granted' }
+  mockRequestPermission.mockClear()
+  mockGetPermission.mockClear()
+  mockReplace.mockClear()
+  mockResize.mockClear()
+  appStateListeners = []
+  jest.spyOn(AppState, 'addEventListener').mockImplementation(((_type: string, listener: (state: string) => void) => {
+    appStateListeners.push(listener)
+    return { remove: () => undefined }
+  }) as never)
   fetchMock = jest.fn(async () => jsonResponse(maliciousUrl))
   global.fetch = fetchMock as unknown as typeof fetch
 })
 afterEach(() => {
   global.fetch = realFetch
+  jest.restoreAllMocks()
 })
 
 const latestResult: { current: ReturnType<typeof useResult> | null } = { current: null }
@@ -115,11 +142,65 @@ describe('message check', () => {
 })
 
 describe('QR camera scan', () => {
-  it('asks for camera permission first', async () => {
-    mockPermission = { granted: false, canAskAgain: true }
+  it('maps every permission state to the right screen', () => {
+    expect(cameraAccess(null)).toBe('loading')
+    expect(cameraAccess({ granted: true, canAskAgain: true, status: 'granted' })).toBe('granted')
+    expect(cameraAccess({ granted: false, canAskAgain: true, status: 'undetermined' })).toBe('ask')
+    expect(cameraAccess({ granted: false, canAskAgain: true, status: 'denied' })).toBe('ask-again')
+    expect(cameraAccess({ granted: false, canAskAgain: false, status: 'denied' })).toBe('blocked')
+  })
+
+  it('explains and asks for camera permission first', async () => {
+    mockPermission = { granted: false, canAskAgain: true, status: 'undetermined' }
     await wrap(<CameraScan />)
+    expect(screen.getByText(/uses the camera only to scan QR codes/)).toBeOnTheScreen()
     await fireEvent.press(screen.getByText('Allow camera'))
     expect(mockRequestPermission).toHaveBeenCalled()
+  })
+
+  it('asks again after a denial and explains why', async () => {
+    mockPermission = { granted: false, canAskAgain: true, status: 'denied' }
+    await wrap(<CameraScan />)
+    expect(screen.getByTestId('camera-denied')).toBeOnTheScreen()
+    await fireEvent.press(screen.getByText('Allow camera'))
+    expect(mockRequestPermission).toHaveBeenCalled()
+  })
+
+  it('sends a permanent denial to the system settings instead of asking uselessly', async () => {
+    mockPermission = { granted: false, canAskAgain: false, status: 'denied' }
+    await wrap(<CameraScan />)
+    expect(screen.getByTestId('camera-blocked')).toBeOnTheScreen()
+    expect(screen.queryByText('Allow camera')).toBeNull()
+    await fireEvent.press(screen.getByText('Open settings'))
+    expect(openAppSettings).toHaveBeenCalled()
+    mockGetPermission.mockClear()
+    await fireEvent.press(screen.getByText('I allowed it – check again'))
+    expect(mockGetPermission).toHaveBeenCalled()
+  })
+
+  it('re-reads the permission when the user returns from the settings', async () => {
+    mockPermission = { granted: false, canAskAgain: false, status: 'denied' }
+    await wrap(<CameraScan />)
+    mockGetPermission.mockClear()
+    await act(async () => appStateListeners.forEach((listener) => listener('active')))
+    expect(mockGetPermission).toHaveBeenCalled()
+  })
+
+  it('offers checking an image or typing the link instead', async () => {
+    mockPermission = { granted: false, canAskAgain: false, status: 'denied' }
+    await wrap(<CameraScan />)
+    await fireEvent.press(screen.getByText('Choose an image instead'))
+    expect(mockReplace).toHaveBeenCalledWith('/check/image')
+    await fireEvent.press(screen.getByText('Type or paste the link'))
+    expect(mockReplace).toHaveBeenCalledWith('/check/url')
+  })
+
+  it('recovers when the camera cannot start', async () => {
+    await wrap(<CameraScan />)
+    await act(async () => mockMountError?.())
+    expect(screen.getByTestId('camera-error')).toBeOnTheScreen()
+    await fireEvent.press(screen.getByText('Try again'))
+    expect(screen.queryByTestId('camera-error')).toBeNull()
   })
 
   it('scans once, sends the content and never opens it', async () => {
@@ -148,33 +229,59 @@ describe('QR camera scan', () => {
   })
 })
 
-describe('image upload screens', () => {
-  it('uploads a picked screenshot', async () => {
-    ;(picker.launchImageLibraryAsync as jest.Mock).mockResolvedValue({
+describe('choose image to check (screenshots and QR photos)', () => {
+  const pick = picker.launchImageLibraryAsync as jest.Mock
+
+  it('prepares the picked image and uploads it to the combined QR + text check', async () => {
+    pick.mockResolvedValue({
       canceled: false,
-      assets: [{ uri: 'file:///shot.png', mimeType: 'image/png', fileName: 'shot.png', fileSize: 1000 }],
+      assets: [{ uri: 'file:///shot.png', mimeType: 'image/png', fileName: 'shot.png', fileSize: 1000, width: 1440, height: 3200 }],
     } as never)
-    await wrap(<ScreenshotCheck />)
-    await fireEvent.press(screen.getByText('Choose a screenshot'))
+    const append = jest.spyOn(FormData.prototype, 'append')
+    await wrap(<ImageCheck />)
+    await fireEvent.press(screen.getByText('Choose image to check'))
     await screen.findByLabelText('Selected image')
-    await fireEvent.press(screen.getByText('Check screenshot'))
+    expect(mockResize).toHaveBeenCalledWith({ height: 2000 })
+    await fireEvent.press(screen.getByText('Check image'))
     await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/result'))
     expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/api\/analyze\/screenshot$/)
+    const file = append.mock.calls.find(([name]) => name === 'file')?.[1]
+    expect(file).toMatchObject({ uri: 'file:///prepared.jpg', type: 'image/jpeg' })
+    append.mockRestore()
   })
 
-  it('rejects unsupported and oversized images before uploading', async () => {
-    const launch = picker.launchImageLibraryAsync as jest.Mock
-    launch.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///a.gif', mimeType: 'image/gif' }] } as never)
-    await wrap(<QrImageCheck />)
-    await fireEvent.press(screen.getByText('Choose an image'))
-    expect(await screen.findByText('Please choose a PNG, JPEG or WEBP image.')).toBeOnTheScreen()
-    launch.mockResolvedValueOnce({
+  it('rejects unsupported images and unpreparable oversized images before uploading', async () => {
+    pick.mockResolvedValueOnce({ canceled: false, assets: [{ uri: 'file:///a.gif', mimeType: 'image/gif', width: 10, height: 10 }] } as never)
+    await wrap(<ImageCheck />)
+    await fireEvent.press(screen.getByText('Choose image to check'))
+    expect(await screen.findByText('Please choose a photo or screenshot (PNG, JPEG, WEBP or HEIC).')).toBeOnTheScreen()
+    mockSaveAsync.mockRejectedValueOnce(new Error('decode failed') as never)
+    pick.mockResolvedValueOnce({
       canceled: false,
-      assets: [{ uri: 'file:///b.png', mimeType: 'image/png', fileSize: 6 * 1024 * 1024 }],
+      assets: [{ uri: 'file:///b.png', mimeType: 'image/png', fileSize: 6 * 1024 * 1024, width: 4000, height: 9000 }],
     } as never)
-    await fireEvent.press(screen.getByText('Choose an image'))
-    expect(await screen.findByText('The image is larger than 5 MB.')).toBeOnTheScreen()
+    await fireEvent.press(screen.getByText('Choose image to check'))
+    expect(await screen.findByText(/could not be prepared for checking/)).toBeOnTheScreen()
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('explains an interrupted upload and lets the user retry it', async () => {
+    pick.mockResolvedValue({
+      canceled: false,
+      assets: [{ uri: 'file:///shot.png', mimeType: 'image/png', width: 1080, height: 2400 }],
+    } as never)
+    fetchMock.mockImplementation(async (input) => {
+      if (String(input).endsWith('/api/health')) return jsonResponse({ status: 'ok', engine_version: '1', components: { api: 'ok' } })
+      throw new TypeError('Network request failed')
+    })
+    await wrap(<ImageCheck />)
+    await fireEvent.press(screen.getByText('Choose image to check'))
+    await screen.findByLabelText('Selected image')
+    await fireEvent.press(screen.getByText('Check image'))
+    expect(await screen.findByTestId('error-banner')).toHaveTextContent(/image upload was interrupted/)
+    fetchMock.mockImplementation(async () => jsonResponse(qrResult))
+    await fireEvent.press(screen.getByText('Try again'))
+    await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/result'))
   })
 })
 

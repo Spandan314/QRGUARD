@@ -8,8 +8,7 @@ const ACTIONS: { href: Href; icon: string; title: string; text: string }[] = [
   { href: '/scan/camera', icon: '📷', title: 'Scan a QR code', text: 'Check a QR code before you pay or open it.' },
   { href: '/check/url', icon: '🔗', title: 'Check a link', text: 'Look-alike domains, hidden redirects, known phishing.' },
   { href: '/check/message', icon: '💬', title: 'Check a message', text: 'Fake KYC, OTP requests, job, prize and UPI scams.' },
-  { href: '/check/screenshot', icon: '📱', title: 'Check a screenshot', text: 'Reads the text and QR codes in a screenshot.' },
-  { href: '/scan/image', icon: '🖼️', title: 'QR code from a photo', text: 'Check a QR code saved in your gallery.' },
+  { href: '/check/image', icon: '🖼️', title: 'Choose image to check', text: 'A screenshot of a message or a photo of a QR code.' },
 ]
 
 export default function Home() {

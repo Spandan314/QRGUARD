@@ -21,7 +21,7 @@ module.exports = defineConfig([
     },
   },
   {
-    files: ['src/components/OpenLinkGuard.tsx', 'src/**/*.test.{ts,tsx}'],
+    files: ['src/components/OpenLinkGuard.tsx', 'src/utils/systemSettings.ts', 'src/**/*.test.{ts,tsx}'],
     rules: { 'no-restricted-imports': 'off' },
   },
 ])

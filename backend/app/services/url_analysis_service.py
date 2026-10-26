@@ -18,11 +18,18 @@ from app.scoring.engine import ScoreResult, ScoringContext, score_indicators
 from app.scoring.indicator import Indicator
 from app.scoring.recommendations import DISCLAIMER, recommendation_for, summary_for
 from app.scoring.settings import ScoringSettings
-from app.threat_intelligence.base import ProviderResult
+from app.threat_intelligence.base import DEFINITIVE_STATUSES, ProviderResult, TIStatus
 from app.threat_intelligence.service import ThreatIntelService
 from app.utils.net_safety import resolve_host
 
 REDIRECT_MODES = ("off", "shorteners_only", "all")
+PROVIDER_NAMES = {
+    "local_feed": "local blocklist",
+    "urlhaus": "URLhaus",
+    "google_safe_browsing": "Google Safe Browsing",
+    "virustotal": "VirusTotal",
+    "phishtank": "PhishTank",
+}
 INCOMPLETE_STATUSES = {rr.TIMEOUT, rr.CONNECTION_ERROR, rr.TLS_ERROR, rr.INVALID_REDIRECT}
 
 
@@ -218,6 +225,90 @@ class UrlAnalysisService:
         if final_brand is not None and analysis.brand is None:
             analysis.brand = final_brand
 
+    # ----- checks performed (what the verdict is based on) ---------------------------------------
+    REDIRECT_DETAIL = {
+        rr.DNS_FAILURE: "the domain name does not resolve",
+        rr.TIMEOUT: "the website did not answer in time",
+        rr.CONNECTION_ERROR: "the website could not be reached",
+        rr.TLS_ERROR: "the website's HTTPS certificate could not be checked",
+        rr.TOO_MANY_REDIRECTS: "too many redirects",
+    }
+
+    def _checks(self, analysis: UrlAnalysis) -> list[dict[str, Any]]:
+        """Which checks ran, which could not, and why: the evidence behind the verdict."""
+        checks = [
+            {
+                "id": "url_structure",
+                "label": "Link structure and look-alike domains",
+                "status": "completed",
+                "detail": None,
+            }
+        ]
+        redirects = analysis.redirects or {}
+        status = redirects.get("status")
+        if not redirects.get("checked"):
+            checks.append(
+                {
+                    "id": "destination",
+                    "label": "Where the link leads (redirects)",
+                    "status": "not_run",
+                    "detail": redirects.get("reason") or "not checked",
+                }
+            )
+        elif status == rr.COMPLETED:
+            final_domain = redirects.get("final_domain")
+            if final_domain and final_domain != analysis.parsed.registrable_domain:
+                detail = f"leads to another website: {final_domain}"
+            elif redirects.get("redirect_count"):
+                detail = f"{redirects['redirect_count']} redirect(s) on the same website"
+            else:
+                detail = "no redirect"
+            checks.append(
+                {
+                    "id": "destination",
+                    "label": "Where the link leads (redirects)",
+                    "status": "completed",
+                    "detail": detail,
+                }
+            )
+        else:
+            checks.append(
+                {
+                    "id": "destination",
+                    "label": "Where the link leads (redirects)",
+                    "status": "incomplete",
+                    "detail": self.REDIRECT_DETAIL.get(status, str(status).replace("_", " ")),
+                }
+            )
+
+        answered = [r for r in analysis.ti_results if r.status in DEFINITIVE_STATUSES]
+        real = [r for r in answered if not r.limited]
+        failed = [
+            r for r in analysis.ti_results if r.status in (TIStatus.UNAVAILABLE, TIStatus.ERROR)
+        ]
+        if real:
+            ti_status, detail = (
+                "completed",
+                ", ".join(sorted({PROVIDER_NAMES.get(r.provider, r.provider) for r in real})),
+            )
+        elif answered:
+            ti_status, detail = "limited", "only QRGUARD's small demo blocklist"
+        elif failed:
+            ti_status, detail = "unavailable", "the providers could not be reached"
+        else:
+            ti_status, detail = "not_run", "no threat-intelligence provider is enabled"
+        if real and failed:
+            detail += " (some providers could not be reached)"
+        checks.append(
+            {
+                "id": "threat_intelligence",
+                "label": "Threat-intelligence databases",
+                "status": ti_status,
+                "detail": detail,
+            }
+        )
+        return checks
+
     # ----- response -----------------------------------------------------------------------------
     def build_response(
         self, analysis: UrlAnalysis, result: ScoreResult, input_type: str = "url"
@@ -252,6 +343,7 @@ class UrlAnalysisService:
                     "link's structure only.",
                 ),
             },
+            "checks": self._checks(analysis),
             "analysis": {
                 "input_url": parsed.original,
                 "normalized_url": parsed.normalized,

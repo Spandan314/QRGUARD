@@ -20,10 +20,9 @@ export default function RootLayout() {
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="scan/camera" options={{ title: 'Scan a QR code' }} />
-          <Stack.Screen name="scan/image" options={{ title: 'QR code from a photo' }} />
           <Stack.Screen name="check/url" options={{ title: 'Check a link' }} />
           <Stack.Screen name="check/message" options={{ title: 'Check a message' }} />
-          <Stack.Screen name="check/screenshot" options={{ title: 'Check a screenshot' }} />
+          <Stack.Screen name="check/image" options={{ title: 'Check an image' }} />
           <Stack.Screen name="generate" options={{ title: 'Make a QR code' }} />
           <Stack.Screen name="result" options={{ title: 'Result' }} />
         </Stack>
