@@ -1,11 +1,13 @@
 import ipaddress
 import socket
+import threading
 import time
 
 import pytest
 
 from app.utils import net_safety
 from app.utils.net_safety import (
+    DNSBusyError,
     DNSResolutionError,
     DNSTimeoutError,
     is_public_ip,
@@ -94,3 +96,51 @@ def test_resolve_host_returns_unique_addresses(monkeypatch):
     info = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.215.14", 443))] * 2
     monkeypatch.setattr(net_safety.socket, "getaddrinfo", lambda *a, **k: info)
     assert resolve_host("example.com", 443, timeout=1) == [ipaddress.ip_address("93.184.215.14")]
+
+
+def test_stuck_lookups_do_not_delay_a_healthy_one(monkeypatch):
+    release = threading.Event()
+    real = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.215.14", 443))]
+
+    def fake(host, *args, **kwargs):
+        if host.startswith("stuck"):
+            release.wait(5)  # a DNS server that never answers
+        return real
+
+    monkeypatch.setattr(net_safety.socket, "getaddrinfo", fake)
+    try:
+        for i in range(8):  # more than the old shared pool of 4 threads
+            with pytest.raises(DNSTimeoutError):
+                resolve_host(f"stuck{i}.example", 443, timeout=0.05)
+        start = time.monotonic()
+        assert resolve_host("healthy.example", 443, timeout=1) == [
+            ipaddress.ip_address("93.184.215.14")
+        ]
+        assert time.monotonic() - start < 0.5
+    finally:
+        release.set()
+    _wait_until_idle()
+
+
+def test_lookups_in_flight_are_capped_and_fail_fast(monkeypatch):
+    release = threading.Event()
+    monkeypatch.setattr(net_safety, "MAX_DNS_IN_FLIGHT", 3)
+    monkeypatch.setattr(net_safety.socket, "getaddrinfo", lambda *a, **k: release.wait(5) and [])
+    try:
+        for i in range(3):
+            with pytest.raises(DNSTimeoutError):
+                resolve_host(f"stuck{i}.example", 443, timeout=0.05)
+        start = time.monotonic()
+        with pytest.raises(DNSBusyError):
+            resolve_host("next.example", 443, timeout=1)
+        assert time.monotonic() - start < 0.1  # refused at once, no thread started
+    finally:
+        release.set()
+    _wait_until_idle()
+    assert net_safety.dns_lookups_in_flight() == 0
+
+
+def _wait_until_idle():
+    deadline = time.monotonic() + 5
+    while net_safety.dns_lookups_in_flight() and time.monotonic() < deadline:
+        time.sleep(0.01)

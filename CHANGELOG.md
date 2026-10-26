@@ -1,5 +1,22 @@
 # Changelog
 
+## Redirect checker hardening (October 2026, `feature/redirect-hardening`)
+
+- **Hard time limit per redirect request.** A socket read timeout restarts on every byte, so a
+  hostile server dripping one header byte at a time could hold a request thread indefinitely. A
+  watchdog now shuts the socket down at the request's wall-clock deadline (never beyond the total
+  budget), and a response cut short this way is treated as a timeout, never as an answer. The
+  GET fallback gets only what is left of the budget.
+- **DNS lookups cannot starve each other.** Lookups ran on a shared pool of 4 threads and a
+  timed-out `getaddrinfo` kept its thread, so four stuck lookups delayed every other one. Each
+  lookup now has its own thread; at most 16 may be in flight (abandoned ones included), beyond
+  which lookups fail at once.
+- **Per-worker cap on concurrent redirect checks** (`REDIRECT_MAX_CONCURRENT`, default 2). When
+  every slot is busy, the check is skipped and reported as incomplete (`capacity_exhausted`),
+  never as clean.
+- **`render.yaml` is back to `REDIRECT_RESOLUTION=shorteners_only`.** `all` is not enabled: it
+  lets anyone make the backend contact a server of their choice for every analysed link.
+
 ## Link action, evidence and threat intelligence (October 2026, `feature/link-verdict-ti`)
 
 - **Web: "Open checked link".** The web app never had an open action (links were plain text by
@@ -36,9 +53,8 @@ Details and root causes: docs/mobile-audit-2026-10.md.
   masked in `analysis.input_url` too. The app opens only the exact checked URL, names its host and
   any redirect target before opening, cautions on unverified links, and never opens `user@host`
   links.
-- **Redirects:** `render.yaml` now uses `REDIRECT_RESOLUTION=all` (same SSRF-hardened resolver), so
-  a link that forwards to another website is reported. The Render variable must be updated by
-  the account owner.
+- **Redirects:** `render.yaml` briefly used `REDIRECT_RESOLUTION=all`; this was reverted to
+  `shorteners_only` after a security review (see "Redirect checker hardening" above).
 - **Android camera:** full permission flow (explain → request → denied → permanently denied with
   Open settings → re-check on return), camera start-up error recovery, and alternatives.
 - **Android images:** "Check a screenshot" and "QR code from a photo" merged into **Choose image to

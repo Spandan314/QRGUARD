@@ -100,6 +100,7 @@ class Config:
     redirect_max_hops: int = 5
     redirect_timeout_seconds: int = 3
     redirect_total_timeout_seconds: int = 8
+    redirect_max_concurrent: int = 2  # redirect checks at once per worker process
     ratelimit_screenshot: str = "6 per minute;60 per day"
     max_image_megapixels: int = 25
     tesseract_cmd: str = "tesseract"
@@ -198,6 +199,7 @@ class Config:
             redirect_total_timeout_seconds=_get_int(
                 env, "REDIRECT_TOTAL_TIMEOUT_SECONDS", 8, 1, 30
             ),
+            redirect_max_concurrent=_get_int(env, "REDIRECT_MAX_CONCURRENT", 2, 1, 16),
             ratelimit_screenshot=env.get("RATELIMIT_SCREENSHOT", "").strip()
             or "6 per minute;60 per day",
             max_image_megapixels=_get_int(env, "MAX_IMAGE_MEGAPIXELS", 25, 1, 50),
