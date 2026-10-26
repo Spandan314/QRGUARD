@@ -3,6 +3,7 @@ import { CONFIDENCE_TEXT, VERDICT_STYLE } from '../utils/format'
 import { verdictOf } from '../utils/verdict'
 import { AnalysisDetailsView } from './AnalysisDetails'
 import { IndicatorList } from './IndicatorList'
+import { OpenCheckedLink } from './OpenCheckedLink'
 import { ReportForm } from './ReportForm'
 import { RiskBadge } from './RiskBadge'
 import { ScoreGauge } from './ScoreGauge'
@@ -70,9 +71,23 @@ function HistoryNotice({ result }: { result: AnalysisResult }) {
   )
 }
 
+/** The link the user may want to open: the checked URL, or a web link inside a QR code. */
+function openableTarget(result: AnalysisResult): string | null {
+  const a = result.analysis
+  if (a.qr?.content_type === 'url') return a.qr.decoded_content
+  if (result.input_type === 'url' && a.normalized_url) return a.normalized_url
+  return null
+}
+
 export function ResultCard({ result }: { result: AnalysisResult }) {
   const verdict = verdictOf(result)
   const style = VERDICT_STYLE[verdict.label]
+  const target = openableTarget(result)
+  const a = result.analysis
+  const finalUrl =
+    result.input_type === 'url' && a.redirects?.final_url && a.redirects.final_url !== a.normalized_url
+      ? a.redirects.final_url
+      : null
   return (
     <article
       className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
@@ -116,6 +131,8 @@ export function ResultCard({ result }: { result: AnalysisResult }) {
         <h3 className="mb-2 font-semibold">Why this result</h3>
         <IndicatorList indicators={result.indicators} />
       </section>
+
+      {target ? <OpenCheckedLink url={target} verdict={verdict.label} finalUrl={finalUrl} /> : null}
 
       <AnalysisDetailsView result={result} />
 

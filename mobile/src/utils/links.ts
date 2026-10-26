@@ -9,6 +9,14 @@ const AUTHORITY = /^https?:\/\/([^/?#]*)/i
 const HOST = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.?$/i
 const IPV6 = /^\[[0-9a-f:.]+\]$/i
 
+function hasControlCharacter(text: string): boolean {
+  for (let i = 0; i < text.length; i += 1) {
+    const code = text.charCodeAt(i)
+    if (code < 0x20 || code === 0x7f) return true
+  }
+  return false
+}
+
 /** The host[:port] part of an http(s) link, or null. */
 function authorityOf(url: string): string | null {
   return AUTHORITY.exec(url)?.[1] ?? null
@@ -17,7 +25,7 @@ function authorityOf(url: string): string | null {
 /** Only plain http(s) web links with a valid host; intent:, javascript:, data:, file: etc. never. */
 export function isOpenableUrl(url: string): boolean {
   const text = url.trim()
-  if (text !== url || /[\s<>"'`\\\u0000-\u001f\u007f]/.test(text)) return false
+  if (text !== url || /[\s<>"'`\\]/.test(text) || hasControlCharacter(text)) return false
   const authority = authorityOf(text)
   if (!authority || authority.includes('@')) return false
   const host = authority.replace(/:\d{1,5}$/, '')

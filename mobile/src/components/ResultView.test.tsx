@@ -139,6 +139,21 @@ describe('OpenLinkGuard', () => {
     expect(open).toHaveBeenCalledTimes(1)
   })
 
+  it.each([
+    ['offer.com', 'https://offer.com/'],
+    ['https://offer.com', 'https://offer.com/'],
+    ['OFFER.COM/Deals', 'https://offer.com/Deals'],
+  ])('typed %s: opens exactly the analysed %s and only after confirmation', async (typed, normalized) => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => undefined)
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true)
+    await render(<ResultView result={{ ...safeUnverified, analysis: { input_url: typed, normalized_url: normalized } }} />)
+    await press('Open link')
+    expect(open).not.toHaveBeenCalled()
+    expect(String(alert.mock.calls[0]?.[1])).toContain(`You are about to open offer.com:\n${normalized}`)
+    alert.mock.calls[0]?.[2]?.find((b) => b.text === 'Open')?.onPress?.()
+    expect(open).toHaveBeenCalledWith(normalized)
+  })
+
   it('never opens a link that hides its host behind "@"', async () => {
     await render(<ResultView result={{ ...maliciousUrl, analysis: { normalized_url: 'https://paypal.com@evil.example/login' } }} />)
     expect(screen.queryByText(/Open link/)).toBeNull()

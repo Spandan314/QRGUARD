@@ -15,6 +15,8 @@ export type VerdictLabel = 'SAFE' | 'UNVERIFIED' | 'SUSPICIOUS' | 'MALICIOUS'
 export interface Verdict {
   label: VerdictLabel
   confirmed: boolean
+  /** What the verdict rests on (newer backends): demo_blocklist is demonstration data, never real TI. */
+  evidence?: 'threat_intelligence' | 'trusted_list' | 'warning_signs' | 'demo_blocklist' | 'insufficient'
   title: string
   explanation: string
 }
