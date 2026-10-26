@@ -215,6 +215,7 @@ Rules (configured in `verification:`):
 | SAFE + UNVERIFIED | "No significant suspicious indicators detected. The link could not be verified, so this does not guarantee that the website is safe." |
 | SUSPICIOUS (any) | "Several warning signs were found. Treat this link as suspicious." |
 | MALICIOUS + VERIFIED (threat_intelligence) | "Strong warning signs…" plus verification message "A threat-intelligence source lists this as known malicious." |
+| MALICIOUS from the demo blocklist only (`TI_DEMO_LISTED`) | Same score floor (90) as a real listing so the demo works, but UNVERIFIED with the message "Listed only on QRGUARD's demo blocklist (demonstration data)…", `verdict.confirmed: false`, `verdict.evidence: "demo_blocklist"`, and no HIGH confidence from the floor alone. Real feeds downloaded with `ti-update-feeds` and the API providers produce `TI_LISTED`. |
 
 Suggested UI:
 
