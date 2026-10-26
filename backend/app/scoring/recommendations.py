@@ -231,26 +231,51 @@ _UNVERIFIED_EXPLANATIONS = {
 }
 
 
-def verdict_for(risk_level: str, verification: dict, input_type: str) -> dict:
-    """Headline verdict for a scored result (see the table above)."""
+def verdict_for(result: dict) -> dict:
+    """Headline verdict for a scored response (see the table above).
+
+    ``evidence`` says what the verdict rests on: ``threat_intelligence`` (a real provider lists
+    it), ``trusted_list`` (recognised domain), ``warning_signs`` (QRGUARD's own rules),
+    ``demo_blocklist`` (only the built-in demo data) or ``insufficient`` (nothing either way).
+    """
+    risk_level = result["risk_level"]
+    verification = result["verification"]
+    input_type = result["input_type"]
+    ids = {i["id"] for i in result.get("indicators", [])}
     if risk_level == MALICIOUS:
         confirmed = verification.get("source") == "threat_intelligence"
+        demo = not confirmed and "TI_DEMO_LISTED" in ids
+        if confirmed:
+            title, explanation, evidence = (
+                "Malicious – listed by threat intelligence",
+                "A threat-intelligence source lists this as known malicious.",
+                "threat_intelligence",
+            )
+        elif demo:
+            title, explanation, evidence = (
+                "Malicious – on QRGUARD's demo blocklist",
+                "It is on QRGUARD's built-in demo blocklist (demonstration data). No real "
+                "threat-intelligence source has confirmed it.",
+                "demo_blocklist",
+            )
+        else:
+            title, explanation, evidence = (
+                "Very likely malicious",
+                "Strong warning signs were found.",
+                "warning_signs",
+            )
         return {
             "label": VERDICT_MALICIOUS,
             "confirmed": confirmed,
-            "title": "Malicious – listed by threat intelligence"
-            if confirmed
-            else "Very likely malicious",
-            "explanation": (
-                "A threat-intelligence source lists this as known malicious."
-                if confirmed
-                else "Strong warning signs were found."
-            ),
+            "evidence": evidence,
+            "title": title,
+            "explanation": explanation,
         }
     if risk_level == SUSPICIOUS:
         return {
             "label": VERDICT_SUSPICIOUS,
             "confirmed": False,
+            "evidence": "warning_signs",
             "title": "Suspicious",
             "explanation": "Several warning signs were found.",
         }
@@ -258,6 +283,7 @@ def verdict_for(risk_level: str, verification: dict, input_type: str) -> dict:
         return {
             "label": VERDICT_SAFE,
             "confirmed": True,
+            "evidence": "trusted_list",
             "title": "Recognised legitimate website",
             "explanation": "The domain is on QRGUARD's list of recognised websites and no "
             "significant warning signs were found.",
@@ -266,6 +292,7 @@ def verdict_for(risk_level: str, verification: dict, input_type: str) -> dict:
     return {
         "label": VERDICT_UNVERIFIED,
         "confirmed": False,
+        "evidence": "insufficient",
         "title": _UNVERIFIED_TITLES.get(input_type, _UNVERIFIED_TITLES["url"]),
         "explanation": _UNVERIFIED_EXPLANATIONS[kind],
     }

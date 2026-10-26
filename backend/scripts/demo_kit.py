@@ -64,8 +64,9 @@ SCENARIOS = [
         "qr",
         "http://secure-sbi-kyc-update.example/login",
         "MALICIOUS",
-        True,
-        "Threat-intelligence hit: MALICIOUS and verified by a threat list.",
+        False,
+        "Demo blocklist hit: MALICIOUS, but honestly labelled as demo data, not verified threat "
+        "intelligence (real providers switch on with API keys).",
     ),
     Scenario(
         4,

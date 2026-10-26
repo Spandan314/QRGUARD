@@ -30,6 +30,7 @@ PROVIDER_NAMES = {
     "virustotal": "VirusTotal",
     "phishtank": "PhishTank",
 }
+FAILED_STATUSES = {TIStatus.UNAVAILABLE, TIStatus.ERROR}
 INCOMPLETE_STATUSES = {rr.TIMEOUT, rr.CONNECTION_ERROR, rr.TLS_ERROR, rr.INVALID_REDIRECT}
 
 
@@ -116,6 +117,10 @@ class UrlAnalysisService:
             urls_to_check.append(final_url)
         for url in urls_to_check:
             analysis.ti_results.extend(self.threat_intel.check(url, parsed.registrable_domain))
+        # An enabled provider that timed out, was rate limited or rejected its key gave NO answer:
+        # that is an incomplete check (lower confidence), never a clean result.
+        if any(r.status in FAILED_STATUSES and not r.limited for r in analysis.ti_results):
+            analysis.incomplete_checks = True
         return analysis
 
     # ----- redirects ----------------------------------------------------------------------------
@@ -281,33 +286,45 @@ class UrlAnalysisService:
                 }
             )
 
-        answered = [r for r in analysis.ti_results if r.status in DEFINITIVE_STATUSES]
-        real = [r for r in answered if not r.limited]
-        failed = [
-            r for r in analysis.ti_results if r.status in (TIStatus.UNAVAILABLE, TIStatus.ERROR)
-        ]
-        if real:
-            ti_status, detail = (
-                "completed",
-                ", ".join(sorted({PROVIDER_NAMES.get(r.provider, r.provider) for r in real})),
-            )
-        elif answered:
-            ti_status, detail = "limited", "only QRGUARD's small demo blocklist"
-        elif failed:
-            ti_status, detail = "unavailable", "the providers could not be reached"
-        else:
-            ti_status, detail = "not_run", "no threat-intelligence provider is enabled"
-        if real and failed:
-            detail += " (some providers could not be reached)"
-        checks.append(
-            {
-                "id": "threat_intelligence",
-                "label": "Threat-intelligence databases",
-                "status": ti_status,
-                "detail": detail,
-            }
-        )
+        checks.append(self._ti_check(analysis.ti_results))
         return checks
+
+    @staticmethod
+    def _ti_check(results: list[ProviderResult]) -> dict[str, Any]:
+        """Which real providers answered, which failed (and why), or that none is enabled."""
+
+        def names(rows: list[ProviderResult]) -> str:
+            return ", ".join(sorted({PROVIDER_NAMES.get(r.provider, r.provider) for r in rows}))
+
+        def failures(rows: list[ProviderResult]) -> str:
+            default = {TIStatus.UNAVAILABLE: "no answer", TIStatus.ERROR: "configuration problem"}
+            return ", ".join(
+                f"{PROVIDER_NAMES.get(r.provider, r.provider)} ({r.detail or default[r.status]})"
+                for r in sorted(rows, key=lambda r: r.provider)
+            )
+
+        real = [r for r in results if not r.limited and r.status != TIStatus.DISABLED]
+        answered = [r for r in real if r.status in DEFINITIVE_STATUSES]
+        failed = [r for r in real if r.status in FAILED_STATUSES]
+        demo_answered = any(r.limited and r.status in DEFINITIVE_STATUSES for r in results)
+        if answered and not failed:
+            status, detail = "completed", names(answered)
+        elif answered:
+            status = "incomplete"
+            detail = f"answered: {names(answered)}; could not be checked: {failures(failed)}"
+        elif failed:
+            status, detail = "unavailable", f"could not be checked: {failures(failed)}"
+        elif demo_answered:
+            status = "limited"
+            detail = "no real provider is enabled; only QRGUARD's demo blocklist was checked"
+        else:
+            status, detail = "not_run", "no threat-intelligence provider is enabled"
+        return {
+            "id": "threat_intelligence",
+            "label": "Threat-intelligence databases",
+            "status": status,
+            "detail": detail,
+        }
 
     # ----- response -----------------------------------------------------------------------------
     def build_response(

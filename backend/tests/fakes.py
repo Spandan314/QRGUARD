@@ -122,7 +122,7 @@ __all__ = [
 class FakeHttp:
     """Stands in for the threat-intel HTTP client: returns canned responses, records requests."""
 
-    def __init__(self, status: int = 200, data=None, error: bool = False) -> None:
+    def __init__(self, status: int = 200, data=None, error: bool | str = False) -> None:
         self.status = status
         self.data = data
         self.error = error
@@ -133,7 +133,7 @@ class FakeHttp:
             {"method": method, "url": url, "headers": headers or {}, "body": body or b""}
         )
         if self.error:
-            raise TIHttpError("network error")
+            raise TIHttpError(self.error if isinstance(self.error, str) else "network error")
         return HttpResponse(self.status, self.data)
 
 

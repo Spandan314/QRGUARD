@@ -96,8 +96,10 @@ def test_missing_api_key_disables_the_provider_without_any_request(cls, key):
 @pytest.mark.parametrize(
     ("http", "status", "detail"),
     [
-        (FakeHttp(error=True), TIStatus.UNAVAILABLE, "network error"),  # timeout / DNS / TLS
+        (FakeHttp(error=True), TIStatus.UNAVAILABLE, "network error"),  # DNS / TLS / reset
+        (FakeHttp(error="timeout"), TIStatus.UNAVAILABLE, "timeout"),
         (FakeHttp(429, {}), TIStatus.UNAVAILABLE, "rate limited"),
+        (FakeHttp(509, {}), TIStatus.UNAVAILABLE, "rate limited"),  # PhishTank's limit
         (FakeHttp(500, None), TIStatus.UNAVAILABLE, "provider error"),
         (FakeHttp(503, {}), TIStatus.UNAVAILABLE, "provider error"),
         (FakeHttp(401, {}), TIStatus.ERROR, "configuration"),
@@ -226,6 +228,18 @@ def test_http_client_errors_never_carry_the_request_text(monkeypatch):
         client.request("GET", f"https://api.test/?key={KEY}", timeout=1)
     assert KEY not in str(info.value) and info.value.__cause__ is None
     assert info.value.__suppress_context__
+
+
+def test_http_client_reports_timeouts_as_timeouts(monkeypatch):
+    client = Urllib3Client()
+
+    def slow(*args, **kwargs):
+        raise urllib3.exceptions.ReadTimeoutError(None, f"https://api.test/?key={KEY}", "read")
+
+    monkeypatch.setattr(client._pool, "request", slow)
+    with pytest.raises(TIHttpError) as info:
+        client.request("GET", f"https://api.test/?key={KEY}", timeout=1)
+    assert str(info.value) == "timeout" and KEY not in str(info.value)
 
 
 class _Body:

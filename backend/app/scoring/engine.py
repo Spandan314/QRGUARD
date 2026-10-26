@@ -49,6 +49,12 @@ FALLBACK_CATEGORY = "social_engineering_other"
 # Where each piece of evidence came from, as shown in the API ("source" of an indicator).
 EVIDENCE_SOURCES = ("message", "link", "qr", "threat_intelligence", "combination", "ocr")
 
+DEMO_LISTED = "TI_DEMO_LISTED"
+DEMO_LISTED_MESSAGE = (
+    "Listed only on QRGUARD's demo blocklist (demonstration data). No real threat-intelligence "
+    "source has confirmed it."
+)
+
 VERIFICATION_MESSAGES = {
     SOURCE_THREAT_INTEL: "A threat-intelligence source lists this as known malicious.",
     SOURCE_TRUSTED_LIST: "The domain is on QRGUARD's list of recognised legitimate websites.",
@@ -85,9 +91,14 @@ class ScoreResult:
 
 
 def threat_intel_indicators(results: list[ProviderResult]) -> list[Indicator]:
-    listed = [r.provider for r in results if r.status == TIStatus.LISTED]
+    listed = [r.provider for r in results if r.status == TIStatus.LISTED and not r.limited]
     if listed:
         return [Indicator("TI_LISTED", "Listed by: " + ", ".join(listed))]
+    # QRGUARD's built-in demo blocklist is demonstration data, not threat intelligence: a hit
+    # still scores (so the demo works) but never verifies or "confirms" anything.
+    demo = [r.provider for r in results if r.status == TIStatus.LISTED and r.limited]
+    if demo:
+        return [Indicator("TI_DEMO_LISTED", "QRGUARD demo blocklist (demonstration data)")]
     partial = [r.provider for r in results if r.status == TIStatus.PARTIAL]
     if partial:
         return [Indicator("TI_PARTIAL", "Flagged by: " + ", ".join(partial))]
@@ -220,7 +231,9 @@ def score_indicators(
     else:
         source = None
     message = VERIFICATION_MESSAGES[source]
-    if source is None and context.unverified_message:
+    if source is None and DEMO_LISTED in ids:
+        message = DEMO_LISTED_MESSAGE
+    elif source is None and context.unverified_message:
         message = context.unverified_message
     verification = {
         "status": VERIFIED if source else UNVERIFIED,
@@ -234,11 +247,8 @@ def score_indicators(
     positive_categories = {
         definitions[i.id].category for i in all_indicators if definitions[i.id].weight > 0
     }
-    if (
-        "TI_LISTED" in ids
-        or floor_applied
-        or (level == MALICIOUS and len(positive_categories) >= 3)
-    ):
+    real_floor = floor_applied is not None and floor_applied["indicator"] != DEMO_LISTED
+    if "TI_LISTED" in ids or real_floor or (level == MALICIOUS and len(positive_categories) >= 3):
         confidence = "HIGH"
     elif (
         context.incomplete_checks

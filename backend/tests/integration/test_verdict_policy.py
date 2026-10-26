@@ -60,11 +60,23 @@ def test_only_a_recognised_domain_gets_the_safe_verdict(client):
     assert body["verification"]["source"] == "trusted_domain_list"
 
 
-def test_threat_intel_listing_is_a_confirmed_malicious_verdict(client):
+def test_demo_blocklist_hit_is_never_a_confirmed_verdict(client):
     body = check(client, "http://secure-sbi-kyc-update.example/login").get_json()
+    assert body["verdict"]["label"] == "MALICIOUS"
+    assert body["verdict"]["confirmed"] is False
+    assert body["verdict"]["evidence"] == "demo_blocklist"
+    assert body["verdict"]["title"] == "Malicious – on QRGUARD's demo blocklist"
+
+
+def test_real_threat_intel_listing_is_a_confirmed_malicious_verdict(app, client):
+    app.extensions["qrguard.url_analysis"].threat_intel = ThreatIntelService(
+        [FakeProvider("google_safe_browsing", TIStatus.LISTED, "phishing")]
+    )
+    body = check(client, "https://offer.com/").get_json()
     assert body["verdict"] == {
         "label": "MALICIOUS",
         "confirmed": True,
+        "evidence": "threat_intelligence",
         "title": "Malicious – listed by threat intelligence",
         "explanation": "A threat-intelligence source lists this as known malicious.",
     }
@@ -112,8 +124,73 @@ def test_checks_report_the_demo_blocklist_as_limited(client):
         "id": "threat_intelligence",
         "label": "Threat-intelligence databases",
         "status": "limited",
-        "detail": "only QRGUARD's small demo blocklist",
+        "detail": "no real provider is enabled; only QRGUARD's demo blocklist was checked",
     }
+
+
+@pytest.mark.parametrize(
+    ("status", "detail", "expected"),
+    [
+        (TIStatus.UNAVAILABLE, "timeout", "Google Safe Browsing (timeout)"),
+        (TIStatus.UNAVAILABLE, "rate limited", "Google Safe Browsing (rate limited)"),
+        (TIStatus.ERROR, "configuration", "Google Safe Browsing (configuration)"),
+    ],
+)
+def test_a_failed_provider_is_never_a_clean_result(app, client, status, detail, expected):
+    from app.threat_intelligence.base import ProviderResult, ThreatIntelProvider
+
+    class Failing(ThreatIntelProvider):
+        name = "google_safe_browsing"
+
+        def check_url(self, normalized_url, domain):
+            return ProviderResult(self.name, status, detail=detail)
+
+    app.extensions["qrguard.url_analysis"].threat_intel = ThreatIntelService([Failing()])
+    body = check(client, "offer.com").get_json()
+    ti = checks_by_id(body)["threat_intelligence"]
+    assert ti["status"] == "unavailable" and ti["detail"] == f"could not be checked: {expected}"
+    assert body["confidence"] == "LOW"
+    assert (
+        body["verdict"]["label"] == "UNVERIFIED" and body["verdict"]["evidence"] == "insufficient"
+    )
+
+
+def test_partly_failed_providers_are_reported_as_incomplete(app, client):
+    app.extensions["qrguard.url_analysis"].threat_intel = ThreatIntelService(
+        [
+            FakeProvider("urlhaus", TIStatus.NOT_LISTED),
+            FakeProvider("virustotal", TIStatus.UNAVAILABLE),
+        ]
+    )
+    body = check(client, "offer.com").get_json()
+    ti = checks_by_id(body)["threat_intelligence"]
+    assert ti["status"] == "incomplete"
+    assert ti["detail"] == "answered: URLhaus; could not be checked: VirusTotal (no answer)"
+    assert body["confidence"] == "LOW"
+
+
+@pytest.mark.parametrize(
+    ("url", "providers", "label", "evidence"),
+    [
+        ("https://www.google.com/", [], "SAFE", "trusted_list"),
+        ("offer.com", [], "UNVERIFIED", "insufficient"),
+        ("offer.com", [("urlhaus", TIStatus.NOT_LISTED)], "UNVERIFIED", "insufficient"),
+        ("http://paypal-secure-login.xyz/verify", [], "SUSPICIOUS", "warning_signs"),
+        ("https://amaz0n-offers.example/deal", [], "MALICIOUS", "warning_signs"),
+        ("offer.com", [("urlhaus", TIStatus.LISTED)], "MALICIOUS", "threat_intelligence"),
+    ],
+)
+def test_every_verdict_states_what_it_rests_on(app, client, url, providers, label, evidence):
+    if providers:
+        app.extensions["qrguard.url_analysis"].threat_intel = ThreatIntelService(
+            [FakeProvider(name, status) for name, status in providers]
+        )
+    body = check(client, url).get_json()
+    assert (body["verdict"]["label"], body["verdict"]["evidence"]) == (label, evidence)
+    if label == "SAFE":
+        assert body["verification"]["status"] == "VERIFIED"
+    if body["risk_score"] == 0 and label != "SAFE":
+        assert body["verdict"]["label"] == "UNVERIFIED"  # a zero score is not proof of safety
 
 
 def test_checks_name_the_real_providers_that_answered(app, client):

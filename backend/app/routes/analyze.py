@@ -36,7 +36,7 @@ def _respond(result: dict, kind: str, save_to_history: bool):
     body = {
         "request_id": g.request_id,
         **result,
-        "verdict": verdict_for(result["risk_level"], result["verification"], result["input_type"]),
+        "verdict": verdict_for(result),
         "engine_version": __version__,
     }
     if history is not None:
