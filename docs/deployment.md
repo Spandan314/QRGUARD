@@ -139,6 +139,26 @@ Notes:
 - Optional: download public blocklists with `flask --app wsgi ti-update-feeds` (needs
   `THREAT_INTEL_FEED_DIR`). Without it, only the demo blocklist is used, and results say so.
 
+### 2a. Settings that change what QRGUARD can check (Render → qrguard-api → Environment)
+
+Render applies `render.yaml` only when a Blueprint is created or synced, so on an existing service
+change these values on the **Environment** page and choose **Save, rebuild, and deploy**.
+
+| Variable | Recommended | Effect |
+|---|---|---|
+| `REDIRECT_RESOLUTION` | `all` | Follows every checked link's redirects so a link that forwards to another website (e.g. `offer.com` → `offers.com`) is reported. The resolver only sends HEAD requests (GET only if HEAD is refused) and never reads a page body. It connects only to public IPs, with the IP pinned against DNS rebinding, ports 80/443, a maximum number of hops and strict time limits (`backend/app/analyzers/redirect_resolver.py`). Trade-off: the link's website sees one request from Render's IP. `shorteners_only` (the previous value) follows only bit.ly-style links; `off` contacts nothing. |
+| `URLHAUS_AUTH_KEY` | optional, **secret** | abuse.ch URLhaus lookups (malware URLs). Free: create an abuse.ch account and an Auth-Key at https://auth.abuse.ch/. |
+| `GOOGLE_SAFE_BROWSING_API_KEY` | optional, **secret** | Google Safe Browsing Lookup API v4 (phishing, malware). Needs a Google Cloud project with the *Safe Browsing API* enabled and an API key restricted to that API. Google offers this API free of charge for **non-commercial** use. **Do not add a billing account for it.** If Google asks for billing, leave this provider disabled. |
+| `VIRUSTOTAL_API_KEY` | optional, **secret** | VirusTotal v3 URL lookups (a URL is looked up, never submitted). The free public API is for non-commercial use and is rate-limited (about 4 requests/minute and a daily quota); QRGUARD paces itself to 4/min per process and reports "rate limited" when the quota is used up. |
+| `PHISHTANK_API_KEY` | optional, **secret** | PhishTank lookups. New API registrations have been closed for a long time; only usable with an existing key. |
+
+Each key only switches a provider on: without it the provider shows as "Not enabled" and the result
+says that only the demo blocklist was checked. A wrong key shows "Configuration problem", and a
+timeout or rate limit shows "Could not be checked"; none of these ever makes a link look safer.
+The terms above were last verified with the provider integrations; free tiers and terms change, so
+confirm them on each provider's site before relying on a key. Keys stay on Render only: never in
+`EXPO_PUBLIC_*` / `VITE_*` variables, the APK or GitHub.
+
 ### Other Docker hosts
 
 The same image runs anywhere:

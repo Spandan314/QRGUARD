@@ -17,11 +17,11 @@ history, reports, account/privacy controls and an admin view.
 
 | Suite | Result |
 |---|---|
-| Backend (pytest, incl. Firestore emulator) | 831 tests, 95% coverage (98% with the Firestore emulator), Ruff clean |
+| Backend (pytest, incl. Firestore emulator) | 897 tests, 95% coverage (without the emulator), Ruff clean |
 | Firestore security rules | 7 tests |
 | Postman / Newman | 83 requests, 303 assertions |
-| Web (Vitest) | 73 tests, 91% statements, lint with zero warnings |
-| Mobile (Jest) | 73 tests, 88% statements, lint with zero warnings |
+| Web (Vitest) | 74 tests, 91% statements, lint with zero warnings |
+| Mobile (Jest) | 96 tests, 88% statements, lint with zero warnings |
 | End-to-end (`e2e/run.sh`: browsers → apps → Firebase emulators → Flask, production headers) | 18 flows + log privacy check |
 | Demo kit / smoke test | 11/11 demo scenarios, 11/11 deployment checks |
 
@@ -74,6 +74,9 @@ made the Firebase configuration work on the free Spark plan (see [CHANGELOG.md](
 
 - **All analysis runs on the backend**: the apps are thin clients with no security logic, so web and
   Android always give the same verdict, and API keys never reach a device.
+- **Evidence-based verdicts**: ✅ SAFE only for recognised websites; anything without evidence
+  either way is ❔ NOT VERIFIED, with the checks that ran and those that could not
+  ([audit](docs/mobile-audit-2026-10.md)).
 - **Explainable, rule-based scoring**: every result lists its indicators, points per source, a
   recommendation and a separate verification status. Details: [docs/architecture.md](docs/architecture.md),
   [docs/risk-scoring.md](docs/risk-scoring.md), [docs/api-spec.md](docs/api-spec.md).
@@ -157,6 +160,9 @@ next to each component:
 - QR codes: a UPI QR alone is at most SUSPICIOUS by design ([risk-scoring §13.5](docs/risk-scoring.md)).
 - Threat intelligence: only the demo blocklist without API keys; "not listed" never means safe
   ([threat-intelligence §9](docs/threat-intelligence.md)).
+- Link verdicts without provider keys rest on the link's structure, look-alike checks and redirects
+  only; such links show **NOT VERIFIED**, never SAFE. No WHOIS/domain age, no page-content
+  analysis and no machine-learning model are used ([mobile audit §2](docs/mobile-audit-2026-10.md)).
 - History retention: Firestore TTL needs a paid plan, so expired history is hidden immediately but
   deleted only at the owner's next sign-in/history view or by an admin purge (Admin page,
   `POST /api/admin/history/purge-expired` or `flask --app wsgi purge-expired-history`), not on a
@@ -178,6 +184,7 @@ next to each component:
 | [docs/testing.md](docs/testing.md) | Unit, integration, emulator, Newman and end-to-end tests |
 | [docs/evaluation.md](docs/evaluation.md) | Measured precision/recall on held-out data, and error analysis |
 | [docs/deployment.md](docs/deployment.md) | Firebase, Render, Vercel and EAS deployment, smoke test, go-live checklist |
+| [docs/mobile-audit-2026-10.md](docs/mobile-audit-2026-10.md) | Mobile production audit: root causes, verdict policy, architecture-diagram status, limitations |
 | [docs/demo-runbook.md](docs/demo-runbook.md) | Final Android + web demonstration script, demo QR sheet, fallbacks |
 | [docs/git-workflow.md](docs/git-workflow.md) | Branching, PRs, reviews, CI for a 4-member team |
 | [docs/roadmap.md](docs/roadmap.md) | 12-week plan by member |

@@ -319,7 +319,7 @@ evidence in the link" as evidence of safety, the same mistake we ruled out for t
 | Case | Text | Link | Weighted | Final | Rule used |
 |---|---|---|---|---|---|
 | Scam text, clean link | 80 | 0 | 29.1 | **80** | `primary_evidence` |
-| Fake KYC (demo) | 65 | 58 | 60.5 | **65** | `primary_evidence` |
+| Fake KYC (demo) | 75 | 58 | 64.2 | **75** | `primary_evidence` |
 | "Reward points expire today. Redeem: https://hdfcbnak.com/…" | 20 | 45 (+ floor 60) | 35.9 | **60** | `weighted_with_additional_evidence` + floor |
 | Text 40, link 75 | 40 | 75 | 62.3 | **62** | `weighted_with_additional_evidence` |
 | Any text + TI-listed link | — | — | — | **≥ 90** | floor |

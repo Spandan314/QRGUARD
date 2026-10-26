@@ -31,6 +31,16 @@ All items are synthetic DEMO / TEST DATA (no real people's data; reserved or fak
 | Held-out messages | 24 (12/12) | 0.833 | 0.909 | 0.870 | 0.875 | 1 | 2 | 0 |
 | Held-out URLs | 24 (12/12) | 0.917 | 1.000 | 0.957 | 0.958 | 0 | 1 | 0 |
 | Tuning messages (in-sample) | 39 (25/14) | 1.000 | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 |
+| Audit messages, **before** the October 2026 rule changes | 32 (16/16) | 0.688 | 1.000 | 0.815 | 0.844 | 0 | 5 | 0 |
+| Audit messages, after them (in-sample) | 32 (16/16) | 1.000 | 1.000 | 1.000 | 1.000 | 0 | 0 | 0 |
+
+The audit set (`demo-data/evaluation/audit-2026-10.yaml`) covers fake UPI requests, refunds,
+KYC/account blocking, OTP theft, fake customer care, lottery/prize, job, investment, boss/family
+impersonation, shortened and deceptive links, plus 16 genuine messages that use the same alarming
+words. It was measured before any change. Its five misses led to four narrow rule additions (see
+docs/mobile-audit-2026-10.md §4), so its second row is in-sample. The hold-out rows above were not
+affected: the same metrics as before the change. The one visible effect there is that
+`m-gift-card-boss` now scores 25 instead of 15, still a miss.
 
 Confusion (held-out):
 
@@ -65,9 +75,10 @@ narrower OTP rule that allows "share only with the delivery partner") must be ev
 
 ## What SAFE means
 
-SAFE means "no significant indicators were found", not "verified safe". The API and both apps
-always show the verification status separately (UNVERIFIED unless a trusted source confirms it),
-and the SAFE summary says it does not guarantee safety. The missed items above are exactly why.
+The SAFE *score band* (`risk_level`, used in these tables) means "no significant indicators were
+found", not "verified safe". Since October 2026 the apps therefore show the evidence-based
+`verdict` instead: **SAFE only for a recognised domain**, and **NOT VERIFIED** for everything else in
+that band (docs/api-spec.md, "Verdicts"). The missed items above are exactly why.
 
 ## Performance
 
