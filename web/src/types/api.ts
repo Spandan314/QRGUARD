@@ -8,6 +8,26 @@ export type Severity = 'info' | 'low' | 'medium' | 'high' | 'critical'
 export type EvidenceSource = 'message' | 'link' | 'qr' | 'threat_intelligence' | 'combination' | 'ocr'
 export type TIStatus = 'listed' | 'partial' | 'not_listed' | 'unavailable' | 'disabled' | 'error'
 
+/** Headline verdict. SAFE only when positively recognised; no evidence either way is UNVERIFIED. */
+export type VerdictLabel = 'SAFE' | 'UNVERIFIED' | 'SUSPICIOUS' | 'MALICIOUS'
+
+export interface Verdict {
+  label: VerdictLabel
+  confirmed: boolean
+  title: string
+  explanation: string
+}
+
+export type CheckStatus = 'completed' | 'limited' | 'not_run' | 'incomplete' | 'unavailable'
+
+/** One check behind a link verdict: what ran, what could not, and why. */
+export interface Check {
+  id: string
+  label: string
+  status: CheckStatus
+  detail: string | null
+}
+
 export interface Verification {
   status: 'VERIFIED' | 'UNVERIFIED'
   source: 'trusted_domain_list' | 'threat_intelligence' | null
@@ -119,6 +139,9 @@ export interface AnalysisResult {
   risk_level: RiskLevel
   confidence: Confidence
   verification: Verification
+  /** Added by newer backends; older ones are handled by utils/verdict.ts. */
+  verdict?: Verdict
+  checks?: Check[]
   summary: string
   categories: Category[]
   indicators: Indicator[]

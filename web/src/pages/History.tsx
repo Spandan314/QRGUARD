@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { ErrorAlert } from '../components/ErrorAlert'
 import { RiskBadge } from '../components/RiskBadge'
+import { verdictLabel } from '../utils/verdict'
 import { useAuth } from '../context/AuthContext'
 import { api, ApiError } from '../services/api'
 import type { HistoryItem } from '../types/api'
@@ -30,7 +31,7 @@ function HistoryRow({ item, onDelete }: { item: HistoryItem; onDelete: (id: stri
     <li className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900" data-testid="history-item">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-3">
-          <RiskBadge level={item.risk_level} size="sm" />
+          <RiskBadge verdict={verdictLabel(item.risk_level, item.verification)} size="sm" />
           <span className="font-mono text-sm">{item.risk_score}/100</span>
           <span className="text-sm text-slate-600 dark:text-slate-300">
             {TYPE_LABEL[item.input_type]} · {describeTarget(item)}

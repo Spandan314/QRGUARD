@@ -1,9 +1,9 @@
-import type { RiskLevel } from '../types/api'
-import { LEVEL_STYLE } from '../utils/format'
+import type { VerdictLabel } from '../types/api'
+import { VERDICT_STYLE } from '../utils/format'
 
-/** Icon + word + colour, so the level never depends on colour alone. */
-export function RiskBadge({ level, size = 'md' }: { level: RiskLevel; size?: 'sm' | 'md' | 'lg' }) {
-  const style = LEVEL_STYLE[level]
+/** Icon + word + colour, so the verdict never depends on colour alone. */
+export function RiskBadge({ verdict, size = 'md' }: { verdict: VerdictLabel; size?: 'sm' | 'md' | 'lg' }) {
+  const style = VERDICT_STYLE[verdict]
   const sizing = { sm: 'px-2 py-0.5 text-xs', md: 'px-3 py-1 text-sm', lg: 'px-4 py-2 text-lg' }[size]
   return (
     <span
@@ -11,7 +11,7 @@ export function RiskBadge({ level, size = 'md' }: { level: RiskLevel; size?: 'sm
       data-testid="risk-badge"
     >
       <span aria-hidden="true">{style.icon}</span>
-      {level}
+      {style.label}
     </span>
   )
 }
