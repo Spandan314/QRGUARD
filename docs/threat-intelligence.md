@@ -76,7 +76,9 @@ The URL analyzer checks the normalised URL and, for shortened links, also the fi
 
 "Live-verified" means a real request with a real key succeeded. This environment cannot reach the
 providers, so none is claimed. The self-test (`cd backend && python -m scripts.ti_selftest`)
-prints WORKING / FAILED / OFF per provider without printing any key.
+prints WORKING / FAILED / RATE LIMITED / NOT VERIFIED / NOT CONFIGURED per provider without
+printing any key. Only a provider error (e.g. a rejected key) is FAILED; a timeout, network error
+or outage is NOT VERIFIED, and a rate limit or quota is RATE LIMITED.
 
 Local feed file format: one entry per line, `#` starts a comment. A full URL is matched exactly
 after the same normalisation as user input. A bare host name matches that host and its
