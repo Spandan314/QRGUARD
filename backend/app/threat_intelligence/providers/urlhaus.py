@@ -12,7 +12,9 @@ ENDPOINT = "https://urlhaus-api.abuse.ch/v1/url/"
 # URLhaus answers an authentication problem with one of these query_status values.
 AUTH_ERRORS = {
     "unknown_auth_key": "auth key rejected",  # the key arrived, URLhaus does not recognise it
-    "missing_auth_key": "auth key not sent",  # no key arrived: a QRGUARD bug, not a bad key
+    # No key arrived at URLhaus: it was not sent or was removed on the way (says nothing about
+    # whether the key itself is valid).
+    "missing_auth_key": "auth key not received",
 }
 
 

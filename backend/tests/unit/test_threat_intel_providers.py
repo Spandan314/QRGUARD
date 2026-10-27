@@ -277,9 +277,12 @@ def test_http_client_rejects_huge_responses(monkeypatch):
         # The key reached URLhaus and URLhaus does not recognise it.
         (FakeHttp(200, {"query_status": "unknown_auth_key"}), "auth key rejected"),
         (FakeHttp(401, {"query_status": "unknown_auth_key"}), "auth key rejected"),
-        # URLhaus saw no key at all: the header was not sent (a QRGUARD bug, not a bad key).
-        (FakeHttp(200, {"query_status": "missing_auth_key"}), "auth key not sent"),
-        (FakeHttp(401, {"query_status": "missing_auth_key"}), "auth key not sent"),
+        # URLhaus received no key (not sent, or removed on the way): not a verdict on the key.
+        (FakeHttp(200, {"query_status": "missing_auth_key"}), "auth key not received"),
+        (FakeHttp(401, {"query_status": "missing_auth_key"}), "auth key not received"),
+        # URLhaus' own explanation in the body wins over the bare HTTP status.
+        (FakeHttp(403, {"query_status": "unknown_auth_key"}), "auth key rejected"),
+        (FakeHttp(403, {"query_status": "missing_auth_key"}), "auth key not received"),
         # No URLhaus status in the body: only the HTTP status is known.
         (FakeHttp(401, None), "auth failed: HTTP 401"),
         (FakeHttp(403, None), "access denied: HTTP 403"),  # e.g. an HTML block page
