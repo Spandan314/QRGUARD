@@ -33,6 +33,9 @@ def test_origin_without_scheme_rejected():
         ("MAX_UPLOAD_MB", "abc"),
         ("MAX_UPLOAD_MB", "500"),
         ("TRUST_PROXY_HOPS", "-1"),
+        ("REDIRECT_MAX_CONCURRENT", "0"),
+        ("REDIRECT_MAX_CONCURRENT", "17"),
+        ("REDIRECT_RESOLUTION", "ALL"),
     ],
 )
 def test_invalid_values_fail_fast(name, value):

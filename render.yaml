@@ -32,12 +32,12 @@ services:
         value: "2"
       - key: GUNICORN_THREADS
         value: "4"
-      # Follow every link's redirects (HEAD only, body never downloaded, public IPs only, IP
-      # pinned, max hops and time limits; backend/app/analyzers/redirect_resolver.py), so a link
-      # that silently forwards to another website is reported. "shorteners_only" is the leaner
-      # alternative; "off" never contacts any link.
+      # Follow redirects of known link shorteners only (SSRF-hardened resolver:
+      # backend/app/analyzers/redirect_resolver.py). Do NOT switch to "all" without a new
+      # security review: "all" lets anyone make the backend contact a server of their choice for
+      # every analysed link (see docs/security.md). "off" never contacts any link.
       - key: REDIRECT_RESOLUTION
-        value: all
+        value: shorteners_only
       - key: THREAT_INTEL_LOCAL_FEEDS_ENABLED
         value: "true"
       # Firebase (sign-in + history). Upload the service-account JSON as a Render *Secret File*

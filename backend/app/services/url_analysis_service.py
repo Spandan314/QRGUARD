@@ -31,7 +31,13 @@ PROVIDER_NAMES = {
     "phishtank": "PhishTank",
 }
 FAILED_STATUSES = {TIStatus.UNAVAILABLE, TIStatus.ERROR}
-INCOMPLETE_STATUSES = {rr.TIMEOUT, rr.CONNECTION_ERROR, rr.TLS_ERROR, rr.INVALID_REDIRECT}
+INCOMPLETE_STATUSES = {
+    rr.TIMEOUT,
+    rr.CONNECTION_ERROR,
+    rr.TLS_ERROR,
+    rr.INVALID_REDIRECT,
+    rr.CAPACITY_EXHAUSTED,
+}
 
 
 @dataclass
@@ -65,6 +71,10 @@ class UrlAnalysisService:
         self.threat_intel = threat_intel
         self.redirect_mode = redirect_mode
         self.redirect_settings = redirect_settings or rr.RedirectSettings()
+        # Shared by every request thread of this worker process.
+        self.redirect_slots = rr.RedirectSlots(
+            self.redirect_settings.max_concurrent, self.redirect_settings.slot_wait
+        )
         # Network functions are attributes so tests can replace them with fakes.
         self.fetcher = fetcher
         self.resolver = resolver
@@ -149,6 +159,7 @@ class UrlAnalysisService:
             local_host_suffixes=self.rules.local_host_suffixes,
             fetcher=self.fetcher,
             resolver=self.resolver,
+            slots=self.redirect_slots,
         )
         analysis.redirects = {
             "checked": True,
@@ -234,6 +245,7 @@ class UrlAnalysisService:
     REDIRECT_DETAIL = {
         rr.DNS_FAILURE: "the domain name does not resolve",
         rr.TIMEOUT: "the website did not answer in time",
+        rr.CAPACITY_EXHAUSTED: "the link checker is busy; try again in a moment",
         rr.CONNECTION_ERROR: "the website could not be reached",
         rr.TLS_ERROR: "the website's HTTPS certificate could not be checked",
         rr.TOO_MANY_REDIRECTS: "too many redirects",

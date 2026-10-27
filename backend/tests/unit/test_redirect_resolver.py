@@ -3,6 +3,8 @@ HTTP server, calling the low-level fetcher directly to prove it never reads the 
 
 import http.server
 import ipaddress
+import os
+import socket
 import threading
 import time
 
@@ -215,3 +217,225 @@ def test_real_fetcher_connection_refused():
         rr.urllib3_fetch(
             FetchRequest("http", "x.local", ipaddress.ip_address("127.0.0.1"), 1, "/", "HEAD", 1, 1)
         )
+
+
+# --- hard time limits against a hostile (local) server ------------------------------------------
+def _dripping_server(seconds: float):
+    """Answers with a 302 whose headers arrive one byte every 0.2 s for ``seconds``."""
+    listener = socket.create_server(("127.0.0.1", 0))
+    stop = threading.Event()
+
+    def handle(conn):
+        try:
+            conn.recv(4096)
+            conn.sendall(b"HTTP/1.1 302 Found\r\nX-Pad: ")
+            end = time.monotonic() + seconds
+            while time.monotonic() < end and not stop.is_set():
+                conn.sendall(b"a")  # always well inside the per-read timeout
+                time.sleep(0.2)
+            conn.sendall(b"\r\nLocation: https://next.example/\r\n\r\n")
+        except OSError:
+            pass  # the client hung up, as it should
+        finally:
+            conn.close()
+
+    def serve():
+        listener.settimeout(0.1)
+        while not stop.is_set():
+            try:
+                conn, _ = listener.accept()
+            except OSError:
+                continue
+            threading.Thread(target=handle, args=(conn,), daemon=True).start()
+        listener.close()
+
+    threading.Thread(target=serve, daemon=True).start()
+    return listener.getsockname()[1], stop
+
+
+def _local(port):
+    """Pretends a validated public host lives on the local test server."""
+
+    def fetch(request):
+        return rr.urllib3_fetch(
+            FetchRequest(
+                request.scheme,
+                request.host,
+                ipaddress.ip_address("127.0.0.1"),
+                port,
+                request.target,
+                request.method,
+                request.connect_timeout,
+                request.read_timeout,
+                request.deadline,
+            )
+        )
+
+    return fetch
+
+
+def test_slow_header_drip_is_cut_at_the_request_deadline():
+    port, stop = _dripping_server(10)
+    try:
+        start = time.monotonic()
+        with pytest.raises(FetchTimeout):
+            rr.urllib3_fetch(
+                FetchRequest(
+                    "http",
+                    "drip.example",
+                    ipaddress.ip_address("127.0.0.1"),
+                    port,
+                    "/",
+                    "HEAD",
+                    1,
+                    1,
+                    1,
+                )
+            )
+        elapsed = time.monotonic() - start
+    finally:
+        stop.set()
+    assert elapsed < 2  # without the watchdog this took the full 10 s
+
+
+def test_slow_header_drip_cannot_exceed_the_total_budget():
+    port, stop = _dripping_server(10)
+    try:
+        start = time.monotonic()
+        result = run("http://drip.example/", _local(port), request_timeout=3, total_timeout=1)
+        elapsed = time.monotonic() - start
+    finally:
+        stop.set()
+    assert result.status == rr.TIMEOUT
+    assert elapsed < 2
+
+
+def test_get_fallback_only_gets_what_is_left_of_the_budget():
+    class SlowHead(FakeFetcher):
+        def __call__(self, request):
+            if request.method == "HEAD":
+                time.sleep(0.15)
+            return super().__call__(request)
+
+    fetcher = SlowHead({"https://a.example/x": (405, None)})
+    run("https://a.example/x", fetcher, request_timeout=3, total_timeout=1)
+    head, get = fetcher.requests
+    assert head.deadline is not None and 0.9 < head.deadline <= 1
+    assert get.deadline is not None and get.deadline < 0.9
+
+
+def test_fast_server_is_unaffected_by_the_watchdog():
+    port, stop = _dripping_server(0)
+    try:
+        result = run("http://quick.example/", _local(port), max_hops=0)
+    finally:
+        stop.set()
+    assert result.status == rr.TOO_MANY_REDIRECTS  # the 302 was read normally
+    assert result.hops[0].status_code == 302
+
+
+# --- concurrency cap ----------------------------------------------------------------------------
+def test_checks_beyond_the_worker_limit_are_skipped_not_queued():
+    slots = rr.RedirectSlots(limit=1, wait=0.05)
+    entered, release = threading.Event(), threading.Event()
+
+    class Blocking(FakeFetcher):
+        def __call__(self, request):
+            entered.set()
+            release.wait(5)
+            return super().__call__(request)
+
+    first = []
+    worker = threading.Thread(
+        target=lambda: first.append(
+            resolve_redirects(
+                "https://a.example/",
+                settings=RedirectSettings(),
+                dangerous_schemes=DANGEROUS,
+                local_host_suffixes=LOCAL,
+                fetcher=Blocking(),
+                resolver=FakeResolver(),
+                slots=slots,
+            )
+        )
+    )
+    worker.start()
+    assert entered.wait(5)
+    second_fetcher = FakeFetcher()
+    second = resolve_redirects(
+        "https://b.example/",
+        settings=RedirectSettings(),
+        dangerous_schemes=DANGEROUS,
+        local_host_suffixes=LOCAL,
+        fetcher=second_fetcher,
+        resolver=FakeResolver(),
+        slots=slots,
+    )
+    assert second.status == rr.CAPACITY_EXHAUSTED and second_fetcher.requests == []
+    release.set()
+    worker.join(5)
+    assert first[0].status == rr.COMPLETED
+    # the slot is free again
+    third = resolve_redirects(
+        "https://c.example/",
+        settings=RedirectSettings(),
+        dangerous_schemes=DANGEROUS,
+        local_host_suffixes=LOCAL,
+        fetcher=FakeFetcher(),
+        resolver=FakeResolver(),
+        slots=slots,
+    )
+    assert third.status == rr.COMPLETED
+
+
+def test_busy_dns_is_reported_as_capacity_exhausted():
+    from app.utils.net_safety import DNSBusyError
+
+    result = run("https://a.example/", FakeFetcher(), FakeResolver({"a.example": DNSBusyError()}))
+    assert result.status == rr.CAPACITY_EXHAUSTED
+
+
+def test_stalled_https_handshake_is_cut_at_the_request_deadline():
+    # ssl.wrap_socket() detaches the original socket before the handshake: the watchdog must
+    # still be able to cut a server that accepts TCP but never answers the TLS ClientHello.
+    listener = socket.create_server(("127.0.0.1", 0))
+    accepted = []
+    threading.Thread(target=lambda: accepted.append(listener.accept()), daemon=True).start()
+    try:
+        start = time.monotonic()
+        with pytest.raises(FetchTimeout):
+            rr.urllib3_fetch(
+                FetchRequest(
+                    "https",
+                    "stall.example",
+                    ipaddress.ip_address("127.0.0.1"),
+                    listener.getsockname()[1],
+                    "/",
+                    "HEAD",
+                    5,
+                    5,
+                    1,
+                )
+            )
+        elapsed = time.monotonic() - start
+    finally:
+        listener.close()
+        for conn, _ in accepted:
+            conn.close()
+    assert elapsed < 2  # the 5 s socket timeouts never come into play
+
+
+def test_the_watchdog_leaves_no_open_sockets_behind():
+    def open_descriptors():
+        return len(os.listdir("/proc/self/fd"))
+
+    port, stop = _dripping_server(0)
+    try:
+        run("http://quick.example/", _local(port), max_hops=0)  # warm-up (imports, pools)
+        before = open_descriptors()
+        for _ in range(5):
+            run("http://quick.example/", _local(port), max_hops=0)
+        after = open_descriptors()
+    finally:
+        stop.set()
+    assert after <= before

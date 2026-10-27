@@ -110,6 +110,7 @@ def create_app(config: Config | None = None) -> Flask:
             max_hops=config.redirect_max_hops,
             request_timeout=config.redirect_timeout_seconds,
             total_timeout=config.redirect_total_timeout_seconds,
+            max_concurrent=config.redirect_max_concurrent,
         ),
     )
     app.extensions["qrguard.url_analysis"] = url_service

@@ -335,3 +335,38 @@ def test_a_qr_photo_is_analysed_even_when_ocr_fails(app, client, error):
 def test_ocr_failure_without_a_qr_code_is_still_an_error(app, client):
     app.extensions["qrguard.screenshot_analysis"].ocr_engine = FakeOcrEngine(error=OcrError("x"))
     assert_error(upload(client, blank()), 422, "OCR_FAILED")
+
+
+def test_a_busy_link_checker_is_an_incomplete_check_never_safe():
+    import threading
+
+    from app.analyzers import redirect_resolver as rr
+
+    app = build(REDIRECT_RESOLUTION="all", REDIRECT_MAX_CONCURRENT="1")
+    service = app.extensions["qrguard.url_analysis"]
+    service.redirect_slots = rr.RedirectSlots(limit=1, wait=0.01)
+    entered, release = threading.Event(), threading.Event()
+
+    class Blocking(FakeFetcher):
+        def __call__(self, request):
+            entered.set()
+            release.wait(5)
+            return super().__call__(request)
+
+    service.fetcher = Blocking()
+    worker = threading.Thread(target=lambda: check(app.test_client(), "offer.com"))
+    worker.start()
+    try:
+        assert entered.wait(5)
+        body = check(app.test_client(), "offers.com").get_json()
+    finally:
+        release.set()
+        worker.join(5)
+    assert body["analysis"]["redirects"]["status"] == "capacity_exhausted"
+    assert checks_by_id(body)["destination"] == {
+        "id": "destination",
+        "label": "Where the link leads (redirects)",
+        "status": "incomplete",
+        "detail": "the link checker is busy; try again in a moment",
+    }
+    assert body["verdict"]["label"] != "SAFE"

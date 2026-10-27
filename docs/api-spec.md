@@ -239,7 +239,8 @@ Input rules:
 - `brand` is `{"brand": "HDFC Bank", "match_type": "official" | "lookalike" | "impersonation"}` or `null`.
 - `redirects.status` ∈ `completed`, `not_attempted` (with `reason`), `too_many_redirects`,
   `blocked_private_address`, `blocked_dangerous_scheme`, `blocked_scheme`, `blocked_port`,
-  `dns_failure`, `timeout`, `connection_error`, `tls_error`, `invalid_redirect`.
+  `dns_failure`, `timeout`, `connection_error`, `tls_error`, `invalid_redirect`,
+  `capacity_exhausted` (every redirect-check slot of the server was busy; reported as incomplete).
 
 ### `POST /api/analyze/message` ✅ implemented
 
@@ -557,7 +558,7 @@ user's expired scans are deleted when they call `GET /api/me` (every sign-in) or
 | Rate limit, authenticated | 40/min, 500/day per uid |
 | `/api/analyze/screenshot` | additional `RATELIMIT_SCREENSHOT` = 6/min, 60/day (CPU-heavy OCR); OCR timeout 20 s, max 2 concurrent OCR jobs per process |
 | Threat-intel time budget | `THREAT_INTEL_BUDGET_SECONDS` = 6 s total, `THREAT_INTEL_TIMEOUT_SECONDS` = 3 s per provider request; VirusTotal max 4 lookups/min per process; cache 24 h (listed) / 1 h (not listed) |
-| Redirect checking | `REDIRECT_RESOLUTION=shorteners_only`, max 5 redirects, 3 s per request, 8 s total, ports 80/443 only, 0 body bytes read |
+| Redirect checking | `REDIRECT_RESOLUTION=shorteners_only`, max 5 redirects, 3 s hard deadline per request, 8 s total, max 2 concurrent checks per process (`REDIRECT_MAX_CONCURRENT`; busy → `capacity_exhausted`, incomplete), ports 80/443 only, 0 body bytes read |
 
 ## 5. CORS
 
