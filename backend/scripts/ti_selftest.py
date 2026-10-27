@@ -10,7 +10,15 @@ A provider counts as WORKING only when it really answered:
   * Google Safe Browsing must also LIST Google's official test phishing page, which proves that
     real lookups (not just authentication) work. The other providers publish no permanent
     test-threat URL, so for them only the harmless lookup is checked.
-Exit code: 0 = every configured provider works, 1 = at least one failed, 2 = none configured.
+Each provider gets one label:
+  WORKING         it answered (and, for Safe Browsing, listed the official test threat);
+  FAILED          it answered with an error, e.g. a rejected key, or answered wrongly;
+  RATE LIMITED    it refused for now because of a rate limit or quota (not a key problem);
+  NOT VERIFIED    no usable answer: timeout, network error, provider outage or an unreadable
+                  response. This says nothing about the key; try again later or elsewhere;
+  NOT CONFIGURED  no key (or PhishTank anonymous mode) is set.
+Exit code: 0 = every configured provider works, 1 = at least one FAILED, 2 = none configured,
+3 = none failed but at least one is RATE LIMITED or NOT VERIFIED.
 Nothing is saved; the API keys are read from the environment and never printed.
 """
 
@@ -40,12 +48,21 @@ ENV_NAMES = {
 }
 
 
+WORKING = "WORKING"
+FAILED = "FAILED"
+RATE_LIMITED = "RATE LIMITED"
+NOT_VERIFIED = "NOT VERIFIED"
+NOT_CONFIGURED = "NOT CONFIGURED"
+RATE_LIMIT_DETAILS = {"rate limited", "quota"}
+
+
 @dataclass
 class Outcome:
     provider: str
     configured: bool
     working: bool
     detail: str
+    label: str = ""
 
 
 def build_providers(env: Mapping[str, str]) -> list[ThreatIntelProvider]:
@@ -65,26 +82,41 @@ def _describe(status: TIStatus, detail: str | None) -> str:
     return status.value + (f" ({detail})" if detail else "")
 
 
+def _failure_label(status: TIStatus, detail: str | None) -> str:
+    """Why a lookup gave no answer. Only an ERROR (e.g. a rejected key) counts as FAILED."""
+    if status == TIStatus.ERROR:
+        return FAILED
+    if status == TIStatus.UNAVAILABLE and detail in RATE_LIMIT_DETAILS:
+        return RATE_LIMITED
+    return NOT_VERIFIED  # timeout, network error, provider error, unexpected response
+
+
 def check(provider: ThreatIntelProvider) -> Outcome:
     if not provider.is_enabled():
         return Outcome(
-            provider.name, False, False, f"not configured: set {ENV_NAMES[provider.name]}"
+            provider.name,
+            False,
+            False,
+            f"not configured: set {ENV_NAMES[provider.name]}",
+            NOT_CONFIGURED,
         )
     clean = provider.check_url(CLEAN_URL, "example.com")
+    note = "harmless lookup: " + _describe(clean.status, clean.detail)
     if clean.status not in DEFINITIVE_STATUSES:
-        return Outcome(
-            provider.name, True, False, "harmless lookup: " + _describe(clean.status, clean.detail)
-        )
-    notes = ["harmless lookup: " + _describe(clean.status, clean.detail)]
+        return Outcome(provider.name, True, False, note, _failure_label(clean.status, clean.detail))
+    notes = [note]
     threat_url = KNOWN_THREATS.get(provider.name)
     if threat_url:
         threat = provider.check_url(threat_url, "testsafebrowsing.appspot.com")
         notes.append("official test threat: " + _describe(threat.status, threat.detail))
-        if threat.status != TIStatus.LISTED:
-            return Outcome(provider.name, True, False, "; ".join(notes))
+        if threat.status not in DEFINITIVE_STATUSES:
+            label = _failure_label(threat.status, threat.detail)
+            return Outcome(provider.name, True, False, "; ".join(notes), label)
+        if threat.status != TIStatus.LISTED:  # answered, but missed the official test threat
+            return Outcome(provider.name, True, False, "; ".join(notes), FAILED)
     else:
         notes.append("no official test-threat URL (only the harmless lookup was checked)")
-    return Outcome(provider.name, True, True, "; ".join(notes))
+    return Outcome(provider.name, True, True, "; ".join(notes), WORKING)
 
 
 def run(providers: list[ThreatIntelProvider]) -> tuple[int, list[Outcome]]:
@@ -92,18 +124,24 @@ def run(providers: list[ThreatIntelProvider]) -> tuple[int, list[Outcome]]:
     configured = [o for o in outcomes if o.configured]
     if not configured:
         return 2, outcomes
-    return (0 if all(o.working for o in configured) else 1), outcomes
+    if any(o.label == FAILED for o in configured):
+        return 1, outcomes
+    return (0 if all(o.working for o in configured) else 3), outcomes
 
 
 def main() -> int:
     code, outcomes = run(build_providers(os.environ))
     for o in outcomes:
-        mark = "WORKING" if o.working else ("FAILED " if o.configured else "OFF    ")
-        print(f"{mark}  {o.provider:22} {o.detail}")
+        print(f"{o.label:14}  {o.provider:22} {o.detail}")
     if code == 2:
         print("\nNo provider is configured. See docs/deployment.md §2a for the keys.")
     elif code == 1:
-        print("\nA configured provider did not answer correctly: do not enable it on Render yet.")
+        print("\nA provider FAILED (e.g. its key was rejected): do not enable it on Render yet.")
+    elif code == 3:
+        print(
+            "\nNo provider failed, but some could not be verified (rate limit, quota, timeout,"
+            " network or provider problem). Try again later; this does not prove a key is wrong."
+        )
     else:
         print("\nAll configured providers answered correctly.")
     return code
