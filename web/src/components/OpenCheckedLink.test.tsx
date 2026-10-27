@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { maliciousUrl, safeUnverified } from '../test/fixtures'
@@ -11,6 +11,18 @@ function urlResult(inputUrl: string, normalized: string, base: AnalysisResult = 
   return { ...base, input_type: 'url', analysis: { input_url: inputUrl, normalized_url: normalized } }
 }
 
+/** The confirm control: a real link the user clicks (never a scripted window.open popup). */
+function confirmLink(host: string): HTMLAnchorElement {
+  return screen.getByRole('link', { name: `Open ${host} in a new tab` }) as HTMLAnchorElement
+}
+
+/** jsdom cannot open tabs: stop the link's default navigation but keep React's click handler. */
+function preventNavigation() {
+  const stop = (event: Event) => event.preventDefault()
+  document.addEventListener('click', stop)
+  return () => document.removeEventListener('click', stop)
+}
+
 describe('Open checked link', () => {
   it.each([
     ['offer.com', 'https://offer.com/'],
@@ -19,25 +31,64 @@ describe('Open checked link', () => {
   ])('typed %s: opens exactly the analysed %s, only after confirmation', async (typed, normalized) => {
     const open = vi.spyOn(window, 'open').mockReturnValue(null)
     render(<ResultCard result={urlResult(typed, normalized)} />)
+    expect(screen.queryByRole('link', { name: /in a new tab/ })).toBeNull() // nothing to follow yet
     await userEvent.click(screen.getByRole('button', { name: 'Open checked link' }))
-    expect(open).not.toHaveBeenCalled() // never opened automatically
     const dialog = screen.getByTestId('open-link-confirm')
     expect(dialog).toHaveTextContent('You are about to open offer.com')
     expect(dialog).toHaveTextContent('QRGUARD could not verify this website') // UNVERIFIED caution
-    await userEvent.click(screen.getByRole('button', { name: 'Open offer.com in a new tab' }))
-    expect(open).toHaveBeenCalledTimes(1)
-    expect(open).toHaveBeenCalledWith(normalized, '_blank', 'noopener,noreferrer')
+    const link = confirmLink('offer.com')
+    expect(link.getAttribute('href')).toBe(normalized) // exactly the checked URL, unchanged
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link.rel.split(' ')).toEqual(expect.arrayContaining(['noopener', 'noreferrer']))
+    expect(link).toHaveAttribute('referrerpolicy', 'no-referrer')
+    expect(open).not.toHaveBeenCalled() // no scripted popup that a blocker could swallow
+  })
+
+  it('opens in a new tab when confirmed and then closes the confirmation', async () => {
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const followed: string[] = []
+    const record = (event: MouseEvent) => {
+      const anchor = (event.target as Element).closest('a')
+      if (anchor) followed.push(`${anchor.getAttribute('href')} -> ${anchor.target}`)
+      event.preventDefault()
+    }
+    document.addEventListener('click', record)
+    try {
+      render(<ResultCard result={urlResult('offer.com', 'https://offer.com/')} />)
+      await userEvent.click(screen.getByRole('button', { name: 'Open checked link' }))
+      await userEvent.click(confirmLink('offer.com'))
+      expect(followed).toEqual(['https://offer.com/ -> _blank'])
+      await waitFor(() => expect(screen.queryByTestId('open-link-confirm')).toBeNull())
+      expect(open).not.toHaveBeenCalled()
+    } finally {
+      document.removeEventListener('click', record)
+    }
+  })
+
+  it('keeps working when the browser refuses scripted popups', async () => {
+    // A popup blocker, extension or in-app browser that makes window.open do nothing: the old
+    // implementation silently closed the dialog without opening anything.
+    const open = vi.spyOn(window, 'open').mockReturnValue(null)
+    const restore = preventNavigation()
+    try {
+      render(<ResultCard result={urlResult('offer.com', 'https://offer.com/')} />)
+      await userEvent.click(screen.getByRole('button', { name: 'Open checked link' }))
+      const link = confirmLink('offer.com')
+      await userEvent.click(link)
+      expect(link.getAttribute('href')).toBe('https://offer.com/')
+      expect(open).not.toHaveBeenCalled()
+    } finally {
+      restore()
+    }
   })
 
   it('never substitutes the redirect destination, but shows it before opening', async () => {
-    const open = vi.spyOn(window, 'open').mockReturnValue(null)
     const result = urlResult('offer.com', 'https://offer.com/')
     result.analysis.redirects = { checked: true, status: 'completed', final_url: 'https://www.offers.com/' }
     render(<ResultCard result={result} />)
     await userEvent.click(screen.getByRole('button', { name: 'Open checked link' }))
     expect(screen.getByTestId('open-link-confirm')).toHaveTextContent('This link redirects to: https://www.offers.com/')
-    await userEvent.click(screen.getByRole('button', { name: 'Open offer.com in a new tab' }))
-    expect(open).toHaveBeenCalledWith('https://offer.com/', '_blank', 'noopener,noreferrer')
+    expect(confirmLink('offer.com').getAttribute('href')).toBe('https://offer.com/')
   })
 
   it('can be cancelled', async () => {
@@ -46,18 +97,33 @@ describe('Open checked link', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Open checked link' }))
     await userEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     expect(screen.queryByTestId('open-link-confirm')).toBeNull()
+    expect(screen.queryByRole('link', { name: /in a new tab/ })).toBeNull()
     expect(open).not.toHaveBeenCalled()
   })
 
   it('needs an explicit acknowledgement for a MALICIOUS link', async () => {
-    const open = vi.spyOn(window, 'open').mockReturnValue(null)
     render(<ResultCard result={urlResult('https://amaz0n-offers.example/deal', 'https://amaz0n-offers.example/deal', maliciousUrl)} />)
     await userEvent.click(screen.getByRole('button', { name: 'Open checked link (not recommended)' }))
-    const confirm = screen.getByRole('button', { name: 'Open amaz0n-offers.example in a new tab' })
-    expect(confirm).toBeDisabled()
+    // Before the acknowledgement there is no link to follow, only a disabled button.
+    expect(screen.queryByRole('link', { name: /in a new tab/ })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Open amaz0n-offers.example in a new tab' })).toBeDisabled()
     await userEvent.click(screen.getByLabelText('I understand this link is very likely dangerous'))
-    await userEvent.click(confirm)
-    expect(open).toHaveBeenCalledWith('https://amaz0n-offers.example/deal', '_blank', 'noopener,noreferrer')
+    expect(confirmLink('amaz0n-offers.example').getAttribute('href')).toBe('https://amaz0n-offers.example/deal')
+  })
+
+  it.each([
+    'javascript:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'intent://scan/#Intent;scheme=zxing;end',
+    'file:///etc/passwd',
+    'https://exa mple.com/',
+    'https://example.com/\u0000',
+    'ftp://example.com/file',
+  ])('never offers to open the invalid or non-web URL %s', (bad) => {
+    render(<ResultCard result={urlResult(bad, bad)} />)
+    expect(screen.queryByRole('button', { name: /Open checked link/ })).toBeNull()
+    expect(screen.queryByRole('link', { name: /in a new tab/ })).toBeNull()
+    expect(screen.getByTestId('never-open-reason')).toHaveTextContent('not a normal web link')
   })
 
   it('never offers to open a user@host disguise or a non-web link', () => {

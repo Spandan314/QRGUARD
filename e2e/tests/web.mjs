@@ -3,6 +3,7 @@
 // Run through ../run.sh, which starts everything.
 import { execFileSync } from 'node:child_process'
 import { ARTIFACTS, check, finish, launch, watch } from './harness.mjs'
+import { chromium } from 'playwright-core'
 
 const WEB = process.env.WEB_URL ?? 'http://localhost:4174'
 const BACKEND_DIR = process.env.BACKEND_DIR ?? '../backend'
@@ -171,5 +172,106 @@ await check('mobile width: no horizontal scroll on the result page', async () =>
   if (overflow) throw new Error('horizontal overflow')
 })
 
+// "Open checked link": a real browser with Chromium's popup blocker ON (Playwright turns it off by
+// default). Every navigation that leaves this machine is answered by a stub, so no external site
+// is ever contacted; the checked URL is never fetched by the backend (not a shortener).
+const OPEN_URL = 'https://example.com/offer'
+const realBrowser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || undefined,
+  ignoreDefaultArgs: ['--disable-popup-blocking'],
+})
+
+async function linkContext({ refuseScriptedPopups = false } = {}) {
+  const context = await realBrowser.newContext({ viewport: { width: 1100, height: 1300 } })
+  const external = []
+  await context.route(/^https?:\/\/(?!(localhost|127\.0\.0\.1)[:/])/, (route) => {
+    external.push(route.request().url())
+    return route.fulfill({ status: 200, contentType: 'text/html', body: '<title>stub destination</title>stub' })
+  })
+  // Simulates a browser, extension or in-app browser that refuses scripted popups.
+  if (refuseScriptedPopups) await context.addInitScript(() => { window.open = () => null })
+  const page = watch(await context.newPage())
+  return { context, page, external }
+}
+
+async function checkLink(page, url) {
+  await page.goto(`${WEB}/check/url`)
+  await page.locator('#url').fill(url)
+  await page.getByRole('button', { name: 'Check link' }).click()
+  await page.getByRole('article').waitFor({ timeout: 20000 })
+}
+
+async function confirmAndOpen(context, page) {
+  await page.getByRole('button', { name: 'Open checked link' }).click()
+  const dialog = page.getByTestId('open-link-confirm')
+  if (!(await dialog.innerText()).includes(OPEN_URL)) throw new Error('confirmation does not show the checked URL')
+  const [popup] = await Promise.all([
+    context.waitForEvent('page', { timeout: 10000 }),
+    // By its text, whatever the element is, so the check measures behaviour, not markup.
+    dialog.getByText('Open example.com in a new tab', { exact: true }).click({ timeout: 10000 }),
+  ])
+  await popup.waitForLoadState()
+  return popup
+}
+
+await check('open checked link: confirming opens exactly the checked URL in a new tab (popup blocker on)', async () => {
+  const { context, page, external } = await linkContext()
+  try {
+    await checkLink(page, OPEN_URL)
+    if (external.length) throw new Error(`contacted before confirmation: ${external.join(' ')}`)
+    const popup = await confirmAndOpen(context, page)
+    if (popup.url() !== OPEN_URL) throw new Error(`opened ${popup.url()}`)
+    if ((await popup.evaluate(() => window.opener)) !== null) throw new Error('new tab has an opener')
+    if (!page.url().startsWith(WEB)) throw new Error('the app tab navigated away')
+    await page.getByTestId('open-link-confirm').waitFor({ state: 'detached', timeout: 5000 })
+  } finally {
+    await context.close()
+  }
+})
+
+await check('open checked link: still opens when the browser refuses scripted popups', async () => {
+  const { context, page } = await linkContext({ refuseScriptedPopups: true })
+  try {
+    await checkLink(page, OPEN_URL)
+    const popup = await confirmAndOpen(context, page)
+    if (popup.url() !== OPEN_URL) throw new Error(`opened ${popup.url()}`)
+  } finally {
+    await context.close()
+  }
+})
+
+await check('open checked link: cancel opens nothing', async () => {
+  const { context, page, external } = await linkContext()
+  try {
+    await checkLink(page, OPEN_URL)
+    let opened = false
+    context.on('page', () => { opened = true })
+    await page.getByRole('button', { name: 'Open checked link' }).click()
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await page.waitForTimeout(1500)
+    if (opened || external.length) throw new Error('something was opened after Cancel')
+    if (await page.getByTestId('open-link-confirm').count()) throw new Error('confirmation still shown')
+  } finally {
+    await context.close()
+  }
+})
+
+await check('open checked link: user@host disguise and non-web links are never offered', async () => {
+  const { context, page } = await linkContext()
+  try {
+    await checkLink(page, 'https://paypal.com@evil.example/login')
+    await page.getByTestId('never-open-reason').waitFor()
+    if (await page.getByRole('button', { name: /Open checked link/ }).count()) throw new Error('open offered for user@host')
+    // javascript: is analysed (MALICIOUS, dangerous scheme) but must never be openable.
+    await checkLink(page, 'javascript:alert(1)')
+    await page.getByTestId('never-open-reason').waitFor()
+    if (!(await page.getByRole('article').innerText()).includes('MALICIOUS')) throw new Error('javascript: not flagged')
+    if (await page.getByRole('button', { name: /Open checked link/ }).count()) throw new Error('open offered for javascript:')
+  } finally {
+    await context.close()
+  }
+})
+
+await realBrowser.close()
 await browser.close()
 finish()

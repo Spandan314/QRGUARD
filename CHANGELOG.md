@@ -1,5 +1,16 @@
 # Changelog
 
+## Web: "Open checked link" opens reliably (October 2026, `fix/web-open-checked-link`)
+
+- Confirming "Open … in a new tab" could close the dialog without opening anything. The
+  confirmation used a scripted `window.open(url, '_blank', 'noopener,noreferrer')`, which
+  browsers, extensions and in-app browsers may refuse as a popup; with `noopener` it returns
+  `null` even on success, so a refused popup was undetectable. The confirmation is now a real
+  link the user clicks (`<a href target="_blank" rel="noopener noreferrer">`), which is ordinary
+  navigation and not subject to popup blocking. It still points at exactly the checked URL, is
+  only rendered after confirmation for openable http(s) links, and for MALICIOUS links only after
+  the acknowledgement is ticked.
+
 ## Redirect checker hardening (October 2026, `feature/redirect-hardening`)
 
 - **Hard time limit per redirect request.** A socket read timeout restarts on every byte, so a
