@@ -40,6 +40,15 @@ services:
         value: shorteners_only
       - key: THREAT_INTEL_LOCAL_FEEDS_ENABLED
         value: "true"
+      # VirusTotal lookups per minute per worker process. The free public API allows about 4/min
+      # per key, so keep VIRUSTOTAL_MAX_PER_MINUTE x WEB_CONCURRENCY <= 4 (and divide again if
+      # you ever run more than one instance: processes do not coordinate with each other).
+      - key: VIRUSTOTAL_MAX_PER_MINUTE
+        value: "2"
+      # PhishTank without an API key (PhishTank no longer issues new keys). Set to "true" in the
+      # Render dashboard to enable it; it has a lower rate limit. Ignored if PHISHTANK_API_KEY is set.
+      - key: PHISHTANK_ANONYMOUS
+        value: "false"
       # Firebase (sign-in + history). Upload the service-account JSON as a Render *Secret File*
       # named firebase-service-account.json; Render mounts it at /etc/secrets/.
       - key: FIREBASE_PROJECT_ID
