@@ -372,3 +372,27 @@ def test_malformed_ipv6_links_never_cause_a_server_error(path, payload):
     response = app.test_client().post(path, json=payload)
     assert response.status_code in (200, 400)
     assert response.get_json().get("error", {}).get("code") != "INTERNAL_ERROR"
+
+
+def test_urlhaus_rejecting_the_key_is_reported_precisely_and_never_safe():
+    # The real provider class, with URLhaus' documented answer to an unknown Auth-Key.
+    from app.threat_intelligence.providers.urlhaus import UrlhausProvider
+    from tests.fakes import FakeHttp
+
+    answer = {"query_status": "unknown_auth_key"}
+    rejected = UrlhausProvider("urlhaus-test-key-0001", http=FakeHttp(200, answer))
+    for url in ("https://www.wikipedia.org/", "https://unknown-shop.in/"):  # trusted and unknown
+        body = analyze(with_providers(rejected), url)
+        rows = {p["provider"]: p for p in body["threat_intel"]["providers"]}
+        assert rows["urlhaus"]["status"] == "error"
+        assert rows["urlhaus"]["detail"] == "auth key rejected"
+        check = next(c for c in body["checks"] if c["id"] == "threat_intelligence")
+        assert check["status"] == "unavailable"
+        assert "URLhaus (auth key rejected)" in check["detail"]
+        assert body["confidence"] == "LOW"
+        assert body["verdict"]["evidence"] != "threat_intelligence"  # never "verified by URLhaus"
+        assert "urlhaus-test-key-0001" not in str(body)
+    # An unknown site stays UNVERIFIED; only the curated trusted list (row above) may say SAFE.
+    assert (
+        body["verdict"]["label"] == "UNVERIFIED" and body["verdict"]["evidence"] == "insufficient"
+    )

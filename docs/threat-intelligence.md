@@ -110,7 +110,10 @@ feed's terms of use (community feeds are for non-commercial use) before deployin
 | VirusTotal otherwise, or HTTP 404 (never seen) | `not_listed` |
 | PhishTank in database + verified | `listed` (phishing) · in database, unverified → `partial` · otherwise `not_listed` |
 | HTTP 429, 5xx, timeout, DNS/TLS/network failure | `unavailable` |
-| HTTP 401/403 (bad key) | `error` (`detail: "configuration"`), logged without the key |
+| URLhaus `query_status: unknown_auth_key` (any HTTP status) | `error` (`detail: "auth key rejected"`): the key arrived and URLhaus does not recognise it |
+| URLhaus `query_status: missing_auth_key` | `error` (`detail: "auth key not received"`): no key reached URLhaus (not sent, or removed on the way); says nothing about the key itself |
+| Other HTTP 401 / 403 | `error` (`detail: "auth failed: HTTP 401"` / `"access denied: HTTP 403"`). Neither proves the key is invalid: a 403 in particular can be an IP or firewall block |
+| Google Safe Browsing HTTP 400 with an `error` body | `error` (`detail: "configuration"`) |
 | Any other status, non-JSON body, unexpected fields | `unavailable` (`detail: "unexpected response"`), **never** `not_listed` |
 | No API key | `disabled` (no request is made) |
 
