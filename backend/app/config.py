@@ -121,6 +121,10 @@ class Config:
     # PhishTank no longer issues new application keys. Its checkurl endpoint also answers
     # requests without a key (with a lower rate limit); this opt-in enables that mode.
     phishtank_anonymous: bool = False
+    # VirusTotal lookups per minute allowed in ONE worker process. The free public API allows
+    # about 4/min per key: keep this x WEB_CONCURRENCY x instances <= 4 (2 x 2 workers = 4).
+    # There is no coordination between processes or instances (see docs/threat-intelligence.md).
+    virustotal_max_per_minute: int = 2
     # Firebase (auth + history). Without a project, sign-in and history answer 503.
     firebase_project_id: str = ""
     firebase_credentials_file: str = ""
@@ -222,6 +226,7 @@ class Config:
             virustotal_api_key=_get_secret(env, "VIRUSTOTAL_API_KEY"),
             phishtank_api_key=_get_secret(env, "PHISHTANK_API_KEY"),
             phishtank_anonymous=_get_bool(env, "PHISHTANK_ANONYMOUS", False),
+            virustotal_max_per_minute=_get_int(env, "VIRUSTOTAL_MAX_PER_MINUTE", 2, 1, 60),
             firebase_project_id=firebase_project_id,
             firebase_credentials_file=env.get("FIREBASE_CREDENTIALS_FILE", "").strip(),
             firebase_credentials_json=env.get("FIREBASE_CREDENTIALS_JSON", "").strip(),

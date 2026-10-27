@@ -62,7 +62,7 @@ The URL analyzer checks the normalised URL and, for shortened links, also the fi
 | **Local feed** (`local_feed`) | In-memory sets: `app/data/threat_feeds/demo_blocklist.txt` plus every `*.txt` in `THREAT_INTEL_FEED_DIR` (e.g. OpenPhish and URLhaus plain-text dumps) | `THREAT_INTEL_LOCAL_FEEDS_ENABLED` (true), `THREAT_INTEL_FEED_DIR` | **Enabled** |
 | **URLhaus** (`urlhaus`) | `POST https://urlhaus-api.abuse.ch/v1/url/`, `Auth-Key` header, form field `url` | `URLHAUS_AUTH_KEY` | Enabled if key set |
 | **Google Safe Browsing** (`google_safe_browsing`) | Lookup API v4 `threatMatches:find` (MALWARE, SOCIAL_ENGINEERING, UNWANTED_SOFTWARE, POTENTIALLY_HARMFUL_APPLICATION) | `GOOGLE_SAFE_BROWSING_API_KEY` | Enabled if key set |
-| **VirusTotal** (`virustotal`) | `GET /api/v3/urls/{url_id}`, `x-apikey` header, **lookup only**, max 4 lookups/min per process | `VIRUSTOTAL_API_KEY` | Enabled if key set |
+| **VirusTotal** (`virustotal`) | `GET /api/v3/urls/{url_id}`, `x-apikey` header, **lookup only**, at most `VIRUSTOTAL_MAX_PER_MINUTE` (default 2) lookups/min per worker process | `VIRUSTOTAL_API_KEY` | Enabled if key set |
 | **PhishTank** (`phishtank`) | `POST https://checkurl.phishtank.com/checkurl/` | `PHISHTANK_API_KEY`, or `PHISHTANK_ANONYMOUS=true` (no key, lower rate limit) | Enabled if key set or anonymous mode is on (new registrations are closed) |
 
 ### Provider status (October 2026 audit)
@@ -172,6 +172,15 @@ It shows only on/off, never keys or feed paths.
 | `THREAT_INTEL_CACHE_LISTED_SECONDS` | `86400` | Cache time for `listed`/`partial` |
 | `THREAT_INTEL_CACHE_NOT_LISTED_SECONDS` | `3600` | Cache time for `not_listed` |
 | `URLHAUS_AUTH_KEY`, `GOOGLE_SAFE_BROWSING_API_KEY`, `VIRUSTOTAL_API_KEY`, `PHISHTANK_API_KEY` | (none) | Provider keys; empty = provider disabled |
+| `VIRUSTOTAL_MAX_PER_MINUTE` | `2` (1–60) | VirusTotal lookups per minute per worker process (sliding 60 s window); over the limit → `unavailable` ("quota") |
+| `PHISHTANK_ANONYMOUS` | `false` | `true` = PhishTank without a key (lower rate limit); ignored when `PHISHTANK_API_KEY` is set |
+
+**VirusTotal pacing is per process, not global.** Each Gunicorn worker counts its own lookups, and
+workers and instances do not coordinate. The free public API allows about 4 lookups/min per key, so
+the default `2` × `WEB_CONCURRENCY=2` stays within it on one Render instance. With more workers or
+instances, lower `VIRUSTOTAL_MAX_PER_MINUTE` accordingly; lookups beyond VirusTotal's limit are
+answered with HTTP 429 and reported as "rate limited" (never as a clean result). Daily and monthly
+quotas are not tracked locally.
 
 Keys are read from the environment only (Render dashboard / local `.env`, never committed). They
 are validated for format at startup (the error never shows the value), excluded from the Config

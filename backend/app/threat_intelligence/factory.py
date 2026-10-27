@@ -39,7 +39,11 @@ def build_threat_intel(config: Config, rules: UrlRules) -> ThreatIntelService:
         ),
         UrlhausProvider(config.urlhaus_auth_key, timeout=timeout),
         SafeBrowsingProvider(config.google_safe_browsing_api_key, timeout=timeout),
-        VirusTotalProvider(config.virustotal_api_key, timeout=timeout),
+        VirusTotalProvider(
+            config.virustotal_api_key,
+            timeout=timeout,
+            max_per_minute=config.virustotal_max_per_minute,
+        ),
         PhishTankProvider(
             config.phishtank_api_key, timeout=timeout, anonymous=config.phishtank_anonymous
         ),
