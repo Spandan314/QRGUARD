@@ -56,20 +56,49 @@ def test_default_config_uses_local_feed_and_reports_disabled_external_providers(
     assert "demo blocklist" in body["threat_intel"]["note"]
 
 
-def test_demo_blocklist_hit_is_confirmed_malicious():
+def test_demo_blocklist_hit_scores_but_is_never_called_verified_threat_intelligence():
     app = make_app()
     offline(app)
     body = analyze(app.test_client(), DEMO_LISTED)
-    assert body["risk_score"] == 90 and body["risk_level"] == "MALICIOUS"
-    assert body["confidence"] == "HIGH"
-    assert body["verification"] == {
-        "status": "VERIFIED",
-        "source": "threat_intelligence",
-        "message": "A threat-intelligence source lists this as known malicious.",
-    }
-    ti = [i for i in body["indicators"] if i["id"] == "TI_LISTED"][0]
-    assert ti["source"] == "threat_intelligence" and ti["score_contribution"] > 0
-    assert body["score_breakdown"]["floor_applied"]["indicator"] == "TI_LISTED"
+    assert body["risk_score"] == 90 and body["risk_level"] == "MALICIOUS"  # the demo still works
+    assert body["verification"]["status"] == "UNVERIFIED"
+    assert body["verification"]["source"] is None
+    assert "demo blocklist" in body["verification"]["message"]
+    assert body["verdict"]["confirmed"] is False and body["verdict"]["evidence"] == "demo_blocklist"
+    ids = [i["id"] for i in body["indicators"]]
+    assert "TI_DEMO_LISTED" in ids and "TI_LISTED" not in ids
+    assert body["score_breakdown"]["floor_applied"]["indicator"] == "TI_DEMO_LISTED"
+
+
+def test_a_demo_listing_alone_never_gives_high_confidence():
+    from app.threat_intelligence.base import ProviderResult, ThreatIntelProvider
+
+    class DemoList(ThreatIntelProvider):
+        name = "local_feed"
+
+        def check_url(self, normalized_url, domain):
+            return ProviderResult(self.name, TIStatus.LISTED, "blocklist", limited=True)
+
+    app = make_app()
+    offline(app).threat_intel = ThreatIntelService([DemoList()])
+    body = analyze(app.test_client(), "https://unknown-shop.in/")  # no warning signs of its own
+    assert body["risk_level"] == "MALICIOUS" and body["confidence"] != "HIGH"
+    assert body["verdict"]["evidence"] == "demo_blocklist"
+
+
+def test_a_real_provider_listing_is_confirmed_threat_intelligence():
+    app = make_app()
+    offline(app)
+    app.extensions["qrguard.url_analysis"].threat_intel = ThreatIntelService(
+        [FakeProvider("urlhaus", TIStatus.LISTED, "malware_download")]
+    )
+    body = analyze(app.test_client(), "https://unknown-shop.in/file")
+    assert body["risk_level"] == "MALICIOUS" and body["confidence"] == "HIGH"
+    assert body["verification"]["source"] == "threat_intelligence"
+    assert (
+        body["verdict"]["confirmed"] is True
+        and body["verdict"]["evidence"] == "threat_intelligence"
+    )
 
 
 def test_demo_blocklist_hit_in_a_message_and_a_qr_code():
@@ -79,9 +108,11 @@ def test_demo_blocklist_hit_in_a_message_and_a_qr_code():
     message = client.post(
         "/api/analyze/message", json={"text": f"Hi, see the photos here: {DEMO_LISTED}"}
     ).get_json()
-    assert message["risk_level"] == "MALICIOUS" and message["verification"]["status"] == "VERIFIED"
+    assert (
+        message["risk_level"] == "MALICIOUS" and message["verification"]["status"] == "UNVERIFIED"
+    )
     qr = client.post("/api/analyze/qr", json={"content": DEMO_LISTED}).get_json()
-    assert qr["risk_score"] == 90 and qr["verification"]["source"] == "threat_intelligence"
+    assert qr["risk_score"] == 90 and qr["verdict"]["evidence"] == "demo_blocklist"
 
 
 def test_demo_only_not_listed_does_not_raise_confidence():

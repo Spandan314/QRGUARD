@@ -69,6 +69,8 @@ class Urllib3Client:
                 raw = response.read(MAX_RESPONSE_BYTES + 1)
             finally:
                 response.release_conn()
+        except urllib3.exceptions.TimeoutError:
+            raise TIHttpError("timeout") from None
         except urllib3.exceptions.HTTPError:
             # "from None": the original exception text can contain the request URL (and so a
             # query-string API key), which must never reach logs or responses.

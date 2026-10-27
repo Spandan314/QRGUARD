@@ -1,5 +1,5 @@
 // Display helpers only. No security decisions are made in the web app.
-import type { Confidence, EvidenceSource, RiskLevel, Severity, TIStatus } from '../types/api'
+import type { Confidence, EvidenceSource, RiskLevel, Severity, TIStatus, VerdictLabel } from '../types/api'
 
 export const LEVEL_STYLE: Record<RiskLevel, { icon: string; label: string; classes: string; bar: string }> = {
   SAFE: {
@@ -20,6 +20,18 @@ export const LEVEL_STYLE: Record<RiskLevel, { icon: string; label: string; class
     classes: 'bg-red-50 text-red-900 ring-red-600/30 dark:bg-red-950 dark:text-red-100',
     bar: 'bg-red-600',
   },
+}
+
+/** The headline verdict. UNVERIFIED is neutral: neither a warning nor a promise of safety. */
+export const VERDICT_STYLE: Record<VerdictLabel, { icon: string; label: string; classes: string }> = {
+  SAFE: { icon: '✅', label: 'SAFE', classes: LEVEL_STYLE.SAFE.classes },
+  UNVERIFIED: {
+    icon: '❔',
+    label: 'NOT VERIFIED',
+    classes: 'bg-slate-100 text-slate-900 ring-slate-500/30 dark:bg-slate-800 dark:text-slate-100',
+  },
+  SUSPICIOUS: { icon: '⚠️', label: 'SUSPICIOUS', classes: LEVEL_STYLE.SUSPICIOUS.classes },
+  MALICIOUS: { icon: '⛔', label: 'MALICIOUS', classes: LEVEL_STYLE.MALICIOUS.classes },
 }
 
 export const CONFIDENCE_TEXT: Record<Confidence, string> = {

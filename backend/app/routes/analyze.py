@@ -17,6 +17,7 @@ from app.analyzers.url_normalizer import URLValidationError
 from app.errors import APIError
 from app.extensions import analyze_rate_limit, limiter, screenshot_rate_limit
 from app.schemas import AnalyzeMessageRequest, AnalyzeQrContentRequest, AnalyzeUrlRequest
+from app.scoring.recommendations import verdict_for
 from app.services.auth import current_user, optional_auth
 from app.services.message_analysis_service import TextNotAnalyzableError
 from app.services.qr_analysis_service import NoQrFoundError
@@ -32,7 +33,12 @@ def _respond(result: dict, kind: str, save_to_history: bool):
     history = current_app.extensions["qrguard.history"].record(
         current_user(), result, kind, save_to_history
     )
-    body = {"request_id": g.request_id, **result, "engine_version": __version__}
+    body = {
+        "request_id": g.request_id,
+        **result,
+        "verdict": verdict_for(result),
+        "engine_version": __version__,
+    }
     if history is not None:
         body["history"] = history
     return jsonify(body)

@@ -82,7 +82,10 @@ def checks(base: str, web_origin: str | None) -> list[tuple[str, Callable[[], No
             base, "POST", "/api/analyze/url", {"url": "http://secure-sbi-kyc-update.example/login"}
         ).json()
         expect(body["risk_level"] == "MALICIOUS", body.get("risk_level"))
-        expect(body["verification"]["status"] == "VERIFIED", body["verification"])
+        # TI_DEMO_LISTED: the built-in demo list (never reported as verified threat intelligence);
+        # TI_LISTED: older backends, or a real feed/provider that lists the demo link too.
+        ids = {i["id"] for i in body["indicators"]}
+        expect(bool(ids & {"TI_LISTED", "TI_DEMO_LISTED"}), sorted(ids))
 
     def scam_message() -> None:
         text = (
@@ -141,7 +144,7 @@ def checks(base: str, web_origin: str | None) -> list[tuple[str, Callable[[], No
     found = [
         ("health, scoring config loaded", health),
         ("security headers", security_headers),
-        ("demo-blocklisted link -> MALICIOUS, VERIFIED", blocklisted_link),
+        ("demo-blocklisted link -> MALICIOUS (blocklist hit)", blocklisted_link),
         ("scam message flagged", scam_message),
         ("UPI refund QR flagged", upi_qr),
         ("cloud metadata address never contacted", private_address_never_contacted),

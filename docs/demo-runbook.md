@@ -38,15 +38,15 @@ fails if a result changes.
 |---|---|---|---|---|
 | 1 | Phone | Home → **Scan a QR code** → QR 1 | ✅ SAFE · **VERIFIED** (trusted domain) | The link is never opened automatically; "Open" asks first. |
 | 2 | Phone | Scan QR 2 | ⚠️ SUSPICIOUS (50) | Brand name in a domain it does not own, risky TLD, phishing words. Each reason is listed. |
-| 3 | Phone | Scan QR 3 | ⛔ MALICIOUS (90) · **Verified by threat intelligence** | A threat-list hit is decisive. (Demo blocklist; real providers switch on with API keys.) |
+| 3 | Phone | Scan QR 3 | ⛔ MALICIOUS (90) · *on QRGUARD's demo blocklist* | A blocklist hit is decisive. QRGUARD says honestly that this is its demo list, not verified threat intelligence; real providers (Safe Browsing, URLhaus) switch on with API keys and then show "listed by threat intelligence". |
 | 4 | Phone | Scan QR 4 ("refund" UPI) | ⚠️ SUSPICIOUS (40) | Scanning a UPI QR only ever **sends** money; pre-filled amount and a refund pretext. |
-| 5 | Phone | Scan QR 5 (shop UPI) | ✅ SAFE · UNVERIFIED | SAFE is **not** a guarantee: the app says so. |
-| 6 | Phone | Home → **Check a message** → paste the genuine OTP SMS below | ✅ SAFE | "Never share your OTP" is recognised as genuine advice. |
-| 7 | Phone | Home → **Check a message** → fake KYC SMS below | ⛔ MALICIOUS (65) | Threat + urgency + look-alike link combine; the breakdown shows points per source. |
+| 5 | Phone | Scan QR 5 (shop UPI) | ❔ NOT VERIFIED (no known risks found) | QRGUARD never calls something safe for lack of evidence; only recognised websites show ✅ SAFE (QR 1). |
+| 6 | Phone | Home → **Check a message** → paste the genuine OTP SMS below | ❔ No scam signs found – not verified | "Never share your OTP" is recognised as genuine advice. |
+| 7 | Phone | Home → **Check a message** → fake KYC SMS below | ⛔ MALICIOUS (75) | Threat + urgency + look-alike link combine; the breakdown shows points per source. |
 | 8 | Web | **Link** → `https://amaz0n-offers.example/deal` | ⛔ MALICIOUS (60) | Typosquatting: "0" instead of "o". |
 | 9 | Web | **Message** → fake internship text below | ⛔ MALICIOUS (60) | Job offer + fee. |
-| 10 | Web | **Screenshot** → upload `scam-kyc.png` | ⛔ MALICIOUS (65) | OCR reads the text; the image and text are discarded after analysis. |
-| 11 | Web | **Screenshot** → upload `genuine-otp.png` | ✅ SAFE | |
+| 10 | Web | **Screenshot** → upload `scam-kyc.png` | ⛔ MALICIOUS (75) | OCR reads the text; the image and text are discarded after analysis. |
+| 11 | Web | **Screenshot** → upload `genuine-otp.png` | ❔ NOT VERIFIED (no scam signs) | On the phone: Home → **Choose image to check**. |
 | 12 | Web | **QR code → Use the camera** → hold QR 4 to the webcam | ⚠️ SUSPICIOUS | Same backend, same verdict on both apps. |
 | 13 | Web | **Make a QR** → Wi-Fi → *Create QR code* | QR image appears | A utility, separate from detection. |
 | 14 | Phone | **History** tab | The saved verdicts; links show only the domain | No message text, screenshot or full link is stored; delete one / all. |

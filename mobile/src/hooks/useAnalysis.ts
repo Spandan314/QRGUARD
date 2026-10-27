@@ -11,11 +11,13 @@ export function useAnalysis<A extends unknown[]>(call: (...args: [...A, AbortSig
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<ApiError | null>(null)
   const controllerRef = useRef<AbortController | null>(null)
+  const lastArgs = useRef<A | null>(null)
 
   useEffect(() => () => controllerRef.current?.abort(), [])
 
   const run = useCallback(
     async (...args: A): Promise<boolean> => {
+      lastArgs.current = args
       controllerRef.current?.abort()
       const controller = new AbortController()
       controllerRef.current = controller
@@ -38,5 +40,8 @@ export function useAnalysis<A extends unknown[]>(call: (...args: [...A, AbortSig
     [call, router, setResult],
   )
 
-  return { loading, error, run, clearError: () => setError(null) }
+  /** Runs the last analysis again with the same input (after a network or server problem). */
+  const retry = useCallback(async (): Promise<boolean> => (lastArgs.current ? run(...lastArgs.current) : false), [run])
+
+  return { loading, error, run, retry, clearError: () => setError(null) }
 }

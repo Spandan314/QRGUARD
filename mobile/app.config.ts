@@ -13,6 +13,11 @@ if (releaseProfile && !(process.env.EXPO_PUBLIC_API_BASE_URL ?? '').startsWith('
   )
 }
 
+// The Expo (EAS) project created by `eas init` for QRGUARD. A public identifier, not a secret.
+// `eas init` cannot write it into a dynamic config, so it lives here; EAS_PROJECT_ID overrides it
+// (for example to build under a different Expo account).
+const EAS_PROJECT_ID = process.env.EAS_PROJECT_ID || 'c572b10d-eef7-403b-a7f7-292903a221a5'
+
 const config: ExpoConfig = {
   name: 'QRGUARD',
   slug: 'qrguard',
@@ -30,9 +35,18 @@ const config: ExpoConfig = {
       backgroundImage: './assets/android-icon-background.png',
       monochromeImage: './assets/android-icon-monochrome.png',
     },
-    // Only what the app needs: the camera for scanning. No location, contacts or storage.
+    // Only what the app needs: the camera for scanning. No location, contacts or storage. Images
+    // come from the system photo picker, which needs no storage permission, and files are only
+    // written to the app's own cache, so the storage permissions that libraries declare are removed.
     permissions: ['android.permission.CAMERA'],
-    blockedPermissions: ['android.permission.RECORD_AUDIO'],
+    blockedPermissions: [
+      'android.permission.RECORD_AUDIO',
+      'android.permission.READ_EXTERNAL_STORAGE',
+      'android.permission.WRITE_EXTERNAL_STORAGE',
+      'android.permission.READ_MEDIA_IMAGES',
+      'android.permission.READ_MEDIA_VIDEO',
+      'android.permission.READ_MEDIA_AUDIO',
+    ],
     predictiveBackGestureEnabled: false,
   },
   web: { favicon: './assets/favicon.png' },
@@ -55,8 +69,7 @@ const config: ExpoConfig = {
     ],
   ],
   experiments: { typedRoutes: true },
-  // Written by `eas init`; kept in an env var so the repository does not hard-code one account.
-  ...(process.env.EAS_PROJECT_ID ? { extra: { eas: { projectId: process.env.EAS_PROJECT_ID } } } : {}),
+  extra: { eas: { projectId: EAS_PROJECT_ID } },
 }
 
 export default config

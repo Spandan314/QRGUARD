@@ -32,6 +32,10 @@ services:
         value: "2"
       - key: GUNICORN_THREADS
         value: "4"
+      # Follow redirects of known link shorteners only (SSRF-hardened resolver:
+      # backend/app/analyzers/redirect_resolver.py). Do NOT switch to "all" without a new
+      # security review: "all" lets anyone make the backend contact a server of their choice for
+      # every analysed link (see docs/security.md). "off" never contacts any link.
       - key: REDIRECT_RESOLUTION
         value: shorteners_only
       - key: THREAT_INTEL_LOCAL_FEEDS_ENABLED

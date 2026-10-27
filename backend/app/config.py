@@ -100,6 +100,7 @@ class Config:
     redirect_max_hops: int = 5
     redirect_timeout_seconds: int = 3
     redirect_total_timeout_seconds: int = 8
+    redirect_max_concurrent: int = 2  # redirect checks at once per worker process
     ratelimit_screenshot: str = "6 per minute;60 per day"
     max_image_megapixels: int = 25
     tesseract_cmd: str = "tesseract"
@@ -117,6 +118,9 @@ class Config:
     google_safe_browsing_api_key: str = field(default="", repr=False)
     virustotal_api_key: str = field(default="", repr=False)
     phishtank_api_key: str = field(default="", repr=False)
+    # PhishTank no longer issues new application keys. Its checkurl endpoint also answers
+    # requests without a key (with a lower rate limit); this opt-in enables that mode.
+    phishtank_anonymous: bool = False
     # Firebase (auth + history). Without a project, sign-in and history answer 503.
     firebase_project_id: str = ""
     firebase_credentials_file: str = ""
@@ -195,6 +199,7 @@ class Config:
             redirect_total_timeout_seconds=_get_int(
                 env, "REDIRECT_TOTAL_TIMEOUT_SECONDS", 8, 1, 30
             ),
+            redirect_max_concurrent=_get_int(env, "REDIRECT_MAX_CONCURRENT", 2, 1, 16),
             ratelimit_screenshot=env.get("RATELIMIT_SCREENSHOT", "").strip()
             or "6 per minute;60 per day",
             max_image_megapixels=_get_int(env, "MAX_IMAGE_MEGAPIXELS", 25, 1, 50),
@@ -216,6 +221,7 @@ class Config:
             google_safe_browsing_api_key=_get_secret(env, "GOOGLE_SAFE_BROWSING_API_KEY"),
             virustotal_api_key=_get_secret(env, "VIRUSTOTAL_API_KEY"),
             phishtank_api_key=_get_secret(env, "PHISHTANK_API_KEY"),
+            phishtank_anonymous=_get_bool(env, "PHISHTANK_ANONYMOUS", False),
             firebase_project_id=firebase_project_id,
             firebase_credentials_file=env.get("FIREBASE_CREDENTIALS_FILE", "").strip(),
             firebase_credentials_json=env.get("FIREBASE_CREDENTIALS_JSON", "").strip(),

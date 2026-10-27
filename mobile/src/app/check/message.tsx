@@ -8,7 +8,7 @@ import { api } from '../../services/api'
 
 export default function MessageCheck() {
   const [text, setText] = useState('')
-  const { loading, error, run } = useAnalysis(api.analyzeMessage)
+  const { loading, error, run, retry } = useAnalysis(api.analyzeMessage)
   const saveOption = useSaveOption()
 
   return (
@@ -30,7 +30,7 @@ export default function MessageCheck() {
         <SaveToHistory option={saveOption} />
         <ActionButton label="Check message" loading={loading} disabled={!text.trim()} onPress={() => void run(text, { save: saveOption.save })} />
       </Card>
-      {error ? <ErrorBanner error={error} /> : null}
+      {error ? <ErrorBanner error={error} onRetry={loading ? undefined : () => void retry()} /> : null}
     </Screen>
   )
 }

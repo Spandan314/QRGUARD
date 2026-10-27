@@ -109,6 +109,14 @@ indicators:
     weight: 0
     title: No http:// or https:// given
     message: The link had no protocol, so it was analysed as an https:// address.
+  URL_UNKNOWN_TLD:
+    module: url_qr
+    category: url_structure
+    weight: 0
+    title: Unknown domain ending
+    message: >-
+      The domain ending is not on the public list of internet domain endings. The address may be
+      mistyped, or it only works on private networks; it cannot be verified.
   URL_IP_HOST:
     module: url_qr
     category: url_structure
@@ -367,6 +375,16 @@ indicators:
     scam_categories: [malicious_url]
     title: Listed as malicious by a threat-intelligence source
     message: This link appears in a database of known malicious or phishing links.
+  TI_DEMO_LISTED:
+    module: threat_intel
+    category: reputation
+    weight: 100
+    floor: 90
+    scam_categories: [malicious_url]
+    title: On QRGUARD's demo blocklist (demonstration data)
+    message: >-
+      This link is on QRGUARD's small built-in demo blocklist of synthetic test links. It is
+      demonstration data, not a real threat-intelligence listing.
   TI_PARTIAL:
     module: threat_intel
     category: reputation
@@ -520,6 +538,13 @@ indicators:
     scam_categories: [impersonation]
     title: Mentions police, government or an official agency
     message: The message mentions police, a court, customs, a government department or a courier company. Scammers often pretend to be these.
+  MSG_IMPERSONATION_PRETEXT:
+    module: message
+    category: impersonation
+    weight: 10
+    scam_categories: [impersonation]
+    title: Unusual story about who is writing
+    message: The sender claims a new number, a lost phone or that they cannot talk. Impersonators use these stories so that you cannot check who they are.
   MSG_SUPPORT_REFERENCE:
     module: message
     category: impersonation
@@ -601,6 +626,20 @@ indicators:
     scam_categories: [fake_customer_support]
     title: "Combination: support or refund + remote-access app"
     message: A "support" or "refund" contact asking you to install a remote-access app is a well-known fake customer-support scam.
+  MSG_COMBO_IMPERSONATION_PAYMENT:
+    module: message
+    category: combination
+    weight: 15
+    scam_categories: [impersonation, banking_payment]
+    title: "Combination: unusual contact story + money request"
+    message: A "new number", "lost phone" or "in a meeting, keep it confidential" story followed by a request for money is the typical structure of impersonation fraud. Call the person on their known number before paying.
+  MSG_COMBO_THREAT_LINK:
+    module: message
+    category: combination
+    weight: 10
+    scam_categories: [phishing, kyc_account_suspension]
+    title: "Combination: account threat or KYC demand + a link"
+    message: Banks and government services do not threaten to block an account and then send a link to fix it. Use the official app or website instead.
   MSG_COMBO_RETURNS_PRIVATE_GROUP:
     module: message
     category: combination

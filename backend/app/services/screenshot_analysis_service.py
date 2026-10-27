@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.analyzers.ocr import OcrEngine
+from app.analyzers.ocr import OcrEngine, OcrError
 from app.analyzers.qr_decoder import decode_qr_codes
 from app.analyzers.qr_payload import classify, payload_indicators
 from app.scoring.indicator import Indicator
@@ -52,9 +52,19 @@ class ScreenshotAnalysisService:
         image = validate_image(data, self.max_bytes, self.max_pixels)
         try:
             qr_codes = decode_qr_codes(image.image) if self.qr_service else []
-            ocr = self.ocr_engine.extract(image.image)  # OcrError subclasses propagate to the route
+            try:
+                ocr = self.ocr_engine.extract(image.image)
+            except OcrError:
+                # A photo of a QR code needs no text: still analyse the QR code(s). Without a
+                # QR code the OCR problem is reported to the caller (the route maps it).
+                if not qr_codes:
+                    raise
+                ocr = None
         finally:
             image.image.close()
+
+        if ocr is None:
+            return self._qr_only(qr_codes, None, image.describe())
 
         text = ocr.text.strip()
         if not text and qr_codes:
@@ -128,6 +138,9 @@ class ScreenshotAnalysisService:
         response = self.qr_service.analyze_payloads(
             codes, source="screenshot", image=image, input_type="screenshot"
         )
+        if ocr is None:  # OCR failed or is unavailable; the QR code(s) alone were analysed
+            response["analysis"]["ocr"] = None
+            return response
         response["analysis"]["ocr"] = {
             "engine": ocr.engine,
             "extracted_text": ocr.text.strip(),

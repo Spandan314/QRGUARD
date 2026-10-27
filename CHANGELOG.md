@@ -1,5 +1,72 @@
 # Changelog
 
+## Redirect checker hardening (October 2026, `feature/redirect-hardening`)
+
+- **Hard time limit per redirect request.** A socket read timeout restarts on every byte, so a
+  hostile server dripping one header byte at a time could hold a request thread indefinitely. A
+  watchdog now shuts the socket down at the request's wall-clock deadline (never beyond the total
+  budget), and a response cut short this way is treated as a timeout, never as an answer. The
+  GET fallback gets only what is left of the budget.
+- **DNS lookups cannot starve each other.** Lookups ran on a shared pool of 4 threads and a
+  timed-out `getaddrinfo` kept its thread, so four stuck lookups delayed every other one. Each
+  lookup now has its own thread; at most 16 may be in flight (abandoned ones included), beyond
+  which lookups fail at once.
+- **Per-worker cap on concurrent redirect checks** (`REDIRECT_MAX_CONCURRENT`, default 2). When
+  every slot is busy, the check is skipped and reported as incomplete (`capacity_exhausted`),
+  never as clean.
+- **`render.yaml` is back to `REDIRECT_RESOLUTION=shorteners_only`.** `all` is not enabled: it
+  lets anyone make the backend contact a server of their choice for every analysed link.
+
+## Link action, evidence and threat intelligence (October 2026, `feature/link-verdict-ti`)
+
+- **Web: "Open checked link".** The web app never had an open action (links were plain text by
+  design). It now has one: it opens only the exact analysed URL in a new tab without an opener,
+  never automatically, after a confirmation that names the host (and any redirect), with a caution
+  for unverified links and a ticked acknowledgement for malicious ones. `user@host` and non-web links
+  are never opened. The link policy is shared with the Android app.
+- **The demo blocklist is not threat intelligence.** A hit only on QRGUARD's synthetic demo list is
+  `TI_DEMO_LISTED`: still MALICIOUS (floor 90), but UNVERIFIED, `verdict.confirmed: false`,
+  `verdict.evidence: "demo_blocklist"`, and no HIGH confidence from that floor alone.
+- **Evidence:** `verdict.evidence` (`threat_intelligence`, `trusted_list`, `warning_signs`,
+  `demo_blocklist`, `insufficient`). A provider that times out, is rate limited or rejects its key
+  makes the check `incomplete` / `unavailable`, named with the reason, and lowers confidence: never
+  a clean result.
+- **Providers:** timeouts reported as "timeout"; HTTP 509 (PhishTank) as "rate limited"; Safe
+  Browsing's 400 invalid-key answer and URLhaus `unknown_auth_key` as configuration errors;
+  optional `PHISHTANK_ANONYMOUS`; tests with complete documented response bodies; and
+  `scripts/ti_selftest.py`, which proves a key works (Safe Browsing must list Google's official test
+  page) without printing it. No provider is live-verified yet: no keys are configured.
+
+## Mobile production hardening (October 2026, `feature/mobile-production-hardening`)
+
+Details and root causes: docs/mobile-audit-2026-10.md.
+
+### Changed
+
+- **Evidence-based verdicts.** Every analysis response has a `verdict` (`MALICIOUS`,
+  `SUSPICIOUS`, `UNVERIFIED`, `SAFE`). SAFE is reserved for positively recognised domains; an
+  unknown site with no warning signs is shown as **NOT VERIFIED**, never SAFE. Android and web show
+  the verdict as the headline. URL results list the `checks` behind the verdict (structure,
+  destination/redirects, threat intelligence: completed, limited, not run or unavailable).
+- **Exact links.** A bare word such as `offer` is rejected (`400 INCOMPLETE_URL`), never guessed.
+  Unknown domain endings are explained (`URL_UNKNOWN_TLD`, 0 points). Passwords in links are
+  masked in `analysis.input_url` too. The app opens only the exact checked URL, names its host and
+  any redirect target before opening, cautions on unverified links, and never opens `user@host`
+  links.
+- **Redirects:** `render.yaml` briefly used `REDIRECT_RESOLUTION=all`; this was reverted to
+  `shorteners_only` after a security review (see "Redirect checker hardening" above).
+- **Android camera:** full permission flow (explain → request → denied → permanently denied with
+  Open settings → re-check on return), camera start-up error recovery, and alternatives.
+- **Android images:** "Check a screenshot" and "QR code from a photo" merged into **Choose image to
+  check**. Images are resized/re-encoded on the phone (≤ 2000 px, JPEG, metadata removed). Uploads
+  are diagnosed precisely (interrupted upload vs. server unreachable vs. server starting), with
+  Try again. The server still analyses a QR code in an image when OCR fails or is unavailable.
+  Storage permissions merged in by libraries are blocked. **Requires a new APK.**
+- **Message rules:** four narrow additions found by a new labelled audit set (OTP "code sent to
+  your phone", prize "claim your free … / shipping fee", new-number / in-a-meeting impersonation
+  + money request, account threat or KYC demand + link). The fake-KYC demo now scores 75 instead
+  of 65 (still MALICIOUS). Measured before/after in docs/evaluation.md.
+
 ## Free-plan deployment fixes (after v1.0.0, on `main`)
 
 ### Changed

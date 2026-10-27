@@ -18,12 +18,26 @@ from app.scoring.engine import ScoreResult, ScoringContext, score_indicators
 from app.scoring.indicator import Indicator
 from app.scoring.recommendations import DISCLAIMER, recommendation_for, summary_for
 from app.scoring.settings import ScoringSettings
-from app.threat_intelligence.base import ProviderResult
+from app.threat_intelligence.base import DEFINITIVE_STATUSES, ProviderResult, TIStatus
 from app.threat_intelligence.service import ThreatIntelService
 from app.utils.net_safety import resolve_host
 
 REDIRECT_MODES = ("off", "shorteners_only", "all")
-INCOMPLETE_STATUSES = {rr.TIMEOUT, rr.CONNECTION_ERROR, rr.TLS_ERROR, rr.INVALID_REDIRECT}
+PROVIDER_NAMES = {
+    "local_feed": "local blocklist",
+    "urlhaus": "URLhaus",
+    "google_safe_browsing": "Google Safe Browsing",
+    "virustotal": "VirusTotal",
+    "phishtank": "PhishTank",
+}
+FAILED_STATUSES = {TIStatus.UNAVAILABLE, TIStatus.ERROR}
+INCOMPLETE_STATUSES = {
+    rr.TIMEOUT,
+    rr.CONNECTION_ERROR,
+    rr.TLS_ERROR,
+    rr.INVALID_REDIRECT,
+    rr.CAPACITY_EXHAUSTED,
+}
 
 
 @dataclass
@@ -57,6 +71,10 @@ class UrlAnalysisService:
         self.threat_intel = threat_intel
         self.redirect_mode = redirect_mode
         self.redirect_settings = redirect_settings or rr.RedirectSettings()
+        # Shared by every request thread of this worker process.
+        self.redirect_slots = rr.RedirectSlots(
+            self.redirect_settings.max_concurrent, self.redirect_settings.slot_wait
+        )
         # Network functions are attributes so tests can replace them with fakes.
         self.fetcher = fetcher
         self.resolver = resolver
@@ -109,6 +127,10 @@ class UrlAnalysisService:
             urls_to_check.append(final_url)
         for url in urls_to_check:
             analysis.ti_results.extend(self.threat_intel.check(url, parsed.registrable_domain))
+        # An enabled provider that timed out, was rate limited or rejected its key gave NO answer:
+        # that is an incomplete check (lower confidence), never a clean result.
+        if any(r.status in FAILED_STATUSES and not r.limited for r in analysis.ti_results):
+            analysis.incomplete_checks = True
         return analysis
 
     # ----- redirects ----------------------------------------------------------------------------
@@ -137,6 +159,7 @@ class UrlAnalysisService:
             local_host_suffixes=self.rules.local_host_suffixes,
             fetcher=self.fetcher,
             resolver=self.resolver,
+            slots=self.redirect_slots,
         )
         analysis.redirects = {
             "checked": True,
@@ -218,6 +241,103 @@ class UrlAnalysisService:
         if final_brand is not None and analysis.brand is None:
             analysis.brand = final_brand
 
+    # ----- checks performed (what the verdict is based on) ---------------------------------------
+    REDIRECT_DETAIL = {
+        rr.DNS_FAILURE: "the domain name does not resolve",
+        rr.TIMEOUT: "the website did not answer in time",
+        rr.CAPACITY_EXHAUSTED: "the link checker is busy; try again in a moment",
+        rr.CONNECTION_ERROR: "the website could not be reached",
+        rr.TLS_ERROR: "the website's HTTPS certificate could not be checked",
+        rr.TOO_MANY_REDIRECTS: "too many redirects",
+    }
+
+    def _checks(self, analysis: UrlAnalysis) -> list[dict[str, Any]]:
+        """Which checks ran, which could not, and why: the evidence behind the verdict."""
+        checks = [
+            {
+                "id": "url_structure",
+                "label": "Link structure and look-alike domains",
+                "status": "completed",
+                "detail": None,
+            }
+        ]
+        redirects = analysis.redirects or {}
+        status = redirects.get("status")
+        if not redirects.get("checked"):
+            checks.append(
+                {
+                    "id": "destination",
+                    "label": "Where the link leads (redirects)",
+                    "status": "not_run",
+                    "detail": redirects.get("reason") or "not checked",
+                }
+            )
+        elif status == rr.COMPLETED:
+            final_domain = redirects.get("final_domain")
+            if final_domain and final_domain != analysis.parsed.registrable_domain:
+                detail = f"leads to another website: {final_domain}"
+            elif redirects.get("redirect_count"):
+                detail = f"{redirects['redirect_count']} redirect(s) on the same website"
+            else:
+                detail = "no redirect"
+            checks.append(
+                {
+                    "id": "destination",
+                    "label": "Where the link leads (redirects)",
+                    "status": "completed",
+                    "detail": detail,
+                }
+            )
+        else:
+            checks.append(
+                {
+                    "id": "destination",
+                    "label": "Where the link leads (redirects)",
+                    "status": "incomplete",
+                    "detail": self.REDIRECT_DETAIL.get(status, str(status).replace("_", " ")),
+                }
+            )
+
+        checks.append(self._ti_check(analysis.ti_results))
+        return checks
+
+    @staticmethod
+    def _ti_check(results: list[ProviderResult]) -> dict[str, Any]:
+        """Which real providers answered, which failed (and why), or that none is enabled."""
+
+        def names(rows: list[ProviderResult]) -> str:
+            return ", ".join(sorted({PROVIDER_NAMES.get(r.provider, r.provider) for r in rows}))
+
+        def failures(rows: list[ProviderResult]) -> str:
+            default = {TIStatus.UNAVAILABLE: "no answer", TIStatus.ERROR: "configuration problem"}
+            return ", ".join(
+                f"{PROVIDER_NAMES.get(r.provider, r.provider)} ({r.detail or default[r.status]})"
+                for r in sorted(rows, key=lambda r: r.provider)
+            )
+
+        real = [r for r in results if not r.limited and r.status != TIStatus.DISABLED]
+        answered = [r for r in real if r.status in DEFINITIVE_STATUSES]
+        failed = [r for r in real if r.status in FAILED_STATUSES]
+        demo_answered = any(r.limited and r.status in DEFINITIVE_STATUSES for r in results)
+        if answered and not failed:
+            status, detail = "completed", names(answered)
+        elif answered:
+            status = "incomplete"
+            detail = f"answered: {names(answered)}; could not be checked: {failures(failed)}"
+        elif failed:
+            status, detail = "unavailable", f"could not be checked: {failures(failed)}"
+        elif demo_answered:
+            status = "limited"
+            detail = "no real provider is enabled; only QRGUARD's demo blocklist was checked"
+        else:
+            status, detail = "not_run", "no threat-intelligence provider is enabled"
+        return {
+            "id": "threat_intelligence",
+            "label": "Threat-intelligence databases",
+            "status": status,
+            "detail": detail,
+        }
+
     # ----- response -----------------------------------------------------------------------------
     def build_response(
         self, analysis: UrlAnalysis, result: ScoreResult, input_type: str = "url"
@@ -252,6 +372,7 @@ class UrlAnalysisService:
                     "link's structure only.",
                 ),
             },
+            "checks": self._checks(analysis),
             "analysis": {
                 "input_url": parsed.original,
                 "normalized_url": parsed.normalized,

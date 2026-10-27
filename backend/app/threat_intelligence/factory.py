@@ -40,7 +40,9 @@ def build_threat_intel(config: Config, rules: UrlRules) -> ThreatIntelService:
         UrlhausProvider(config.urlhaus_auth_key, timeout=timeout),
         SafeBrowsingProvider(config.google_safe_browsing_api_key, timeout=timeout),
         VirusTotalProvider(config.virustotal_api_key, timeout=timeout),
-        PhishTankProvider(config.phishtank_api_key, timeout=timeout),
+        PhishTankProvider(
+            config.phishtank_api_key, timeout=timeout, anonymous=config.phishtank_anonymous
+        ),
     ]
     cache = TTLCache(config.ti_cache_listed_seconds, config.ti_cache_not_listed_seconds)
     return ThreatIntelService(providers, cache=cache, budget_seconds=config.ti_budget_seconds)

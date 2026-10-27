@@ -203,3 +203,96 @@ def recommendation_for(
                 parts.append(advice)
                 break
     return " ".join(parts)
+
+
+# ---- verdict ---------------------------------------------------------------------------------
+# The verdict is what the apps show as the headline. It is derived from the score band
+# (risk_level) and the verification, and it NEVER calls something safe for lack of evidence:
+#   MALICIOUS / SUSPICIOUS  the score band (confirmed=True when a threat list names it)
+#   SAFE                    only when positively recognised (trusted-domain list) and clean
+#   UNVERIFIED              no warning signs found, but nothing proves it is safe either
+VERDICT_MALICIOUS, VERDICT_SUSPICIOUS = "MALICIOUS", "SUSPICIOUS"
+VERDICT_SAFE, VERDICT_UNVERIFIED = "SAFE", "UNVERIFIED"
+
+_UNVERIFIED_TITLES = {
+    "url": "Not verified – no known risks found",
+    "qr": "Not verified – no known risks found",
+    "message": "No scam signs found – not verified",
+    "screenshot": "No scam signs found – not verified",
+}
+_UNVERIFIED_EXPLANATIONS = {
+    "url": (
+        "QRGUARD found no warning signs, but it has no evidence that this website is safe. "
+        "Not being on a threat list is not proof of safety."
+    ),
+    "message": (
+        "QRGUARD found no known scam patterns, but that does not prove the message is genuine."
+    ),
+}
+
+
+def verdict_for(result: dict) -> dict:
+    """Headline verdict for a scored response (see the table above).
+
+    ``evidence`` says what the verdict rests on: ``threat_intelligence`` (a real provider lists
+    it), ``trusted_list`` (recognised domain), ``warning_signs`` (QRGUARD's own rules),
+    ``demo_blocklist`` (only the built-in demo data) or ``insufficient`` (nothing either way).
+    """
+    risk_level = result["risk_level"]
+    verification = result["verification"]
+    input_type = result["input_type"]
+    ids = {i["id"] for i in result.get("indicators", [])}
+    if risk_level == MALICIOUS:
+        confirmed = verification.get("source") == "threat_intelligence"
+        demo = not confirmed and "TI_DEMO_LISTED" in ids
+        if confirmed:
+            title, explanation, evidence = (
+                "Malicious – listed by threat intelligence",
+                "A threat-intelligence source lists this as known malicious.",
+                "threat_intelligence",
+            )
+        elif demo:
+            title, explanation, evidence = (
+                "Malicious – on QRGUARD's demo blocklist",
+                "It is on QRGUARD's built-in demo blocklist (demonstration data). No real "
+                "threat-intelligence source has confirmed it.",
+                "demo_blocklist",
+            )
+        else:
+            title, explanation, evidence = (
+                "Very likely malicious",
+                "Strong warning signs were found.",
+                "warning_signs",
+            )
+        return {
+            "label": VERDICT_MALICIOUS,
+            "confirmed": confirmed,
+            "evidence": evidence,
+            "title": title,
+            "explanation": explanation,
+        }
+    if risk_level == SUSPICIOUS:
+        return {
+            "label": VERDICT_SUSPICIOUS,
+            "confirmed": False,
+            "evidence": "warning_signs",
+            "title": "Suspicious",
+            "explanation": "Several warning signs were found.",
+        }
+    if verification.get("status") == VERIFIED:
+        return {
+            "label": VERDICT_SAFE,
+            "confirmed": True,
+            "evidence": "trusted_list",
+            "title": "Recognised legitimate website",
+            "explanation": "The domain is on QRGUARD's list of recognised websites and no "
+            "significant warning signs were found.",
+        }
+    kind = "message" if input_type in ("message", "screenshot") else "url"
+    return {
+        "label": VERDICT_UNVERIFIED,
+        "confirmed": False,
+        "evidence": "insufficient",
+        "title": _UNVERIFIED_TITLES.get(input_type, _UNVERIFIED_TITLES["url"]),
+        "explanation": _UNVERIFIED_EXPLANATIONS[kind],
+    }

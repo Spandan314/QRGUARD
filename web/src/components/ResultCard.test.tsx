@@ -14,12 +14,27 @@ describe('ResultCard', () => {
     expect(screen.getByText(/report financial fraud at 1930/)).toBeInTheDocument()
   })
 
-  it('explains that SAFE + UNVERIFIED is not a guarantee', () => {
+  it('never presents an unverified result as SAFE', () => {
     render(<ResultCard result={safeUnverified} />)
-    const verification = screen.getByTestId('verification')
-    expect(verification).toHaveTextContent('Unverified')
-    expect(verification).toHaveTextContent('not a guarantee')
+    expect(screen.getAllByTestId('risk-badge')[0]).toHaveTextContent('NOT VERIFIED')
+    expect(screen.queryByText('SAFE')).toBeNull()
+    expect(screen.getByTestId('verdict-title')).toHaveTextContent('Not verified – no known risks found')
+    expect(screen.getByTestId('verification')).toHaveTextContent('Unverified')
     expect(screen.getByText('No warning signs were found.')).toBeInTheDocument()
+  })
+
+  it('shows SAFE only for a recognised website, and lists the checks behind a verdict', () => {
+    render(
+      <ResultCard
+        result={{
+          ...safeUnverified,
+          verification: { status: 'VERIFIED', source: 'trusted_domain_list', message: 'Recognised.' },
+          checks: [{ id: 'threat_intelligence', label: 'Threat-intelligence databases', status: 'limited', detail: 'demo list' }],
+        }}
+      />,
+    )
+    expect(screen.getAllByTestId('risk-badge')[0]).toHaveTextContent('SAFE')
+    expect(screen.getByTestId('check-threat_intelligence')).toHaveTextContent('Threat-intelligence databases: limited (demo list)')
   })
 
   it('shows a threat-intelligence verification', () => {
@@ -42,7 +57,8 @@ describe('ResultCard', () => {
     expect(container.querySelector('img')).toBeNull()
     expect(screen.getByText('<img src=x onerror=alert(1)>')).toBeInTheDocument()
     expect(container.querySelectorAll('a')).toHaveLength(0)
-    expect(screen.getByText('http://sbi.co.in.kyc-verify.xyz/login').tagName).toBe('SPAN')
+    // The checked URL appears in the open-link section and the details: always as plain text.
+    for (const node of screen.getAllByText('http://sbi.co.in.kyc-verify.xyz/login')) expect(node.tagName).not.toBe('A')
   })
 
   it('shows provider problems honestly', () => {

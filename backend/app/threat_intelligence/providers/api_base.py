@@ -2,7 +2,8 @@
 
 - Enabled only when the API key is set (no key -> DISABLED, never an error or a crash).
 - Only fixed provider hosts are contacted, over verified HTTPS, with a per-request timeout.
-- HTTP 401/403 -> ERROR ("configuration"); 429, 5xx, timeouts, network errors -> UNAVAILABLE.
+- HTTP 401/403 -> ERROR ("configuration"); 429/509 ("rate limited"), 5xx, timeouts and network
+  errors -> UNAVAILABLE, with the reason in ``detail``.
 - A malformed response -> UNAVAILABLE ("unexpected response"); it never counts as "not listed".
 - API keys and URLs are never logged and never appear in results.
 """
@@ -45,15 +46,17 @@ class ApiProvider(ThreatIntelProvider):
             return self._result(TIStatus.DISABLED)
         try:
             response = self._send(normalized_url, domain)
-        except TIHttpError:
-            return self._result(TIStatus.UNAVAILABLE, detail="network error")
+        except TIHttpError as exc:
+            # The message is one of our own fixed strings ("timeout", "network error",
+            # "response too large"), never provider or request text.
+            return self._result(TIStatus.UNAVAILABLE, detail=str(exc) or "network error")
         if response.status in (401, 403):
             logger.warning(
                 "threat-intel provider rejected the API key",
                 extra={"event": "ti_auth_error", "provider": self.name},
             )
             return self._result(TIStatus.ERROR, detail="configuration")
-        if response.status == 429:
+        if response.status in (429, 509):  # 509: PhishTank's "bandwidth limit exceeded"
             return self._result(TIStatus.UNAVAILABLE, detail="rate limited")
         if response.status >= 500:
             return self._result(TIStatus.UNAVAILABLE, detail="provider error")

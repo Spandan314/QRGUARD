@@ -1,0 +1,127 @@
+# DEMO / TEST DATA: message audit set (October 2026, written for the mobile production audit).
+# It covers each scam family named in the audit plus genuine messages that use the same alarming
+# words (OTP, bank, urgent, refund, KYC) so false positives are measured, not assumed.
+# Results are reported in docs/evaluation.md: the FIRST measurement was taken before any rule
+# change; if rules are later changed because of a miss here, that is stated there too.
+# No real people's data: phone numbers are fictitious, links use reserved (.example, .test) or
+# clearly fake domains. Do NOT send these to anyone.
+#
+# label: scam | genuine. Target: every scam at least SUSPICIOUS, no genuine item MALICIOUS.
+# Run: cd backend && python -m scripts.evaluate
+
+messages:
+  # ---- scams ----
+  - id: a-upi-collect-request
+    label: scam
+    family: fake UPI payment request
+    text: "Hi, I am sending you Rs 2,000 for the sofa you listed. I have sent a collect request on PhonePe, just approve it and enter your UPI PIN to receive the money."
+  - id: a-failed-txn-refund
+    label: scam
+    family: fraudulent refund / failed transaction
+    text: "Your transaction of Rs 4,999 failed but money was debited. To get the refund, download AnyDesk and our support team will process it on your phone now."
+  - id: a-kyc-suspend-link
+    label: scam
+    family: KYC suspension / account blocking
+    text: "Dear SBI user, your YONO account will be suspended today. Complete your KYC immediately at http://sbi-yono-kyc.top/update to avoid blocking."
+  - id: a-bank-blocked-call
+    label: scam
+    family: KYC suspension / account blocking
+    text: "Your ICICI debit card has been blocked due to suspicious activity. Call our helpline 98765 00011 immediately to unblock and verify your card details."
+  - id: a-otp-share-friend
+    label: scam
+    family: OTP theft
+    text: "Hey, I accidentally sent my verification code to your number. Can you please forward me the 6 digit OTP you just received? It is urgent."
+  - id: a-credential-request
+    label: scam
+    family: credential request
+    text: "Income Tax Department: you are eligible for a refund of Rs 15,490. Reply with your net banking user ID and password to receive it in your account."
+  - id: a-fake-customer-care
+    label: scam
+    family: fake customer-care number
+    text: "Swiggy refund desk: your order refund of Rs 840 is pending. Contact customer care at 98760 55443 and share the code sent to your phone to get it credited."
+  - id: a-lottery-whatsapp
+    label: scam
+    family: lottery / prize
+    text: "Congratulations! WhatsApp lucky draw winner. You have won Rs 25 lakh. Send Rs 7,500 GST charge to claim your prize money today."
+  - id: a-prize-iphone-link
+    label: scam
+    family: lottery / prize
+    text: "You are our lucky customer! Claim your free iPhone 16 now, only shipping fee Rs 99: https://free-iphone-gift.example/claim"
+  - id: a-job-telegram-task
+    label: scam
+    family: job scam
+    text: "Part time job: like Instagram posts and earn Rs 300 per task. Join our Telegram group, first deposit Rs 1,000 to unlock high paying tasks."
+  - id: a-investment-guaranteed
+    label: scam
+    family: investment scam
+    text: "Join our stock market tips group. Guaranteed 300% profit in one month, zero risk. Transfer Rs 5,000 to start trading with our expert."
+  - id: a-boss-urgent-payment
+    label: scam
+    family: urgent payment / impersonation
+    text: "Hi, this is your director. I am in a meeting and cannot talk. Urgently transfer Rs 48,000 to this account for a vendor payment and keep it confidential."
+  - id: a-family-emergency
+    label: scam
+    family: urgent payment / impersonation
+    text: "Mom I lost my phone, this is my new number. I need Rs 15,000 urgently for hospital fees, please send it to this UPI ID now, I will explain later."
+  - id: a-shortened-link-kyc
+    label: scam
+    family: shortened URL
+    text: "Your PAN card will be deactivated today. Update now: https://bit.ly/pan-kyc-update"
+  - id: a-lookalike-domain
+    label: scam
+    family: deceptive domain
+    text: "Paytm: your wallet KYC is pending. Login at https://paytm-wallet-verify.example/login within 24 hours to continue using your account."
+  - id: a-electricity-app
+    label: scam
+    family: utility disconnection
+    text: "Your electricity connection will be cut tonight. Install the app from this link and pay the pending bill: http://bijli-bill-pay.example/app.apk"
+
+  # ---- genuine (some deliberately use alarming words) ----
+  - id: g-otp-login
+    label: genuine
+    text: "538210 is your OTP to log in to the Axis Mobile app. Valid for 5 minutes. Do not share it with anyone. Axis Bank will never ask for your OTP."
+  - id: g-debit-alert
+    label: genuine
+    text: "Rs 1,250.00 debited from your A/c XX4321 on 12-10 to VPA demo.store@okaxis. If not done by you, call the number on the back of your card."
+  - id: g-refund-processed
+    label: genuine
+    text: "Your refund of Rs 499 for order #40312 has been processed to your original payment method. It may take 5-7 working days to reflect."
+  - id: g-kyc-reminder-branch
+    label: genuine
+    text: "Reminder: periodic KYC update is due for your account. Please visit your home branch with your ID proof. We never ask for KYC details by SMS or phone."
+  - id: g-urgent-meeting
+    label: genuine
+    text: "Urgent: the project review moved to 3 pm today, please bring the slides. Room 204."
+  - id: g-bank-statement
+    label: genuine
+    text: "Your monthly account statement for September is now available in your net banking. Log in through the official app to view it."
+  - id: g-delivery-today
+    label: genuine
+    text: "Your Amazon order with 2 items will be delivered today by 9 pm. Track it in the Amazon app."
+  - id: g-friend-payment
+    label: genuine
+    text: "Sent you Rs 350 for the movie tickets on GPay, thanks for booking!"
+  - id: g-salary-credited
+    label: genuine
+    text: "Salary of Rs 42,000 credited to your account XX9876 on 01-10. Available balance is shown in your banking app."
+  - id: g-doctor-appointment
+    label: genuine
+    text: "Your appointment with Dr. Rao is confirmed for Monday 10:30 am. Reply C to cancel."
+  - id: g-password-changed
+    label: genuine
+    text: "Your account password was changed. If this was you, no action is needed. If not, open the app and reset your password from Settings."
+  - id: g-electricity-bill
+    label: genuine
+    text: "Your electricity bill of Rs 1,140 for September is generated. Due date 20-10. Pay through the official app or any UPI app."
+  - id: g-job-interview
+    label: genuine
+    text: "Thank you for applying. Your interview is scheduled on Thursday at 11 am at our Pune office. Please bring your resume. There is no fee at any stage."
+  - id: g-lottery-news
+    label: genuine
+    text: "Did you read that news story about the lottery scam in our area? Be careful with messages asking for fees."
+  - id: g-otp-warning
+    label: genuine
+    text: "Never share your OTP, PIN or CVV with anyone, even if they claim to be from the bank. Stay safe online."
+  - id: g-family-call
+    label: genuine
+    text: "Reached the station, will call you after dinner. Tell dad the train is on time."

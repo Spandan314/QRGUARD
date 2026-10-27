@@ -54,4 +54,4 @@ for environment in preview production; do
   set_var "$environment" EXPO_PUBLIC_FIREBASE_APP_ID "$FIREBASE_APP_ID"
 done
 
-[ "$DRY_RUN" = 1 ] || echo "Done. Next: EAS_PROJECT_ID=$EAS_PROJECT_ID eas build -p android --profile preview"
+[ "$DRY_RUN" = 1 ] || echo "Done. Next: eas build -p android --profile preview"

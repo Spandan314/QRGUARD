@@ -52,7 +52,9 @@ Implementation: `app/utils/net_safety.py` and `app/analyzers/redirect_resolver.p
 | Validate every redirect destination | Each `Location` is joined to the current URL and re-checked from the first step (scheme, port, host, DNS, IP) |
 | Limit redirect count | `REDIRECT_MAX_HOPS` (default 5); more → `REDIRECT_CHAIN_TOO_LONG` |
 | Limit response size | Response bodies are **never read** (0 bytes; `preload_content=False`, connection closed). Only the status code and `Location` header (≤ 2048 characters) are used. |
-| Strict timeouts | DNS, connect and read each ≤ `REDIRECT_TIMEOUT_SECONDS` (3 s), and the whole check ≤ `REDIRECT_TOTAL_TIMEOUT_SECONDS` (8 s). No retries. |
+| Strict timeouts | Each request has a **hard wall-clock deadline** of `REDIRECT_TIMEOUT_SECONDS` (3 s), cut to what is left of `REDIRECT_TOTAL_TIMEOUT_SECONDS` (8 s) for the whole check: a watchdog shuts the socket down when it passes, so a server that drips its headers one byte at a time cannot hold the request (a per-read timeout alone restarts on every byte). DNS lookups are limited to the same budget. No retries. |
+| Slow DNS cannot starve other lookups | Each DNS lookup runs in its own thread (a stuck `getaddrinfo` cannot be cancelled, but it no longer blocks healthy lookups). At most 16 lookups may be in flight per process, abandoned ones included; beyond that, lookups fail at once and the check is reported as incomplete. |
+| Limited concurrency | Each worker process runs at most `REDIRECT_MAX_CONCURRENT` (2) redirect checks at once. A check that cannot get a slot within 0.5 s is skipped and reported as incomplete (`capacity_exhausted`), never as clean, so slow hostile links cannot occupy every request thread. |
 | No execution of downloaded content | Nothing is downloaded, stored, parsed or executed. `HEAD` is used; `GET` only if the server refuses `HEAD`, and its body is still not read. |
 | No internal exposure | Resolved IP addresses are never included in API responses or error messages. Blocked targets are reported only as `blocked_private_address`. |
 | Fail safe | DNS failures, timeouts, TLS and connection errors are reported as statuses, and confidence drops. The analysis still completes and never crashes. |
@@ -61,6 +63,11 @@ Implementation: `app/utils/net_safety.py` and `app/analyzers/redirect_resolver.p
 - Following a link is itself a visit: it can confirm to a scammer that the link was opened, or
   consume a one-time token. That is why only shorteners are followed by default, and why
   `REDIRECT_RESOLUTION=off` exists.
+- `REDIRECT_RESOLUTION=all` is supported by the code but **not recommended**: it lets anyone make
+  the backend contact a server of their choice for every analysed link (the limits above bound
+  the cost, but the exposure is larger than following shorteners only). `shorteners_only` is
+  reachable the same way through a shortener that redirects to an attacker's server, which is
+  why the time, DNS and concurrency limits apply to every mode.
 - Only HTTP 3xx redirects are followed. JavaScript or `<meta refresh>` redirects inside a page are
   not detected, because we never read page content.
 - `resolve_host` uses the server's system DNS resolver; the DNS answer is trusted only after the

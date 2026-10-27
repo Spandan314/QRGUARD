@@ -59,7 +59,7 @@ export function AnalysisDetailsView({ result }: { result: AnalysisResult }) {
             <ul className="mt-1 space-y-1">
               {a.qr_codes.map((code) => (
                 <li key={code.index} className="flex flex-wrap items-center gap-2">
-                  {code.risk_level ? <RiskBadge level={code.risk_level} size="sm" /> : null}
+                  {code.risk_level ? <RiskBadge verdict={code.risk_level === 'SAFE' ? 'UNVERIFIED' : code.risk_level} size="sm" /> : null}
                   <span className="text-slate-500 dark:text-slate-400">{code.content_type}</span>
                   <Plain>{code.decoded_content}</Plain>
                   {code.scored ? <span className="text-xs">(decided the result)</span> : null}
@@ -75,7 +75,7 @@ export function AnalysisDetailsView({ result }: { result: AnalysisResult }) {
             <ul className="mt-1 space-y-1">
               {a.links.map((link, index) => (
                 <li key={`${link.url}-${index}`} className="flex flex-wrap items-center gap-2">
-                  {link.risk_level ? <RiskBadge level={link.risk_level} size="sm" /> : null}
+                  {link.risk_level ? <RiskBadge verdict={link.risk_level === 'SAFE' ? 'UNVERIFIED' : link.risk_level} size="sm" /> : null}
                   <Plain>{link.url}</Plain>
                   {link.found_in === 'qr' ? <span className="text-xs">(from a QR code)</span> : null}
                   {link.error ? <span className="text-xs text-slate-500">({link.error})</span> : null}

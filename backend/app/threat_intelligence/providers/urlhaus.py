@@ -35,4 +35,6 @@ class UrlhausProvider(ApiProvider):
             return self._result(TIStatus.LISTED, threat_type=str(threat), detail=detail)
         if status in ("no_results", "invalid_url"):
             return self._result(TIStatus.NOT_LISTED)
+        if status in ("unknown_auth_key", "missing_auth_key"):
+            return self._result(TIStatus.ERROR, detail="configuration")
         raise MalformedResponse(status)

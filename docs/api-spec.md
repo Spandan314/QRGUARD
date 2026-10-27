@@ -75,7 +75,9 @@ The example below is a real response for `http://sbi.co.in.kyc-verify.xyz/login`
 
 | Field | Meaning |
 |---|---|
-| `risk_level` | `SAFE` · `SUSPICIOUS` · `MALICIOUS`, from the score only (see below) |
+| `verdict` | The headline to show users (all `/api/analyze/*` responses): `{label, confirmed, evidence, title, explanation}`. `evidence` is what the verdict rests on: `threat_intelligence` · `trusted_list` · `warning_signs` · `demo_blocklist` (QRGUARD's synthetic demo list; never confirmed) · `insufficient` (the UNVERIFIED case). `label` is `MALICIOUS` · `SUSPICIOUS` · `UNVERIFIED` · `SAFE`. **`SAFE` only when the domain is positively recognised (trusted list) and clean; no evidence either way is `UNVERIFIED`.** `confirmed` is true when a threat-intelligence source lists it. See "Verdicts" below. |
+| `checks` | URL and QR-link responses: `[{id, label, status, detail}]`, where `id` is `url_structure` · `destination` · `threat_intelligence` and `status` is `completed` · `limited` · `not_run` · `incomplete` · `unavailable`. For threat intelligence: `completed` = every enabled real provider answered; `incomplete` = some answered, others failed (named with the reason, e.g. `VirusTotal (rate limited)`); `unavailable` = enabled providers failed (timeout, rate limit, rejected key); `limited` = no real provider enabled, only the demo blocklist; `not_run` = nothing enabled. A failed provider also lowers `confidence` to LOW: a failure never counts as a clean result. These are the checks behind the verdict: what ran, and what could not and why. |
+| `risk_level` | `SAFE` · `SUSPICIOUS` · `MALICIOUS`, from the score only (see below). It is the score band, kept for compatibility and history; show `verdict` to users. |
 | `verification.status` | `VERIFIED` · `UNVERIFIED`. Never changes the score or level. |
 | `verification.source` | `trusted_domain_list` · `threat_intelligence` · `null` |
 | `verification.message` | Plain-language explanation of the verification status |
@@ -89,6 +91,18 @@ The example below is a real response for `http://sbi.co.in.kyc-verify.xyz/login`
 | `threat_intel.providers[].status` | `listed` · `partial` · `not_listed` · `unavailable` · `disabled` · `error` |
 | `threat_intel.providers[]` (optional fields) | `threat_type` (listed/partial only), `detail` (e.g. `timeout`, `rate limited`, `configuration`, `5/94 engines`), `limited_coverage: true` (demo blocklist only), `cached: true` |
 | `threat_intel.checked` / `note` | `checked` is true when at least one source is enabled. `not_listed` never lowers a score; see docs/threat-intelligence.md |
+
+### Verdicts
+
+| `verdict.label` | When |
+|---|---|
+| `MALICIOUS` | score ≥ 60 (`confirmed: true` when a threat-intelligence source lists it) |
+| `SUSPICIOUS` | score 30–59 |
+| `SAFE` | score < 30 **and** `verification.source == "trusted_domain_list"` |
+| `UNVERIFIED` | score < 30 without that verification: no warning signs, but no evidence of safety. Messages and screenshots are always `UNVERIFIED` in this band. |
+
+Absence from threat lists, a domain that does not respond, or an unfamiliar domain never makes a
+result `SAFE`, and on their own never make it `MALICIOUS`.
 
 ### Risk levels and verification
 
@@ -130,7 +144,7 @@ Examples (real output):
 
 | HTTP | `code` examples | When |
 |---|---|---|
-| 400 | `INVALID_JSON`, `VALIDATION_ERROR`, `EMPTY_URL`, `INVALID_URL`, `UNSUPPORTED_PROTOCOL`, `MISSING_FILE`, `NO_QR_FOUND` | Bad input |
+| 400 | `INVALID_JSON`, `VALIDATION_ERROR`, `EMPTY_URL`, `INVALID_URL`, `INCOMPLETE_URL`, `UNSUPPORTED_PROTOCOL`, `MISSING_FILE`, `NO_QR_FOUND` | Bad input |
 | 401 | `AUTH_REQUIRED`, `INVALID_TOKEN` | Missing or expired token on protected routes |
 | 403 | `FORBIDDEN` | Not an admin, or not the owner |
 | 404 | `NOT_FOUND` | Unknown route or scan ID |
@@ -176,6 +190,13 @@ Input rules:
 - `http` and `https` are analysed. `javascript:`, `data:`, `vbscript:`, `file:`, `blob:` and
   `intent:` are **analysed as MALICIOUS** (floor 80); they are not errors.
 - Other schemes (`ftp:`, `mailto:`, `tel:`, `upi:` …) → `400 UNSUPPORTED_PROTOCOL`.
+- A bare word without scheme or domain ending (`offer`, `offer.`) → `400 INCOMPLETE_URL`. It is
+  never guessed or corrected to another domain. An explicit `http://intranet/` is still analysed (as a
+  private-network name).
+- A domain ending that is not on the public suffix list (`offer.c`, `.example`) is analysed but
+  gets the informational `URL_UNKNOWN_TLD` indicator (0 points) and can never be `SAFE`.
+- A password in a link (`user:secret@host`) is masked as `***` everywhere in the response,
+  including `analysis.input_url`.
 - Malformed input (no host, spaces, invalid characters or port) → `400 INVALID_URL`. Whitespace-only
   input → `400 VALIDATION_ERROR`.
 - `save_to_history: true` saves the verdict for a signed-in user (see "Sign-in, history, reports, admin").
@@ -218,7 +239,8 @@ Input rules:
 - `brand` is `{"brand": "HDFC Bank", "match_type": "official" | "lookalike" | "impersonation"}` or `null`.
 - `redirects.status` ∈ `completed`, `not_attempted` (with `reason`), `too_many_redirects`,
   `blocked_private_address`, `blocked_dangerous_scheme`, `blocked_scheme`, `blocked_port`,
-  `dns_failure`, `timeout`, `connection_error`, `tls_error`, `invalid_redirect`.
+  `dns_failure`, `timeout`, `connection_error`, `tls_error`, `invalid_redirect`,
+  `capacity_exhausted` (every redirect-check slot of the server was busy; reported as incomplete).
 
 ### `POST /api/analyze/message` ✅ implemented
 
@@ -240,7 +262,7 @@ Real response (shortened; the redirect check was not needed because the link is 
 ```json
 {
   "input_type": "message",
-  "risk_score": 65,
+  "risk_score": 75,
   "risk_level": "MALICIOUS",
   "confidence": "HIGH",
   "verification": { "status": "UNVERIFIED", "source": null,
@@ -254,6 +276,7 @@ Real response (shortened; the redirect check was not needed because the link is 
     { "id": "MSG_COMBO_THREAT_URGENCY_ACTION", "source": "combination", "severity": "medium", "evidence": "account threat + urgency + link", "weight": 15, "score_contribution": 15.0 },
     { "id": "MSG_ACCOUNT_THREAT", "source": "message", "severity": "medium", "evidence": "account will be blocked", "weight": 15, "score_contribution": 12.0 },
     { "id": "MSG_LINK_CALL_TO_ACTION", "source": "message", "severity": "medium", "evidence": "update … [link]", "weight": 10, "score_contribution": 10.0 },
+    { "id": "MSG_COMBO_THREAT_LINK", "source": "combination", "severity": "medium", "evidence": "account threat + link", "weight": 10, "score_contribution": 10.0 },
     { "id": "MSG_URGENCY", "source": "message", "severity": "medium", "evidence": "immediately", "weight": 10, "score_contribution": 8.0 },
     { "id": "MSG_BANK_REFERENCE", "source": "message", "severity": "low", "evidence": "sbi", "weight": 5, "score_contribution": 5.0 },
     { "id": "BRAND_IN_DOMAIN_NAME", "source": "link", "severity": "high", "evidence": "sbi-kyc-update.xyz: State Bank of India", "weight": 25, "score_contribution": 0.0 },
@@ -262,15 +285,15 @@ Real response (shortened; the redirect check was not needed because the link is 
   "recommendation": "Do not reply, call back, click links, pay, or share any OTP, PIN, password or card details. Block and report the sender. … In India, report financial fraud at 1930 or https://cybercrime.gov.in. Suspected fraud calls and messages can be reported through Chakshu on https://sancharsaathi.gov.in.",
   "score_breakdown": {
     "modules": [ { "module": "url_qr", "applicable": true, "module_score": 58.0, "weight": 0.35, "effective_weight": 0.0 },
-                 { "module": "message", "applicable": true, "module_score": 65.0, "weight": 0.2, "effective_weight": 1.0 }, "…" ],
-    "primary_score": 65.0,
-    "weighted_score": 60.5,
+                 { "module": "message", "applicable": true, "module_score": 75.0, "weight": 0.2, "effective_weight": 1.0 }, "…" ],
+    "primary_score": 75.0,
+    "weighted_score": 64.2,
     "rule_used": "primary_evidence",
     "floor_applied": null,
-    "final_score": 65,
+    "final_score": 75,
     "sources": [ { "source": "message", "points": 50.0, "indicator_ids": ["MSG_KYC_PRETEXT", "MSG_ACCOUNT_THREAT", "MSG_LINK_CALL_TO_ACTION", "MSG_URGENCY", "MSG_BANK_REFERENCE"] },
                  { "source": "link", "points": 0.0, "indicator_ids": ["BRAND_IN_DOMAIN_NAME", "URL_SUSPICIOUS_TLD", "…"] },
-                 { "source": "combination", "points": 15.0, "indicator_ids": ["MSG_COMBO_THREAT_URGENCY_ACTION"] } ]
+                 { "source": "combination", "points": 25.0, "indicator_ids": ["MSG_COMBO_THREAT_URGENCY_ACTION", "MSG_COMBO_THREAT_LINK"] } ]
   },
   "threat_intel": { "checked": true, "providers": [ { "provider": "local_feed", "status": "not_listed", "limited_coverage": true }, { "provider": "urlhaus", "status": "disabled" }, "…" ], "note": "Only QRGUARD's small demo blocklist could be checked. Not being listed does not mean a link is safe." },
   "analysis": {
@@ -332,7 +355,7 @@ indicators (`source: "ocr"`, weight 0) and can lower the confidence.
 `analysis` = the message `analysis` block (`matched_phrases`, `links`, `entities`, `language`,
 `preprocessing`, `low_confidence_reasons`, `text_length`) **plus**:
 
-Real output for `postman/fixtures/scam-kyc.png` (the result is 65 MALICIOUS, identical to the same
+Real output for `postman/fixtures/scam-kyc.png` (the result is 75 MALICIOUS, identical to the same
 text sent to `/api/analyze/message`):
 
 ```json
@@ -353,7 +376,11 @@ text sent to `/api/analyze/message`):
   confidence), `none`.
 - `extracted_text` is returned **to the caller only**, so the user can see what was read. It is never
   logged or stored. At most 5000 characters are analysed (`OCR_TEXT_TRUNCATED` otherwise).
-- QR codes inside screenshots are decoded as well (see `/api/analyze/qr` below).
+- QR codes inside screenshots are decoded as well (see `/api/analyze/qr` below). This makes it
+  the single endpoint for any gallery image (the Android app's "Choose image to check"): an image
+  with only a QR code is analysed like `/api/analyze/qr`, and if OCR fails or is unavailable but a QR
+  code was found, the QR code is still analysed (`analysis.ocr` is then `null`) instead of
+  answering `OCR_FAILED` / `OCR_UNAVAILABLE`.
 
 ### `POST /api/analyze/qr` ✅ implemented
 Two accepted forms:
@@ -531,7 +558,7 @@ user's expired scans are deleted when they call `GET /api/me` (every sign-in) or
 | Rate limit, authenticated | 40/min, 500/day per uid |
 | `/api/analyze/screenshot` | additional `RATELIMIT_SCREENSHOT` = 6/min, 60/day (CPU-heavy OCR); OCR timeout 20 s, max 2 concurrent OCR jobs per process |
 | Threat-intel time budget | `THREAT_INTEL_BUDGET_SECONDS` = 6 s total, `THREAT_INTEL_TIMEOUT_SECONDS` = 3 s per provider request; VirusTotal max 4 lookups/min per process; cache 24 h (listed) / 1 h (not listed) |
-| Redirect checking | `REDIRECT_RESOLUTION=shorteners_only`, max 5 redirects, 3 s per request, 8 s total, ports 80/443 only, 0 body bytes read |
+| Redirect checking | `REDIRECT_RESOLUTION=shorteners_only`, max 5 redirects, 3 s hard deadline per request, 8 s total, max 2 concurrent checks per process (`REDIRECT_MAX_CONCURRENT`; busy → `capacity_exhausted`, incomplete), ports 80/443 only, 0 body bytes read |
 
 ## 5. CORS
 

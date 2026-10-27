@@ -2,6 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import { useCallback, useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { RiskBadge } from '../../components/RiskBadge'
+import { verdictLabel } from '../../utils/verdict'
 import { ActionButton, Card, ErrorBanner, Screen, styles as ui } from '../../components/ui'
 import { colors } from '../../constants/theme'
 import { useAuth } from '../../context/AuthContext'
@@ -33,7 +34,7 @@ function Row({ item, onDelete }: { item: HistoryItem; onDelete: (id: string) => 
     <Card>
       <Pressable accessibilityRole="button" accessibilityLabel={`${item.risk_level} ${describeTarget(item)}`} onPress={() => setOpen(!open)} testID="history-item">
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <RiskBadge level={item.risk_level} />
+          <RiskBadge verdict={verdictLabel(item.risk_level, item.verification)} />
           <Text style={ui.mono}>{item.risk_score}/100</Text>
         </View>
         <Text style={[ui.body, { marginTop: 6 }]}>

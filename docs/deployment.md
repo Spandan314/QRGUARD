@@ -139,6 +139,46 @@ Notes:
 - Optional: download public blocklists with `flask --app wsgi ti-update-feeds` (needs
   `THREAT_INTEL_FEED_DIR`). Without it, only the demo blocklist is used, and results say so.
 
+### 2a. Settings that change what QRGUARD can check (Render → qrguard-api → Environment)
+
+Render applies `render.yaml` only when a Blueprint is created or synced, so on an existing service
+change these values on the **Environment** page and choose **Save, rebuild, and deploy**.
+
+| Variable | Recommended | Effect |
+|---|---|---|
+| `REDIRECT_RESOLUTION` | `shorteners_only` | Follows the redirects of known link shorteners (bit.ly, tinyurl.com, …) to find where they lead. The resolver sends HEAD requests (GET only if HEAD is refused), never reads a page body, connects only to public IPs (IP pinned against DNS rebinding) on ports 80/443, with at most `REDIRECT_MAX_HOPS` hops. Each request has a hard wall-clock deadline (`REDIRECT_TIMEOUT_SECONDS`, never beyond `REDIRECT_TOTAL_TIMEOUT_SECONDS` for the whole check), and each worker runs at most `REDIRECT_MAX_CONCURRENT` checks at once (default 2; more are reported as an incomplete check). `off` contacts nothing. **Do not set `all`** without a new security review: it makes the backend contact a server chosen by whoever submits a link, for every analysed link (see `docs/security.md`). |
+| `URLHAUS_AUTH_KEY` | optional, **secret** | abuse.ch URLhaus lookups (malware URLs). Free: create an abuse.ch account and an Auth-Key at https://auth.abuse.ch/. |
+| `GOOGLE_SAFE_BROWSING_API_KEY` | optional, **secret** | Google Safe Browsing Lookup API v4 (phishing, malware). Needs a Google Cloud project with the *Safe Browsing API* enabled and an API key restricted to that API. Google offers this API free of charge for **non-commercial** use. **Do not add a billing account for it.** If Google asks for billing, leave this provider disabled. |
+| `VIRUSTOTAL_API_KEY` | **leave unset until the terms are confirmed**, **secret** | VirusTotal v3 URL lookups (a URL is looked up, never submitted). The free public API is limited to non-commercial use and rate-limited (about 4 requests/minute plus daily and monthly quotas); QRGUARD paces itself to 4/min per process and reports "quota" / "rate limited". Read VirusTotal's current Terms of Service and public-API limits at https://docs.virustotal.com before setting it. |
+| `PHISHTANK_API_KEY` | optional, **secret** | PhishTank lookups with an existing application key (new registrations have been closed for a long time). |
+| `PHISHTANK_ANONYMOUS` | `false` (try `true` only after the self-test) | Uses PhishTank's checkurl endpoint **without** a key, which PhishTank answers with a lower rate limit (shown as "rate limited" when exceeded). Not a secret. Enable on Render only if `python -m scripts.ti_selftest` with `PHISHTANK_ANONYMOUS=true` reports `WORKING`. |
+
+**Prove a key works before you put it on Render** (the keys stay on your machine; nothing is
+printed or saved). In Google Cloud Shell:
+
+```bash
+cd ~/QRGUARD && git pull -q && cd backend
+python3 -m venv .venv && . .venv/bin/activate && pip install -q -r requirements.txt
+read -rsp "Safe Browsing key: " GOOGLE_SAFE_BROWSING_API_KEY && export GOOGLE_SAFE_BROWSING_API_KEY; echo
+read -rsp "URLhaus Auth-Key: " URLHAUS_AUTH_KEY && export URLHAUS_AUTH_KEY; echo
+# optional: export PHISHTANK_ANONYMOUS=true
+python -m scripts.ti_selftest
+```
+
+Expected: one line per provider, `WORKING` / `FAILED` / `OFF`. Safe Browsing is `WORKING` only
+when it also lists Google's official test page (`testsafebrowsing.appspot.com/s/phishing.html`).
+Then set the same variables on Render (**Environment → Add Environment Variable**, keys as
+secret values) and **Save, rebuild, and deploy**. `/api/health` then lists them as enabled, and
+results show "Threat-intelligence databases: done (Google Safe Browsing, URLhaus)".
+
+Each key only switches a provider on: without it the provider shows as "Not enabled" and the result
+says that only the demo blocklist was checked (the demo blocklist is synthetic demonstration data
+and is never reported as threat intelligence). A wrong key shows "Configuration problem", and a
+timeout or rate limit shows "Could not be checked"; none of these ever makes a link look safer.
+The terms above were last verified with the provider integrations; free tiers and terms change, so
+confirm them on each provider's site before relying on a key. Keys stay on Render only: never in
+`EXPO_PUBLIC_*` / `VITE_*` variables, the APK or GitHub.
+
 ### Other Docker hosts
 
 The same image runs anywhere:
@@ -192,19 +232,20 @@ eas login
 eas init        # creates the Expo project and prints its ID ("projectId")
 ```
 
-`app.config.ts` is dynamic, so `eas init` cannot write the ID into it; it is read from the
-`EAS_PROJECT_ID` variable instead (an identifier, not a secret). One command sets it and the five
-public app values in both the `preview` and `production` EAS environments. It refuses a non-HTTPS,
-local or emulator backend URL and a malformed ID, and can be re-run safely (`eas env:set`):
+`app.config.ts` is dynamic, so `eas init` cannot write the ID into it. The QRGUARD project's ID
+(`c572b10d-eef7-403b-a7f7-292903a221a5`, an identifier, not a secret) is therefore set in
+`app.config.ts` itself; an `EAS_PROJECT_ID` variable overrides it, e.g. for a different Expo
+account. One command sets the ID and the five public app values in both the `preview` and
+`production` EAS environments. It refuses a non-HTTPS, local or emulator backend URL and a
+malformed ID, and can be re-run safely (`eas env:set`):
 
 ```bash
-EAS_PROJECT_ID=<projectId printed by eas init> \
+EAS_PROJECT_ID=c572b10d-eef7-403b-a7f7-292903a221a5 \
 API_BASE_URL=https://<service>.onrender.com \
 FIREBASE_API_KEY=<apiKey> FIREBASE_AUTH_DOMAIN=<authDomain> \
 FIREBASE_PROJECT_ID=<projectId> FIREBASE_APP_ID=<appId> \
 bash scripts/eas-env.sh          # add --dry-run first to see the 12 commands it will run
 
-export EAS_PROJECT_ID=<same projectId>      # the local shell also needs it for `eas build`
 eas build -p android --profile preview      # installable APK (demo / testers)
 eas build -p android --profile production   # AAB for the Play Store (version code auto-increments)
 ```
