@@ -173,8 +173,11 @@ results show "Threat-intelligence databases: done (Google Safe Browsing, URLhaus
 
 Each key only switches a provider on: without it the provider shows as "Not enabled" and the result
 says that only the demo blocklist was checked (the demo blocklist is synthetic demonstration data
-and is never reported as threat intelligence). A wrong key shows "Configuration problem", and a
-timeout or rate limit shows "Could not be checked"; none of these ever makes a link look safer.
+and is never reported as threat intelligence). A key problem shows "Configuration problem" in the
+apps; the API's `threat_intel.providers[].detail` and the `ti_auth_error` log line (fields
+`http_status`, `reason`; never the key) name the cause: `auth key rejected` (URLhaus does not know
+the key), `auth key not sent`, `auth failed: HTTP 401` or `access denied: HTTP 403`. A timeout or
+rate limit shows "Could not be checked"; none of these ever makes a link look safer.
 The terms above were last verified with the provider integrations; free tiers and terms change, so
 confirm them on each provider's site before relying on a key. Keys stay on Render only: never in
 `EXPO_PUBLIC_*` / `VITE_*` variables, the APK or GitHub.

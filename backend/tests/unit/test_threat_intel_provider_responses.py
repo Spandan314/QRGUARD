@@ -65,7 +65,7 @@ def test_safe_browsing_documented_error_body_is_a_configuration_error():
     assert (result.status, result.detail) == (TIStatus.ERROR, "configuration")
     body403 = {"error": {"code": 403, "message": "API not enabled", "status": "PERMISSION_DENIED"}}
     result = SafeBrowsingProvider(KEY, http=FakeHttp(403, body403)).check_url(URL, "x")
-    assert (result.status, result.detail) == (TIStatus.ERROR, "configuration")
+    assert (result.status, result.detail) == (TIStatus.ERROR, "access denied: HTTP 403")
 
 
 # --- URLhaus -------------------------------------------------------------------------------------
@@ -111,7 +111,7 @@ def test_urlhaus_documented_no_match(query_status):
 @pytest.mark.parametrize(
     ("query_status", "status", "detail"),
     [
-        ("unknown_auth_key", TIStatus.ERROR, "configuration"),
+        ("unknown_auth_key", TIStatus.ERROR, "auth key rejected"),
         ("http_post_expected", TIStatus.UNAVAILABLE, "unexpected response"),
     ],
 )
