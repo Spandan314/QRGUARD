@@ -14,8 +14,9 @@ Each provider gets one label:
   WORKING         it answered (and, for Safe Browsing, listed the official test threat);
   FAILED          it answered with an error, e.g. a rejected key, or answered wrongly;
   RATE LIMITED    it refused for now because of a rate limit or quota (not a key problem);
-  NOT VERIFIED    no usable answer: timeout, network error, provider outage or an unreadable
-                  response. This says nothing about the key; try again later or elsewhere;
+  NOT VERIFIED    no usable answer: timeout, network error, provider outage, an unreadable
+                  response or an unexpected error (never printed: it could contain the key).
+                  This says nothing about the key; try again later or elsewhere;
   NOT CONFIGURED  no key (or PhishTank anonymous mode) is set.
 Exit code: 0 = every configured provider works, 1 = at least one FAILED, 2 = none configured,
 3 = none failed but at least one is RATE LIMITED or NOT VERIFIED.
@@ -119,8 +120,20 @@ def check(provider: ThreatIntelProvider) -> Outcome:
     return Outcome(provider.name, True, True, "; ".join(notes), WORKING)
 
 
+def _safe_check(provider: ThreatIntelProvider) -> Outcome:
+    """check() for one provider; an unexpected exception never stops the others.
+
+    Nothing about the exception is printed or logged: its message or traceback could contain
+    the request URL, and Safe Browsing sends its key in the URL.
+    """
+    try:
+        return check(provider)
+    except Exception:  # deliberately broad, see above
+        return Outcome(provider.name, True, False, "unexpected error", NOT_VERIFIED)
+
+
 def run(providers: list[ThreatIntelProvider]) -> tuple[int, list[Outcome]]:
-    outcomes = [check(p) for p in providers]
+    outcomes = [_safe_check(p) for p in providers]
     configured = [o for o in outcomes if o.configured]
     if not configured:
         return 2, outcomes

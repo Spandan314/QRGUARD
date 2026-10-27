@@ -139,3 +139,27 @@ def test_urlhaus_no_results_is_working(capsys, monkeypatch):
     out = capsys.readouterr().out
     assert "WORKING         urlhaus" in out and KEY not in out
     assert TIStatus.NOT_LISTED.value in out
+
+
+def test_an_unexpected_error_hides_its_details_and_the_other_providers_still_run(
+    capsys, monkeypatch
+):
+    fake_key = "FAKE-SECRET-KEY-0123456789abcdef"
+
+    class Exploding(SafeBrowsingProvider):
+        def check_url(self, normalized_url, domain):
+            # Simulates a crash whose message quotes the request URL, which holds the key.
+            raise RuntimeError(f"boom: https://safebrowsing.example/v4?key={fake_key}")
+
+    providers = [
+        Exploding(fake_key, http=FakeHttp()),
+        UrlhausProvider(KEY, http=FakeHttp(200, {"query_status": "no_results"})),
+    ]
+    monkeypatch.setattr(ti_selftest, "build_providers", lambda env: providers)
+    assert ti_selftest.main() == 3  # nothing FAILED, one provider could not be verified
+    captured = capsys.readouterr()
+    output = captured.out + captured.err
+    assert "NOT VERIFIED    google_safe_browsing   unexpected error" in captured.out
+    assert "WORKING         urlhaus" in captured.out  # the next provider was still tested
+    for leaked in (fake_key, "boom", "RuntimeError", "Traceback", "safebrowsing.example", KEY):
+        assert leaked not in output
