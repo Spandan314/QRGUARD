@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { VerdictLabel } from '../types/api'
-import { hasUserInfo, hostOf, linkAction } from '../utils/links'
+import { hasUserInfo, hostOf, isOpenableUrl, linkAction } from '../utils/links'
 
 const button =
   'rounded-lg px-4 py-2 text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2'
@@ -10,6 +10,11 @@ const button =
  * sees the exact host and address (and any redirect), and confirms. It opens exactly `url` (the
  * analysed, normalised address) in a new tab without an opener, never a corrected or similar
  * domain. Non-web schemes and user@host links are never opened.
+ *
+ * The confirmation is a real link (<a target="_blank" rel="noopener noreferrer">) that the user
+ * clicks, not a scripted window.open(): browsers, extensions and in-app browsers may block a
+ * scripted popup, and with "noopener" window.open() returns null even on success, so a blocked
+ * popup cannot be detected and the click would silently do nothing.
  */
 export function OpenCheckedLink({
   url,
@@ -26,10 +31,8 @@ export function OpenCheckedLink({
   const action = linkAction(url, verdict)
   const host = hostOf(url)
 
-  const open = () => {
-    window.open(url, '_blank', 'noopener,noreferrer')
-    setConfirming(false)
-  }
+  // Close only after the browser has followed the link (the click's default action).
+  const closeAfterOpening = () => window.setTimeout(() => setConfirming(false), 0)
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(url)
@@ -95,14 +98,23 @@ export function OpenCheckedLink({
             </label>
           ) : null}
           <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              className={`${button} ${action === 'copy-only' || action === 'warn' ? 'bg-red-700 text-white' : 'bg-teal-700 text-white'} disabled:opacity-50`}
-              disabled={action === 'copy-only' && !understood}
-              onClick={open}
-            >
-              Open {host} in a new tab
-            </button>
+            {action === 'copy-only' && !understood ? (
+              <button type="button" className={`${button} bg-red-700 text-white disabled:opacity-50`} disabled>
+                Open {host} in a new tab
+              </button>
+            ) : isOpenableUrl(url) ? (
+              <a
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                referrerPolicy="no-referrer"
+                className={`${button} inline-block ${action === 'copy-only' || action === 'warn' ? 'bg-red-700 text-white' : 'bg-teal-700 text-white'}`}
+                data-testid="open-link-go"
+                onClick={closeAfterOpening}
+              >
+                Open {host} in a new tab
+              </a>
+            ) : null}
             <button type="button" className={`${button} bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-slate-100`} onClick={() => setConfirming(false)}>
               Cancel
             </button>
