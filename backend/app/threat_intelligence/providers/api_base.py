@@ -2,8 +2,9 @@
 
 - Enabled only when the API key is set (no key -> DISABLED, never an error or a crash).
 - Only fixed provider hosts are contacted, over verified HTTPS, with a per-request timeout.
-- HTTP 401/403 -> ERROR ("configuration"); 429/509 ("rate limited"), 5xx, timeouts and network
-  errors -> UNAVAILABLE, with the reason in ``detail``.
+- HTTP 401/403 -> ERROR, with the cause in ``detail`` ("auth failed: HTTP 401",
+  "access denied: HTTP 403", or a provider-specific reason); 429/509 ("rate limited"), 5xx,
+  timeouts and network errors -> UNAVAILABLE, with the reason in ``detail``.
 - A malformed response -> UNAVAILABLE ("unexpected response"); it never counts as "not listed".
 - API keys and URLs are never logged and never appear in results.
 """
@@ -51,11 +52,7 @@ class ApiProvider(ThreatIntelProvider):
             # "response too large"), never provider or request text.
             return self._result(TIStatus.UNAVAILABLE, detail=str(exc) or "network error")
         if response.status in (401, 403):
-            logger.warning(
-                "threat-intel provider rejected the API key",
-                extra={"event": "ti_auth_error", "provider": self.name},
-            )
-            return self._result(TIStatus.ERROR, detail="configuration")
+            return self._auth_error(response, self._auth_error_detail(response))
         if response.status in (429, 509):  # 509: PhishTank's "bandwidth limit exceeded"
             return self._result(TIStatus.UNAVAILABLE, detail="rate limited")
         if response.status >= 500:
@@ -68,6 +65,25 @@ class ApiProvider(ThreatIntelProvider):
                 extra={"event": "ti_bad_response", "provider": self.name},
             )
             return self._result(TIStatus.UNAVAILABLE, detail="unexpected response")
+
+    def _auth_error_detail(self, response: HttpResponse) -> str:
+        """Why an HTTP 401/403 happened; providers that explain it in the body override this."""
+        if response.status == 401:
+            return "auth failed: HTTP 401"
+        return "access denied: HTTP 403"
+
+    def _auth_error(self, response: HttpResponse, reason: str) -> ProviderResult:
+        # ``reason`` is always one of our fixed strings: never the key, the URL or provider text.
+        logger.warning(
+            "threat-intel provider refused the request",
+            extra={
+                "event": "ti_auth_error",
+                "provider": self.name,
+                "http_status": response.status,
+                "reason": reason,
+            },
+        )
+        return self._result(TIStatus.ERROR, detail=reason)
 
     # ----- implemented by each provider -------------------------------------------------------
     def _send(self, normalized_url: str, domain: str) -> HttpResponse:

@@ -50,7 +50,7 @@ def test_rejected_key_or_timeout_is_a_failure_not_a_pass():
     )
     assert code == 1
     assert [o.detail for o in outcomes] == [
-        "harmless lookup: error (configuration)",
+        "harmless lookup: error (auth failed: HTTP 401)",
         "harmless lookup: unavailable (timeout)",
     ]
 

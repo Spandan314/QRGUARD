@@ -102,8 +102,8 @@ def test_missing_api_key_disables_the_provider_without_any_request(cls, key):
         (FakeHttp(509, {}), TIStatus.UNAVAILABLE, "rate limited"),  # PhishTank's limit
         (FakeHttp(500, None), TIStatus.UNAVAILABLE, "provider error"),
         (FakeHttp(503, {}), TIStatus.UNAVAILABLE, "provider error"),
-        (FakeHttp(401, {}), TIStatus.ERROR, "configuration"),
-        (FakeHttp(403, {}), TIStatus.ERROR, "configuration"),
+        (FakeHttp(401, {}), TIStatus.ERROR, "auth failed: HTTP 401"),
+        (FakeHttp(403, {}), TIStatus.ERROR, "access denied: HTTP 403"),
         (FakeHttp(200, None), TIStatus.UNAVAILABLE, "unexpected response"),  # not JSON
         (FakeHttp(200, ["a", "list"]), TIStatus.UNAVAILABLE, "unexpected response"),
         (FakeHttp(200, {"nonsense": 1}), TIStatus.UNAVAILABLE, "unexpected response"),
@@ -268,3 +268,41 @@ def test_http_client_rejects_huge_responses(monkeypatch):
     monkeypatch.setattr(client._pool, "request", lambda *a, **k: _Body(200, b"0123456789"))
     with pytest.raises(TIHttpError):
         client.request("GET", "https://api.test/", timeout=1)
+
+
+# --- URLhaus authentication failures: each cause is reported distinctly, never as "clean" -------
+@pytest.mark.parametrize(
+    ("http", "detail"),
+    [
+        # The key reached URLhaus and URLhaus does not recognise it.
+        (FakeHttp(200, {"query_status": "unknown_auth_key"}), "auth key rejected"),
+        (FakeHttp(401, {"query_status": "unknown_auth_key"}), "auth key rejected"),
+        # URLhaus received no key (not sent, or removed on the way): not a verdict on the key.
+        (FakeHttp(200, {"query_status": "missing_auth_key"}), "auth key not received"),
+        (FakeHttp(401, {"query_status": "missing_auth_key"}), "auth key not received"),
+        # URLhaus' own explanation in the body wins over the bare HTTP status.
+        (FakeHttp(403, {"query_status": "unknown_auth_key"}), "auth key rejected"),
+        (FakeHttp(403, {"query_status": "missing_auth_key"}), "auth key not received"),
+        # No URLhaus status in the body: only the HTTP status is known.
+        (FakeHttp(401, None), "auth failed: HTTP 401"),
+        (FakeHttp(403, None), "access denied: HTTP 403"),  # e.g. an HTML block page
+        (FakeHttp(403, {"detail": "Forbidden"}), "access denied: HTTP 403"),
+        (FakeHttp(401, {"query_status": ["odd"]}), "auth failed: HTTP 401"),  # never crashes
+    ],
+)
+def test_urlhaus_auth_failures_name_their_cause(http, detail, caplog):
+    caplog.set_level("WARNING", logger="qrguard.threat_intel")
+    result = UrlhausProvider(KEY, http=http).check_url(URL, "phish.example")
+    assert (result.status, result.detail) == (TIStatus.ERROR, detail)
+    record = next(r for r in caplog.records if getattr(r, "event", "") == "ti_auth_error")
+    assert record.provider == "urlhaus" and record.reason == detail
+    assert record.http_status == http.status
+    assert KEY not in caplog.text and URL not in caplog.text
+
+
+def test_urlhaus_without_a_key_is_disabled_not_an_error():
+    http = FakeHttp(200, {"query_status": "no_results"})
+    for missing in ("", "   ", None):
+        result = UrlhausProvider(missing, http=http).check_url(URL, "phish.example")
+        assert result.status == TIStatus.DISABLED
+    assert http.requests == []  # nothing is sent without a key

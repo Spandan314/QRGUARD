@@ -48,3 +48,28 @@ def test_exception_messages_are_never_logged_only_types_and_frames():
     # Still useful for debugging: exception types and where they were raised.
     assert "builtins.ValueError" in data["exc"] and "builtins.RuntimeError" in data["exc"]
     assert "test_logging.py" in data["exc"]
+
+
+def test_threat_intel_auth_errors_log_their_cause_without_the_key():
+    import io
+    import logging
+
+    from app.logging_setup import JsonFormatter
+    from app.threat_intelligence.providers.urlhaus import UrlhausProvider
+    from tests.fakes import FakeHttp
+
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(JsonFormatter())
+    logger = logging.getLogger("qrguard.threat_intel")
+    logger.addHandler(handler)
+    try:
+        key = "urlhaus-test-key-0002"
+        http = FakeHttp(401, {"query_status": "unknown_auth_key"})
+        UrlhausProvider(key, http=http).check_url("https://example.com/", "example.com")
+    finally:
+        logger.removeHandler(handler)
+    line = json.loads(stream.getvalue().strip().splitlines()[-1])
+    assert line["event"] == "ti_auth_error" and line["provider"] == "urlhaus"
+    assert line["http_status"] == 401 and line["reason"] == "auth key rejected"
+    assert key not in stream.getvalue() and "example.com" not in stream.getvalue()
