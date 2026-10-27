@@ -166,10 +166,16 @@ class _Deadline:
 
     shutdown() ends any blocking connect, TLS handshake or read on that socket at once, which
     a per-read timeout cannot do against a server that keeps sending one byte at a time.
+
+    The watchdog keeps its own duplicate of each socket: for HTTPS, ssl.wrap_socket() detaches
+    the original socket object before the handshake, so shutting that object down would do
+    nothing. shutdown() acts on the kernel socket shared by both descriptors, and holding our
+    own descriptor means we can never hit an unrelated socket that reused a closed number.
     """
 
     def __init__(self, seconds: float) -> None:
         self.expired = False
+        self._finished = False
         self._sockets: list[socket.socket] = []
         self._lock = threading.Lock()
         self._timer = threading.Timer(seconds, self._expire)
@@ -177,12 +183,17 @@ class _Deadline:
 
     def track(self, sock: socket.socket) -> None:
         with self._lock:
-            self._sockets.append(sock)
+            if self._finished:
+                return
+            duplicate = sock.dup()
+            self._sockets.append(duplicate)
             if self.expired:
-                _shutdown(sock)
+                _shutdown(duplicate)
 
     def _expire(self) -> None:
         with self._lock:
+            if self._finished:
+                return
             self.expired = True
             for sock in self._sockets:
                 _shutdown(sock)
@@ -193,6 +204,11 @@ class _Deadline:
 
     def __exit__(self, *exc_info: object) -> None:
         self._timer.cancel()
+        with self._lock:
+            self._finished = True
+            for sock in self._sockets:
+                sock.close()
+            self._sockets.clear()
 
 
 def _shutdown(sock: socket.socket) -> None:

@@ -3,6 +3,7 @@ HTTP server, calling the low-level fetcher directly to prove it never reads the 
 
 import http.server
 import ipaddress
+import os
 import socket
 import threading
 import time
@@ -392,3 +393,49 @@ def test_busy_dns_is_reported_as_capacity_exhausted():
 
     result = run("https://a.example/", FakeFetcher(), FakeResolver({"a.example": DNSBusyError()}))
     assert result.status == rr.CAPACITY_EXHAUSTED
+
+
+def test_stalled_https_handshake_is_cut_at_the_request_deadline():
+    # ssl.wrap_socket() detaches the original socket before the handshake: the watchdog must
+    # still be able to cut a server that accepts TCP but never answers the TLS ClientHello.
+    listener = socket.create_server(("127.0.0.1", 0))
+    accepted = []
+    threading.Thread(target=lambda: accepted.append(listener.accept()), daemon=True).start()
+    try:
+        start = time.monotonic()
+        with pytest.raises(FetchTimeout):
+            rr.urllib3_fetch(
+                FetchRequest(
+                    "https",
+                    "stall.example",
+                    ipaddress.ip_address("127.0.0.1"),
+                    listener.getsockname()[1],
+                    "/",
+                    "HEAD",
+                    5,
+                    5,
+                    1,
+                )
+            )
+        elapsed = time.monotonic() - start
+    finally:
+        listener.close()
+        for conn, _ in accepted:
+            conn.close()
+    assert elapsed < 2  # the 5 s socket timeouts never come into play
+
+
+def test_the_watchdog_leaves_no_open_sockets_behind():
+    def open_descriptors():
+        return len(os.listdir("/proc/self/fd"))
+
+    port, stop = _dripping_server(0)
+    try:
+        run("http://quick.example/", _local(port), max_hops=0)  # warm-up (imports, pools)
+        before = open_descriptors()
+        for _ in range(5):
+            run("http://quick.example/", _local(port), max_hops=0)
+        after = open_descriptors()
+    finally:
+        stop.set()
+    assert after <= before
