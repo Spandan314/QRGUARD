@@ -1,3 +1,4 @@
+import { Platform } from 'react-native'
 import { API_BASE_URL } from '../constants/config'
 import type {
   AnalysisResult,
@@ -116,9 +117,18 @@ async function serverReachable(): Promise<boolean> {
 
 async function postImage<T>(path: string, image: PickedImage, save: boolean, signal?: AbortSignal): Promise<T> {
   const form = new FormData()
-  // React Native's FormData accepts a { uri, name, type } descriptor for files. The Content-Type
-  // header (with the multipart boundary) is set by fetch itself and must not be set here.
-  form.append('file', { uri: image.uri, name: image.name, type: image.mimeType } as unknown as Blob)
+  // The Content-Type header (with the multipart boundary) is set by fetch itself and must not be
+  // set here.
+  if (Platform.OS === 'web') {
+    // A browser's FormData needs a real Blob: the picked image is a local blob:/data: URI, so it is
+    // read in the browser (no network request). React Native's { uri } descriptor would be sent as
+    // the text "[object Object]" and the server would see no file at all.
+    const blob = await (await fetch(image.uri)).blob()
+    form.append('file', new Blob([blob], { type: image.mimeType }), image.name)
+  } else {
+    // React Native's FormData accepts a { uri, name, type } descriptor for files.
+    form.append('file', { uri: image.uri, name: image.name, type: image.mimeType } as unknown as Blob)
+  }
   form.append('save_to_history', save ? 'true' : 'false')
   try {
     return await request<T>(path, { method: 'POST', body: form }, signal, UPLOAD_TIMEOUT_MS)
