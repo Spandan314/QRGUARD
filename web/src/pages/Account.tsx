@@ -35,7 +35,7 @@ function SignIn() {
 
   if (client.mode === 'off') {
     return (
-      <p className="text-slate-600 dark:text-slate-300">
+      <p className="text-muted">
         Sign-in is not configured for this installation. All checks still work without an account.
       </p>
     )
@@ -47,7 +47,7 @@ function SignIn() {
         <>
           <section className="space-y-2">
             <h2 className="text-xl font-semibold">Quick start</h2>
-            <p className="text-sm text-slate-600 dark:text-slate-300">
+            <p className="text-sm text-muted">
               A private, anonymous account on this device. No e-mail needed.
             </p>
             <button type="button" className={buttonClass} disabled={busy} onClick={() => void attempt(() => required(client.signInAnonymously?.bind(client))())}>
@@ -82,7 +82,7 @@ function SignIn() {
               </button>
               <button
                 type="button"
-                className="min-h-11 rounded-lg border border-teal-700 px-4 font-semibold text-teal-700 dark:text-teal-300"
+                className="min-h-11 rounded-btn border border-accent px-4 font-semibold text-accent"
                 disabled={busy || !email || !password}
                 onClick={() => void attempt(() => required(client.signInWithEmail?.bind(client))(email.trim(), password, true))}
               >
@@ -100,7 +100,7 @@ function SignIn() {
           }}
         >
           <h2 className="text-xl font-semibold">Demo sign-in</h2>
-          <p className="text-sm text-amber-800 dark:text-amber-300">
+          <p className="text-sm text-warn">
             Demo mode (no Firebase project): the server must run with AUTH_DEV_TOKENS=true. Not available in production.
           </p>
           <label className="block">
@@ -117,7 +117,7 @@ function SignIn() {
         </form>
       )}
       {error ? (
-        <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+        <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       ) : null}
@@ -156,7 +156,7 @@ function Profile() {
     <div className="space-y-6">
       <section className="space-y-1">
         <h2 className="text-xl font-semibold">Signed in</h2>
-        <p className="text-sm text-slate-600 dark:text-slate-300">
+        <p className="text-sm text-muted">
           {user?.email ?? (user?.isAnonymous ? 'Anonymous account on this device' : user?.uid)}
           {profile?.admin ? ' · administrator' : ''}
         </p>
@@ -168,18 +168,18 @@ function Profile() {
             <input type="checkbox" checked={profile.save_history} onChange={(e) => void toggle(e.target.checked)} />
             Offer to save my results to my history
           </label>
-          <p className="text-sm text-slate-600 dark:text-slate-300">
+          <p className="text-sm text-muted">
             Only the verdict is saved (level, score, reasons, the website's domain). Messages, screenshots, QR contents and
             full links are never stored. Saved results expire after {profile.history_retention_days} days: they are hidden from then on and deleted the next time you sign in.{' '}
-            <Link to="/history" className="text-teal-700 underline dark:text-teal-400">
+            <Link to="/history" className="text-accent underline">
               View my history
             </Link>
           </p>
           {confirmDelete ? (
-            <div className="space-y-2 rounded-lg border border-red-300 p-3" role="alertdialog" aria-label="Confirm deletion">
+            <div className="space-y-2 rounded-panel border border-danger/40 p-3" role="alertdialog" aria-label="Confirm deletion">
               <p className="font-medium">Delete all my saved results, reports link and account? This cannot be undone.</p>
               <div className="flex gap-2">
-                <button type="button" className="min-h-11 rounded-lg bg-red-700 px-4 font-semibold text-white" onClick={() => void deleteEverything()}>
+                <button type="button" className="min-h-11 rounded-btn bg-danger px-4 font-semibold text-surface" onClick={() => void deleteEverything()}>
                   Yes, delete everything
                 </button>
                 <button type="button" className="min-h-11 px-4" onClick={() => setConfirmDelete(false)}>
@@ -188,13 +188,13 @@ function Profile() {
               </div>
             </div>
           ) : (
-            <button type="button" className="min-h-11 rounded-lg border border-red-700 px-4 font-semibold text-red-700 dark:text-red-300" onClick={() => setConfirmDelete(true)}>
+            <button type="button" className="min-h-11 rounded-btn border border-danger px-4 font-semibold text-danger" onClick={() => setConfirmDelete(true)}>
               Delete my data
             </button>
           )}
         </section>
       ) : (
-        <p className="text-sm text-slate-600 dark:text-slate-300">History is not available on this server right now.</p>
+        <p className="text-sm text-muted">History is not available on this server right now.</p>
       )}
       <button type="button" className={buttonClass} onClick={() => void client.signOut()}>
         Sign out
@@ -210,7 +210,7 @@ export default function Account() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Account &amp; privacy</h1>
-      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div className="rounded-panel border border-line bg-panel p-5">
         {!ready ? <p role="status">Loading…</p> : user ? <Profile /> : <SignIn />}
       </div>
     </div>

@@ -42,7 +42,7 @@ export default function MessageCheck() {
           <button type="submit" className={buttonClass} disabled={!text.trim() || state.status === 'loading'}>
             Check message
           </button>
-          <span className="text-sm text-slate-500 dark:text-slate-400">
+          <span className="text-sm text-muted">
             {text.length} / {MAX_CHARS}
           </span>
         </div>
