@@ -16,10 +16,13 @@ function formatValue(value: unknown): string {
 export function AnalysisDetailsView({ result }: { result: AnalysisResult }) {
   const a = result.analysis
   const rows: { label: string; value: string }[] = []
-  if (a.normalized_url) rows.push({ label: 'Checked address', value: a.normalized_url })
+  // A QR code holding a link shows that link once (as the QR content), not three times.
+  const qrText = a.qr?.decoded_content
+  if (a.normalized_url && a.normalized_url !== qrText) rows.push({ label: 'Checked address', value: a.normalized_url })
   if (a.redirects?.final_url && a.redirects.final_url !== a.normalized_url) {
     rows.push({ label: 'Redirects to', value: a.redirects.final_url })
   }
+  const parsedRows = Object.entries(a.qr?.parsed ?? {}).filter(([, value]) => value !== qrText)
   const hasContent = rows.length > 0 || a.links?.length || a.ocr || a.qr || a.qr_codes?.length
   if (!hasContent) return null
 
@@ -40,9 +43,9 @@ export function AnalysisDetailsView({ result }: { result: AnalysisResult }) {
               <span className="text-slate-500 dark:text-slate-400">QR content ({a.qr.content_type}): </span>
               <Plain>{a.qr.decoded_content}</Plain>
             </p>
-            {Object.keys(a.qr.parsed).length > 0 ? (
+            {parsedRows.length > 0 ? (
               <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-                {Object.entries(a.qr.parsed).map(([key, value]) => (
+                {parsedRows.map(([key, value]) => (
                   <div key={key} className="contents">
                     <dt className="text-slate-500 dark:text-slate-400">{key.replaceAll('_', ' ')}</dt>
                     <dd className="break-all">{formatValue(value)}</dd>

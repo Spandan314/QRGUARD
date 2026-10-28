@@ -63,8 +63,34 @@ describe('ResultCard', () => {
 
   it('shows provider problems honestly', () => {
     render(<ResultCard result={maliciousUrl} />)
-    expect(screen.getByText('Could not be checked (timeout)')).toBeInTheDocument()
-    expect(screen.getByText('Not enabled')).toBeInTheDocument()
+    expect(screen.getByText('Timed out – not checked')).toBeInTheDocument()
+    expect(screen.getByText('Not configured')).toBeInTheDocument()
+  })
+
+  it('tells checked, flagged, failed and unconfigured sources apart, and never calls a failure clean', () => {
+    const providers = [
+      { provider: 'google_safe_browsing', status: 'listed' as const, threat_type: 'phishing' },
+      { provider: 'virustotal', status: 'partial' as const, detail: '2/94 engines' },
+      { provider: 'phishtank', status: 'not_listed' as const },
+      { provider: 'urlhaus', status: 'error' as const, detail: 'auth key rejected' },
+      { provider: 'local_feed', status: 'unavailable' as const, detail: 'rate limited' },
+      { provider: 'other', status: 'unavailable' as const, detail: 'network error' },
+      { provider: 'disabled_one', status: 'disabled' as const },
+    ]
+    render(<ResultCard result={{ ...maliciousUrl, threat_intel: { checked: true, providers, note: 'n' } }} />)
+    const outcomes = screen.getAllByTestId('ti-provider').map((row) => [row.textContent, row.dataset.outcome])
+    expect(outcomes).toEqual([
+      ['Google Safe Browsing⛔ Listed as malicious', 'flagged'],
+      ['VirusTotal⛔ Flagged by some sources (2/94 engines)', 'flagged'],
+      ['PhishTank✓ Checked – not listed', 'checked'],
+      ['URLhaus⚠ Key rejected – not checked', 'not_checked'],
+      ['Local blocklist⚠ Rate limited – not checked', 'not_checked'],
+      ['other⚠ Unavailable – not checked', 'not_checked'],
+      ['disabled_one– Not configured', 'not_configured'],
+    ])
+    expect(screen.getByTestId('ti-summary')).toHaveTextContent(
+      '3 of 7 sources checked this link, 3 could not, 1 not configured. A source that did not check this link says nothing about whether it is safe.',
+    )
   })
 
   it('shows OCR text and found links for screenshots', () => {
@@ -133,5 +159,34 @@ describe('ResultCard verification note', () => {
     render(<ResultCard result={{ ...safeUnverified, verification }} />)
     expect(note()).toHaveTextContent('Verified – recognised legitimate website')
     expect(note()).toHaveTextContent('Recognised.')
+  })
+})
+
+describe('ResultCard layout', () => {
+  it('puts "What you should do" directly under the verdict', () => {
+    render(<ResultCard result={maliciousUrl} />)
+    const header = screen.getByTestId('verdict-title').closest('header')
+    expect(header?.nextElementSibling).toBe(screen.getByTestId('recommendation'))
+    expect(screen.getByTestId('recommendation')).toHaveTextContent(maliciousUrl.recommendation)
+  })
+
+  it('shows a link from a QR code once in the details, not three times', () => {
+    const url = 'https://flipkrat.com/rewards'
+    render(
+      <ResultCard
+        result={{
+          ...qrResult,
+          analysis: {
+            ...qrResult.analysis,
+            normalized_url: url,
+            qr: { source: 'upload', codes_found: 1, decoded_content: url, content_type: 'url', parsed: { url } },
+            qr_codes: undefined,
+          },
+        }}
+      />,
+    )
+    const details = screen.getByText('Details').closest('details') as HTMLElement
+    expect(within(details).getAllByText(url)).toHaveLength(1)
+    expect(within(details).queryByText('Checked address:')).toBeNull()
   })
 })

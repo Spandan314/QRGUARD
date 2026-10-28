@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router'
 import { useAuth } from '../context/AuthContext'
 
@@ -14,6 +15,8 @@ const LINKS = [
 
 export function Layout() {
   const { client, user, profile } = useAuth()
+  // Below the sm breakpoint the links fold behind a Menu button, so the page starts on screen.
+  const [menuOpen, setMenuOpen] = useState(false)
   const links = [
     ...LINKS,
     ...(user ? [{ to: '/history', label: 'History' }] : []),
@@ -33,15 +36,26 @@ export function Layout() {
               <span className="text-slate-900 dark:text-white">QR</span>GUARD
             </span>
           </NavLink>
-          <nav aria-label="Main">
-            <ul className="flex flex-wrap gap-1 text-sm">
+          <button
+            type="button"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 text-sm font-medium sm:hidden dark:border-slate-600"
+            aria-expanded={menuOpen}
+            aria-controls="main-nav"
+            onClick={() => setMenuOpen(!menuOpen)}
+          >
+            <span aria-hidden="true">{menuOpen ? '✕' : '☰'}</span>
+            Menu
+          </button>
+          <nav aria-label="Main" id="main-nav" className={`${menuOpen ? 'block' : 'hidden'} w-full sm:block sm:w-auto`}>
+            <ul className="flex flex-col gap-1 text-sm sm:flex-row sm:flex-wrap">
               {links.map((link) => (
                 <li key={link.to}>
                   <NavLink
                     to={link.to}
                     end={'end' in link ? link.end : false}
+                    onClick={() => setMenuOpen(false)}
                     className={({ isActive }) =>
-                      `inline-block min-h-11 rounded-lg px-3 py-2.5 ${
+                      `block min-h-11 rounded-lg px-3 py-2.5 ${
                         isActive
                           ? 'bg-teal-700 text-white'
                           : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'

@@ -164,6 +164,12 @@ describe('history page', () => {
     })
     renderRoute('/history', new DevAuthClient())
     const rows = await screen.findAllByTestId('history-item')
+    // Unambiguous date (month spelled out) and full-size action buttons.
+    const firstRow = within(first(rows))
+    expect(firstRow.getByText(/Sep 2026|Sept 2026|September 2026|Sep \d+, 2026/)).toBeInTheDocument()
+    for (const name of ['Details', 'Delete this result']) {
+      expect(firstRow.getByRole('button', { name }).className).toContain('min-h-11')
+    }
     expect(rows).toHaveLength(2)
     expect(rows[0]).toHaveTextContent('Link · flipkrat.com')
     expect(rows[1]).toHaveTextContent('UPI payment (@okdemo)')

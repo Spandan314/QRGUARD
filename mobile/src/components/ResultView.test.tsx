@@ -238,3 +238,30 @@ describe('ResultView verification note', () => {
     expect(note()).toHaveTextContent(part('Recognised.'))
   })
 })
+
+describe('ResultView layout and provider status', () => {
+  it('shows "What you should do" right after the verdict banner', async () => {
+    await render(<ResultView result={maliciousUrl} />)
+    const titles = screen.getAllByText(/^(What you should do|What QRGUARD checked|Why this result|Threat-intelligence checks)$/)
+    expect(titles[0]).toHaveTextContent('What you should do')
+  })
+
+  it('tells checked, flagged, failed and unconfigured sources apart', async () => {
+    const providers = [
+      { provider: 'virustotal', status: 'partial' as const, detail: '2/94 engines' },
+      { provider: 'phishtank', status: 'not_listed' as const },
+      { provider: 'urlhaus', status: 'error' as const, detail: 'auth key rejected' },
+      { provider: 'google_safe_browsing', status: 'unavailable' as const, detail: 'rate limited' },
+      { provider: 'local_feed', status: 'disabled' as const },
+    ]
+    await render(<ResultView result={{ ...maliciousUrl, threat_intel: { checked: true, providers, note: 'n' } }} />)
+    expect(screen.getByTestId('ti-summary')).toHaveTextContent(
+      /^2 of 5 sources checked this link, 2 could not, 1 not configured\. A source that did not check this link says nothing about whether it is safe\.$/,
+    )
+    expect(screen.getByText(/VirusTotal: Flagged by some sources \(2\/94 engines\)/)).toBeOnTheScreen()
+    expect(screen.getByText(/PhishTank: Checked – not listed/)).toBeOnTheScreen()
+    expect(screen.getByText(/URLhaus: Key rejected – not checked/)).toBeOnTheScreen()
+    expect(screen.getByText(/Google Safe Browsing: Rate limited – not checked/)).toBeOnTheScreen()
+    expect(screen.getByText(/Local blocklist: Not configured/)).toBeOnTheScreen()
+  })
+})

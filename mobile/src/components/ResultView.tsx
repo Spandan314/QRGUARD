@@ -2,7 +2,8 @@ import type { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { colors, LEVEL_THEME, VERDICT_THEME } from '../constants/theme'
 import type { AnalysisResult, CheckStatus, RiskLevel } from '../types/api'
-import { CONFIDENCE_TEXT, PROVIDER_NAME, TI_STATUS_TEXT } from '../utils/format'
+import { CONFIDENCE_TEXT, PROVIDER_NAME } from '../utils/format'
+import { providerState, providerSummary, type ProviderOutcome } from '../utils/providerStatus'
 import { verdictOf, verificationNote } from '../utils/verdict'
 import { IndicatorList } from './IndicatorList'
 import { OpenLinkGuard } from './OpenLinkGuard'
@@ -51,6 +52,14 @@ function linkIcon(level: RiskLevel): string {
   return level === 'SAFE' ? '❔' : LEVEL_THEME[level].icon
 }
 
+const OUTCOME_ICON: Record<ProviderOutcome, string> = { flagged: '⛔', checked: '✓', not_checked: '⚠', not_configured: '–' }
+const OUTCOME_COLOR: Record<ProviderOutcome, string> = {
+  flagged: colors.danger,
+  checked: colors.text,
+  not_checked: '#92400e', // amber-800: a warning, not a result
+  not_configured: colors.muted,
+}
+
 export function ResultView({ result }: { result: AnalysisResult }) {
   const verdict = verdictOf(result)
   const theme = VERDICT_THEME[verdict.label]
@@ -73,6 +82,10 @@ export function ResultView({ result }: { result: AnalysisResult }) {
         <Text style={[styles.summary, { color: theme.foreground }]}>{result.summary}</Text>
         <Text style={{ color: theme.foreground }}>{CONFIDENCE_TEXT[result.confidence]}</Text>
       </View>
+
+      <Section title="What you should do">
+        <Text style={ui.body}>{result.recommendation}</Text>
+      </Section>
 
       <Card>
         <ScoreGauge score={result.risk_score} level={result.risk_level} />
@@ -109,10 +122,6 @@ export function ResultView({ result }: { result: AnalysisResult }) {
           <Text style={ui.body}>{result.categories.map((c) => c.label).join(' · ')}</Text>
         </Section>
       ) : null}
-
-      <Section title="What you should do">
-        <Text style={ui.body}>{result.recommendation}</Text>
-      </Section>
 
       <Section title="Why this result">
         <IndicatorList indicators={result.indicators} />
@@ -169,13 +178,19 @@ export function ResultView({ result }: { result: AnalysisResult }) {
       ) : null}
 
       <Section title="Threat-intelligence checks">
-        {result.threat_intel.providers.map((p) => (
-          <Text key={p.provider} style={ui.body}>
-            {PROVIDER_NAME[p.provider] ?? p.provider}: {TI_STATUS_TEXT[p.status]}
-            {p.detail ? ` (${p.detail})` : ''}
-            {p.limited_coverage ? ' · demo list only' : ''}
+        {result.threat_intel.providers.length ? (
+          <Text style={ui.label} testID="ti-summary">
+            {providerSummary(result.threat_intel)}
           </Text>
-        ))}
+        ) : null}
+        {result.threat_intel.providers.map((p) => {
+          const state = providerState(p)
+          return (
+            <Text key={p.provider} style={[ui.body, { color: OUTCOME_COLOR[state.outcome] }]}>
+              {OUTCOME_ICON[state.outcome]} {PROVIDER_NAME[p.provider] ?? p.provider}: {state.label}
+            </Text>
+          )
+        })}
         <Text style={ui.small}>{result.threat_intel.note}</Text>
       </Section>
 
