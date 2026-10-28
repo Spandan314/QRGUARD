@@ -25,6 +25,46 @@ def test_origin_without_scheme_rejected():
         Config.from_env({"ALLOWED_ORIGINS": "qrguard.vercel.app"})
 
 
+def test_production_and_preview_origins_are_kept_as_listed():
+    value = "https://qrguard.vercel.app, https://qrguard-git-airlock-redesign-develop-qrguard.vercel.app/"
+    config = Config.from_env({"APP_ENV": "production", "ALLOWED_ORIGINS": value})
+    assert config.allowed_origins == [
+        "https://qrguard.vercel.app",
+        "https://qrguard-git-airlock-redesign-develop-qrguard.vercel.app",
+    ]
+
+
+@pytest.mark.parametrize("env", ["development", "production"])
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "https://*.vercel.app",  # flask-cors would treat these as regular expressions
+        r"https://.*\.vercel\.app",
+        "^https://qrguard.vercel.app$",
+        "https://qrguard.vercel.app/app",  # an origin has no path
+        "https://qrguard.vercel.app?x=1",
+        "https://user@qrguard.vercel.app",
+        '"https://qrguard.vercel.app"',  # quoted in the dashboard
+    ],
+)
+def test_patterns_and_non_origins_rejected(env, origin):
+    with pytest.raises(ConfigError, match="exact origins"):
+        Config.from_env({"APP_ENV": env, "ALLOWED_ORIGINS": f"https://qrguard.vercel.app,{origin}"})
+
+
+@pytest.mark.parametrize(
+    "origin", ["http://localhost:5173", "http://127.0.0.1:8000", "https://Web.QRGuard.test:8443"]
+)
+def test_exact_origins_accepted(origin):
+    assert Config.from_env({"ALLOWED_ORIGINS": origin}).allowed_origins == [origin]
+
+
+def test_wildcard_still_allowed_outside_production():
+    assert Config.from_env({"APP_ENV": "development", "ALLOWED_ORIGINS": "*"}).allowed_origins == [
+        "*"
+    ]
+
+
 @pytest.mark.parametrize(
     ("name", "value"),
     [
