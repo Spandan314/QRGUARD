@@ -166,8 +166,13 @@ read -rsp "URLhaus Auth-Key: " URLHAUS_AUTH_KEY && export URLHAUS_AUTH_KEY; echo
 python -m scripts.ti_selftest
 ```
 
-Expected: one line per provider, `WORKING` / `FAILED` / `OFF`. Safe Browsing is `WORKING` only
-when it also lists Google's official test page (`testsafebrowsing.appspot.com/s/phishing.html`).
+Expected: one line per provider, `WORKING`, `FAILED` (it answered with an error, e.g. a rejected
+key), `RATE LIMITED` (rate limit or quota), `NOT VERIFIED` (timeout, network error or provider
+outage: says nothing about the key; try again later) or `NOT CONFIGURED`. Exit code 0 = all
+configured providers work, 1 = one FAILED, 3 = none failed but some could not be verified,
+2 = none configured. Safe Browsing is `WORKING` only when it also lists Google's official test
+page (`testsafebrowsing.appspot.com/s/phishing.html`). Enable on Render only providers that are
+`WORKING`.
 Then set the same variables on Render (**Environment → Add Environment Variable**, keys as
 secret values) and **Save, rebuild, and deploy**. `/api/health` then lists them as enabled, and
 results show "Threat-intelligence databases: done (Google Safe Browsing, URLhaus)".

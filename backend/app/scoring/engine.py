@@ -50,6 +50,7 @@ FALLBACK_CATEGORY = "social_engineering_other"
 EVIDENCE_SOURCES = ("message", "link", "qr", "threat_intelligence", "combination", "ocr")
 
 DEMO_LISTED = "TI_DEMO_LISTED"
+PARTIAL = "TI_PARTIAL"
 DEMO_LISTED_MESSAGE = (
     "Listed only on QRGUARD's demo blocklist (demonstration data). No real threat-intelligence "
     "source has confirmed it."
@@ -247,7 +248,10 @@ def score_indicators(
     positive_categories = {
         definitions[i.id].category for i in all_indicators if definitions[i.id].weight > 0
     }
-    real_floor = floor_applied is not None and floor_applied["indicator"] != DEMO_LISTED
+    # A floor from demo data or from a partial listing (some vendors only, unconfirmed) keeps the
+    # verdict at its minimum level but is not strong evidence, so it never raises confidence.
+    weak_floors = (DEMO_LISTED, PARTIAL)
+    real_floor = floor_applied is not None and floor_applied["indicator"] not in weak_floors
     if "TI_LISTED" in ids or real_floor or (level == MALICIOUS and len(positive_categories) >= 3):
         confidence = "HIGH"
     elif (

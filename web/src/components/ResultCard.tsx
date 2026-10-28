@@ -1,6 +1,6 @@
 import type { AnalysisResult, CheckStatus } from '../types/api'
 import { CONFIDENCE_TEXT, VERDICT_STYLE } from '../utils/format'
-import { verdictOf } from '../utils/verdict'
+import { verdictOf, verificationNote } from '../utils/verdict'
 import { AnalysisDetailsView } from './AnalysisDetails'
 import { IndicatorList } from './IndicatorList'
 import { OpenCheckedLink } from './OpenCheckedLink'
@@ -10,19 +10,14 @@ import { ScoreGauge } from './ScoreGauge'
 import { ThreatIntelStatus } from './ThreatIntelStatus'
 
 function VerificationNote({ result }: { result: AnalysisResult }) {
-  const { verification } = result
-  const verified = verification.status === 'VERIFIED'
+  const note = verificationNote(result, verdictOf(result))
   return (
     <div
       className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700"
       data-testid="verification"
     >
-      <p className="font-semibold">
-        {verified ? '🔎 Verified' : '❔ Unverified'}
-        {verification.source === 'threat_intelligence' ? ' by threat intelligence' : ''}
-        {verification.source === 'trusted_domain_list' ? ' – recognised legitimate website' : ''}
-      </p>
-      <p className="mt-1 text-slate-700 dark:text-slate-300">{verification.message}</p>
+      <p className="font-semibold">{note.heading}</p>
+      {note.message ? <p className="mt-1 text-slate-700 dark:text-slate-300">{note.message}</p> : null}
     </div>
   )
 }
@@ -105,6 +100,11 @@ export function ResultCard({ result }: { result: AnalysisResult }) {
         <p className="mt-1 text-base font-medium">{result.summary}</p>
       </header>
 
+      <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800" data-testid="recommendation">
+        <h3 className="mb-1 font-semibold">What you should do</h3>
+        <p>{result.recommendation}</p>
+      </section>
+
       <ScoreGauge score={result.risk_score} level={result.risk_level} />
       <VerificationNote result={result} />
       <ChecksList result={result} />
@@ -121,11 +121,6 @@ export function ResultCard({ result }: { result: AnalysisResult }) {
           </ul>
         </section>
       ) : null}
-
-      <section className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
-        <h3 className="mb-1 font-semibold">What you should do</h3>
-        <p className="text-sm">{result.recommendation}</p>
-      </section>
 
       <section>
         <h3 className="mb-2 font-semibold">Why this result</h3>

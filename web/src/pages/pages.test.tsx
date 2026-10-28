@@ -187,3 +187,21 @@ describe('static pages and routing', () => {
     await waitFor(() => expect(screen.getByRole('link', { name: 'Safety tips' })).toHaveClass('bg-teal-700'))
   })
 })
+
+describe('navigation on small screens', () => {
+  it('folds the links behind a Menu button that expands and collapses', async () => {
+    stubFetch(healthy())
+    renderRoute('/')
+    const menu = screen.getByRole('button', { name: 'Menu' })
+    const nav = screen.getByRole('navigation', { name: 'Main', hidden: true })
+    expect(menu).toHaveAttribute('aria-expanded', 'false')
+    expect(menu).toHaveAttribute('aria-controls', nav.id)
+    expect(nav.className).toMatch(/(^| )hidden( |$)/)
+    expect(nav.className).toContain('sm:block') // always shown on wider screens
+    await userEvent.click(menu)
+    expect(menu).toHaveAttribute('aria-expanded', 'true')
+    expect(nav.className).not.toMatch(/(^| )hidden( |$)/)
+    await userEvent.click(screen.getByRole('link', { name: 'Safety tips' }))
+    expect(menu).toHaveAttribute('aria-expanded', 'false') // closes after choosing a page
+  })
+})

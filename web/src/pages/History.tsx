@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { ErrorAlert } from '../components/ErrorAlert'
 import { RiskBadge } from '../components/RiskBadge'
+import { formatDateTime } from '../utils/format'
 import { verdictLabel } from '../utils/verdict'
 import { useAuth } from '../context/AuthContext'
 import { api, ApiError } from '../services/api'
@@ -39,12 +40,12 @@ function HistoryRow({ item, onDelete }: { item: HistoryItem; onDelete: (id: stri
         </div>
         <div className="flex items-center gap-2 text-sm">
           <time dateTime={item.created_at} className="text-slate-500">
-            {new Date(item.created_at).toLocaleString()}
+            {formatDateTime(item.created_at)}
           </time>
-          <button type="button" className="text-teal-700 underline dark:text-teal-400" onClick={() => setOpen(!open)} aria-expanded={open}>
+          <button type="button" className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-3 font-medium text-teal-800 hover:bg-slate-100 dark:border-slate-600 dark:text-teal-300 dark:hover:bg-slate-800" onClick={() => setOpen(!open)} aria-expanded={open}>
             {open ? 'Hide' : 'Details'}
           </button>
-          <button type="button" className="text-red-700 underline dark:text-red-300" onClick={() => onDelete(item.id)} aria-label="Delete this result">
+          <button type="button" className="inline-flex min-h-11 items-center rounded-lg border border-red-300 px-3 font-medium text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-300 dark:hover:bg-red-950" onClick={() => onDelete(item.id)} aria-label="Delete this result">
             Delete
           </button>
         </div>

@@ -188,3 +188,80 @@ describe('OpenLinkGuard', () => {
     expect(alert).toHaveBeenCalledWith('Copied', expect.any(String))
   })
 })
+
+describe('ResultView verification note', () => {
+  const CAVEAT = 'There is insufficient evidence to establish trust. A SAFE result does not guarantee that the website is safe.'
+  const unconfirmed = { status: 'UNVERIFIED' as const, source: null, message: CAVEAT }
+  const note = () => screen.getByTestId('verification')
+  // toHaveTextContent matches a whole string exactly; these checks look for a part of the note.
+  const part = (text: string) => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+
+  it.each(['MALICIOUS', 'SUSPICIOUS'] as const)('%s without confirmation says so, without the SAFE caveat', async (level) => {
+    await render(<ResultView result={{ ...maliciousUrl, risk_level: level, verification: unconfirmed }} />)
+    expect(note()).toHaveTextContent(part('Not confirmed by a threat-intelligence source.'))
+    expect(note()).not.toHaveTextContent(/Verified|SAFE result/)
+    expect(screen.queryByText(/A SAFE result does not guarantee/)).toBeNull()
+  })
+
+  it('keeps the demo-blocklist note under a warning, still not confirmed', async () => {
+    const demo = 'Listed only on QRGUARD\'s demo blocklist (demonstration data). No real threat-intelligence source has confirmed it.'
+    await render(
+      <ResultView
+        result={{
+          ...maliciousUrl,
+          verification: { ...unconfirmed, message: demo },
+          verdict: { label: 'MALICIOUS', confirmed: false, evidence: 'demo_blocklist', title: 'Malicious – on QRGUARD\'s demo blocklist', explanation: demo },
+        }}
+      />,
+    )
+    expect(note()).toHaveTextContent(part('Not confirmed by a threat-intelligence source.'))
+    expect(note()).toHaveTextContent(part(demo))
+  })
+
+  it('a warning confirmed by threat intelligence still says so', async () => {
+    await render(<ResultView result={tiListed} />)
+    expect(note()).toHaveTextContent(part('Verified by threat intelligence'))
+    expect(note()).not.toHaveTextContent(part('Not confirmed'))
+  })
+
+  it('UNVERIFIED keeps the backend message, caveat included', async () => {
+    await render(<ResultView result={{ ...safeUnverified, verification: unconfirmed }} />)
+    expect(note()).toHaveTextContent(part('Unverified'))
+    expect(note()).toHaveTextContent(part(CAVEAT))
+    expect(note()).not.toHaveTextContent(part('Not confirmed'))
+  })
+
+  it('SAFE keeps the backend message', async () => {
+    const verification = { status: 'VERIFIED' as const, source: 'trusted_domain_list' as const, message: 'Recognised.' }
+    await render(<ResultView result={{ ...safeUnverified, verification }} />)
+    expect(note()).toHaveTextContent(part('Verified – recognised legitimate website'))
+    expect(note()).toHaveTextContent(part('Recognised.'))
+  })
+})
+
+describe('ResultView layout and provider status', () => {
+  it('shows "What you should do" right after the verdict banner', async () => {
+    await render(<ResultView result={maliciousUrl} />)
+    const titles = screen.getAllByText(/^(What you should do|What QRGUARD checked|Why this result|Threat-intelligence checks)$/)
+    expect(titles[0]).toHaveTextContent('What you should do')
+  })
+
+  it('tells checked, flagged, failed and unconfigured sources apart', async () => {
+    const providers = [
+      { provider: 'virustotal', status: 'partial' as const, detail: '2/94 engines' },
+      { provider: 'phishtank', status: 'not_listed' as const },
+      { provider: 'urlhaus', status: 'error' as const, detail: 'auth key rejected' },
+      { provider: 'google_safe_browsing', status: 'unavailable' as const, detail: 'rate limited' },
+      { provider: 'local_feed', status: 'disabled' as const },
+    ]
+    await render(<ResultView result={{ ...maliciousUrl, threat_intel: { checked: true, providers, note: 'n' } }} />)
+    expect(screen.getByTestId('ti-summary')).toHaveTextContent(
+      /^2 of 5 sources checked this link, 2 could not, 1 not configured\. A source that did not check this link says nothing about whether it is safe\.$/,
+    )
+    expect(screen.getByText(/VirusTotal: Flagged by some sources \(2\/94 engines\)/)).toBeOnTheScreen()
+    expect(screen.getByText(/PhishTank: Checked – not listed/)).toBeOnTheScreen()
+    expect(screen.getByText(/URLhaus: Key rejected – not checked/)).toBeOnTheScreen()
+    expect(screen.getByText(/Google Safe Browsing: Rate limited – not checked/)).toBeOnTheScreen()
+    expect(screen.getByText(/Local blocklist: Not configured/)).toBeOnTheScreen()
+  })
+})

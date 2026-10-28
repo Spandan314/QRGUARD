@@ -107,7 +107,7 @@ Category caps: url_structure **45**, lexical **15**, brand **40**, redirect **40
 | ID | Condition | Category | Weight | Floor |
 |---|---|---|---|---|
 | `TI_LISTED` | Any provider returns `listed` | reputation | 100 | **90** |
-| `TI_PARTIAL` | Any provider returns `partial` (no `listed`) | reputation | 50 | |
+| `TI_PARTIAL` | Any provider returns `partial` (no `listed`) | reputation | 50 | **30** |
 
 `not_listed`, `unavailable`, `disabled` and `error` produce **no indicator**. The module is then
 *not applicable*, so a clean lookup never pulls the score down toward "safe".
@@ -159,6 +159,7 @@ so the contributions add up to `weighted_score` (± rounding). A floor is report
 | `TI_LISTED` | 90 | Confirmed by a threat database |
 | `URL_DANGEROUS_SCHEME`, `REDIRECT_DANGEROUS_SCHEME` | 80 | Can run code or open apps |
 | `BRAND_LOOKALIKE`, `OFFICIAL_DOMAIN_IN_SUBDOMAIN`, `OFFICIAL_DOMAIN_IN_USERINFO` | 60 | Structural impersonation of a known brand |
+| `TI_PARTIAL` | 30 | Some security vendors flag the link: at least SUSPICIOUS, but unconfirmed, so it never raises confidence |
 
 ### 4.4 Worked examples (actual engine output)
 
@@ -216,6 +217,7 @@ Rules (configured in `verification:`):
 | SUSPICIOUS (any) | "Several warning signs were found. Treat this link as suspicious." |
 | MALICIOUS + VERIFIED (threat_intelligence) | "Strong warning signs…" plus verification message "A threat-intelligence source lists this as known malicious." |
 | MALICIOUS from the demo blocklist only (`TI_DEMO_LISTED`) | Same score floor (90) as a real listing so the demo works, but UNVERIFIED with the message "Listed only on QRGUARD's demo blocklist (demonstration data)…", `verdict.confirmed: false`, `verdict.evidence: "demo_blocklist"`, and no HIGH confidence from the floor alone. Real feeds downloaded with `ti-update-feeds` and the API providers produce `TI_LISTED`. |
+| SUSPICIOUS from a partial listing only (`TI_PARTIAL`: 1–2 VirusTotal engines, or an unverified PhishTank report) | Score floor 30, so a vendor flag is never shown as "no known risks found". Still UNVERIFIED (`verdict.confirmed: false`), and the floor never raises confidence: MEDIUM when the other checks completed, LOW when some could not. |
 
 Suggested UI:
 
@@ -255,7 +257,7 @@ level is SUSPICIOUS or MALICIOUS**. A lone weak signal therefore never gets a sc
 
 | Confidence | Rule (first match wins) |
 |---|---|
-| HIGH | `TI_LISTED` present; **or** a floor was applied; **or** MALICIOUS with ≥ 3 different positive categories |
+| HIGH | `TI_LISTED` present; **or** a floor was applied (except the `TI_DEMO_LISTED` and `TI_PARTIAL` floors, which are weak evidence); **or** MALICIOUS with ≥ 3 different positive categories |
 | LOW | Some check could not be completed (redirect timeout, DNS failure, TLS/connection error); **or** SAFE + UNVERIFIED with no definitive threat-intel answer |
 | MEDIUM | everything else (e.g. SAFE + VERIFIED by the trusted list, or SAFE + UNVERIFIED after a clean TI lookup) |
 

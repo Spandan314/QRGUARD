@@ -389,6 +389,7 @@ indicators:
     module: threat_intel
     category: reputation
     weight: 50
+    floor: 30  # at least SUSPICIOUS: a vendor flag is a warning sign, never "no known risks"
     scam_categories: [malicious_url]
     title: Flagged by some security vendors
     message: Some, but not all, security sources flag this link as harmful.

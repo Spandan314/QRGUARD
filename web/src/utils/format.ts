@@ -1,5 +1,5 @@
 // Display helpers only. No security decisions are made in the web app.
-import type { Confidence, EvidenceSource, RiskLevel, Severity, TIStatus, VerdictLabel } from '../types/api'
+import type { Confidence, EvidenceSource, RiskLevel, Severity, VerdictLabel } from '../types/api'
 
 export const LEVEL_STYLE: Record<RiskLevel, { icon: string; label: string; classes: string; bar: string }> = {
   SAFE: {
@@ -76,14 +76,6 @@ export const PROVIDER_NAME: Record<string, string> = {
   phishtank: 'PhishTank',
 }
 
-export const TI_STATUS_TEXT: Record<TIStatus, string> = {
-  listed: 'Listed as malicious',
-  partial: 'Flagged by some sources',
-  not_listed: 'Not listed',
-  unavailable: 'Could not be checked',
-  disabled: 'Not enabled',
-  error: 'Configuration problem',
-}
 
 export function formatPoints(points: number): string {
   const rounded = Math.round(points * 10) / 10
@@ -95,4 +87,9 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+/** "28 Oct 2026, 5:23 am" style: the month is spelled out, so day and month cannot be confused. */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
