@@ -11,6 +11,7 @@ from flask import Flask
 from flask_cors import CORS
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+from app.analyzers.domain_age import DomainAgeService
 from app.analyzers.ocr import TesseractOcrEngine
 from app.analyzers.redirect_resolver import RedirectSettings
 from app.analyzers.scam_rules import load_scam_rules
@@ -36,6 +37,7 @@ from app.services.screenshot_analysis_service import ScreenshotAnalysisService
 from app.services.url_analysis_service import UrlAnalysisService
 from app.threat_intelligence.factory import build_threat_intel
 from app.threat_intelligence.feeds import update_feeds_command
+from app.threat_intelligence.http import Urllib3Client
 from app.version import __version__
 
 __all__ = ["create_app", "__version__"]
@@ -111,6 +113,11 @@ def create_app(config: Config | None = None) -> Flask:
             request_timeout=config.redirect_timeout_seconds,
             total_timeout=config.redirect_total_timeout_seconds,
             max_concurrent=config.redirect_max_concurrent,
+        ),
+        domain_age=DomainAgeService(
+            Urllib3Client(),
+            enabled=config.domain_age_lookup,
+            timeout=config.domain_age_timeout_seconds,
         ),
     )
     app.extensions["qrguard.url_analysis"] = url_service

@@ -114,6 +114,10 @@ class Config:
     ti_budget_seconds: int = 6
     ti_cache_listed_seconds: int = 86400
     ti_cache_not_listed_seconds: int = 3600
+    # Domain registration age (RDAP via IANA's bootstrap). Off unless switched on: it sends the
+    # registrable domain (never the full URL) to the official registry of that domain ending.
+    domain_age_lookup: bool = False
+    domain_age_timeout_seconds: int = 3
     urlhaus_auth_key: str = field(default="", repr=False)
     google_safe_browsing_api_key: str = field(default="", repr=False)
     virustotal_api_key: str = field(default="", repr=False)
@@ -221,6 +225,8 @@ class Config:
             ti_cache_not_listed_seconds=_get_int(
                 env, "THREAT_INTEL_CACHE_NOT_LISTED_SECONDS", 3600, 0, 86400
             ),
+            domain_age_lookup=_get_bool(env, "DOMAIN_AGE_LOOKUP", False),
+            domain_age_timeout_seconds=_get_int(env, "DOMAIN_AGE_TIMEOUT_SECONDS", 3, 1, 10),
             urlhaus_auth_key=_get_secret(env, "URLHAUS_AUTH_KEY"),
             google_safe_browsing_api_key=_get_secret(env, "GOOGLE_SAFE_BROWSING_API_KEY"),
             virustotal_api_key=_get_secret(env, "VIRUSTOTAL_API_KEY"),

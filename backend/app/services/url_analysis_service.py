@@ -6,12 +6,15 @@ screenshot analyzers whenever they find a link.
 
 from __future__ import annotations
 
+from concurrent.futures import Future
+from concurrent.futures import TimeoutError as FutureTimeout
 from dataclasses import dataclass, field
 from typing import Any
 
+from app.analyzers import domain_age as da
 from app.analyzers import redirect_resolver as rr
 from app.analyzers.lookalike import BrandMatch, detect_lookalikes
-from app.analyzers.url_features import extract_url_features, host_matches, is_local_host
+from app.analyzers.url_features import extract_url_features, host_matches, is_local_host, is_trusted
 from app.analyzers.url_normalizer import ParsedURL, URLValidationError, normalize_url
 from app.analyzers.url_rules import UrlRules
 from app.scoring.engine import ScoreResult, ScoringContext, score_indicators
@@ -51,6 +54,9 @@ class UrlAnalysis:
     redirects: dict[str, Any] = field(default_factory=dict)
     ti_results: list[ProviderResult] = field(default_factory=list)
     incomplete_checks: bool = False
+    # Registration age of the domain the link leads to (None: not looked up, see the reason).
+    domain_age: da.DomainAge | None = None
+    domain_age_skipped: str | None = None
 
 
 def _combine(url_indicators: list[Indicator], brand_indicators: list[Indicator]) -> list[Indicator]:
@@ -74,6 +80,7 @@ class UrlAnalysisService:
         redirect_settings: rr.RedirectSettings | None = None,
         fetcher: rr.Fetcher = rr.urllib3_fetch,
         resolver: rr.Resolver = resolve_host,
+        domain_age: da.DomainAgeService | None = None,
     ) -> None:
         if redirect_mode not in REDIRECT_MODES:
             raise ValueError(f"redirect_mode must be one of {REDIRECT_MODES}")
@@ -89,6 +96,7 @@ class UrlAnalysisService:
         # Network functions are attributes so tests can replace them with fakes.
         self.fetcher = fetcher
         self.resolver = resolver
+        self.domain_age = domain_age
 
     # ----- public API ---------------------------------------------------------------------------
     def analyze(self, raw_url: str) -> dict[str, Any]:
@@ -132,6 +140,7 @@ class UrlAnalysisService:
                 "status": rr.NOT_ATTEMPTED,
                 "reason": "redirect-check limit for this request reached",
             }
+        age_lookup = self._start_domain_age(analysis)
         urls_to_check = [parsed.normalized]
         final_url = analysis.redirects.get("final_url")
         if final_url and final_url != parsed.normalized:
@@ -142,7 +151,58 @@ class UrlAnalysisService:
         # that is an incomplete check (lower confidence), never a clean result.
         if any(r.status in FAILED_STATUSES and not r.limited for r in analysis.ti_results):
             analysis.incomplete_checks = True
+        if age_lookup is not None:
+            self._finish_domain_age(analysis, age_lookup)
         return analysis
+
+    # ----- domain registration age --------------------------------------------------------------
+    def _start_domain_age(self, analysis: UrlAnalysis) -> Future[da.DomainAge] | None:
+        """Start the RDAP lookup for the website the link leads to, if it makes sense."""
+        if self.domain_age is None or not self.domain_age.enabled:
+            analysis.domain_age_skipped = "disabled"
+            return None
+        target = analysis.parsed
+        final_url = analysis.redirects.get("final_url")
+        if final_url and analysis.redirects.get("final_domain") != target.registrable_domain:
+            try:
+                target = normalize_url(final_url, self.rules)
+            except (URLValidationError, ValueError):
+                analysis.domain_age_skipped = "the final address could not be read"
+                return None
+        if (
+            target.ip is not None
+            or not target.has_public_suffix
+            or is_local_host(target, self.rules)
+        ):
+            analysis.domain_age_skipped = "not a registered domain name"
+        elif host_matches(target.host, self.rules.user_content_hosts):
+            analysis.domain_age_skipped = (
+                "shared hosting: the domain age says nothing about this site"
+            )
+        elif is_trusted(target, self.rules):
+            analysis.domain_age_skipped = "recognised domain"
+        else:
+            return self.domain_age.submit(target.registrable_domain)
+        return None
+
+    def _finish_domain_age(self, analysis: UrlAnalysis, lookup: Future[da.DomainAge]) -> None:
+        wait = 2 * self.domain_age.timeout + 1 if self.domain_age is not None else 1
+        try:
+            # The lookup ran alongside the other checks; this only waits for what is left of it.
+            result = lookup.result(timeout=wait)
+        except FutureTimeout:
+            result = da.DomainAge("", da.UNAVAILABLE, detail="timeout")
+        analysis.domain_age = result
+        if result.recently_registered:
+            analysis.indicators.append(
+                Indicator(
+                    "DOMAIN_RECENTLY_REGISTERED",
+                    f"{result.domain}: registered {result.age_days} day(s) ago "
+                    f"({result.registered.isoformat() if result.registered else 'date unknown'})",
+                )
+            )
+        if result.status == da.UNAVAILABLE:
+            analysis.incomplete_checks = True  # unknown, never "clean"
 
     # ----- redirects ----------------------------------------------------------------------------
     def _should_resolve(self, parsed: ParsedURL, features: dict[str, Any]) -> tuple[bool, str]:
@@ -309,8 +369,44 @@ class UrlAnalysisService:
                 }
             )
 
+        age_check = self._domain_age_check(analysis)
+        if age_check is not None:
+            checks.append(age_check)
         checks.append(self._ti_check(analysis.ti_results))
         return checks
+
+    @staticmethod
+    def _domain_age_check(analysis: UrlAnalysis) -> dict[str, Any] | None:
+        """Shown only when the lookup is switched on, so a disabled check is not listed."""
+        label = "Domain registration age"
+        if analysis.domain_age is None:
+            if analysis.domain_age_skipped in (None, "disabled"):
+                return None
+            return {
+                "id": "domain_age",
+                "label": label,
+                "status": "not_run",
+                "detail": analysis.domain_age_skipped,
+            }
+        age = analysis.domain_age
+        if age.status == da.FOUND:
+            detail = f"registered {age.age_days} day(s) ago" + (
+                " (recently registered)" if age.recently_registered else ""
+            )
+            return {"id": "domain_age", "label": label, "status": "completed", "detail": detail}
+        if age.status == da.UNAVAILABLE:
+            return {
+                "id": "domain_age",
+                "label": label,
+                "status": "unavailable",
+                "detail": f"unknown ({age.detail})",
+            }
+        return {
+            "id": "domain_age",
+            "label": label,
+            "status": "limited",
+            "detail": f"unknown ({age.detail})",
+        }
 
     @staticmethod
     def _ti_check(results: list[ProviderResult]) -> dict[str, Any]:
@@ -397,6 +493,7 @@ class UrlAnalysisService:
                 "brand": analysis.brand.to_dict() if analysis.brand else None,
                 "features": analysis.features,
                 "redirects": analysis.redirects,
+                "domain_age": analysis.domain_age.to_public_dict() if analysis.domain_age else None,
             },
             "disclaimer": DISCLAIMER,
         }
