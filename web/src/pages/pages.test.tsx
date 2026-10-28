@@ -184,26 +184,45 @@ describe('static pages and routing', () => {
   it('marks the active navigation link', async () => {
     stubFetch()
     renderRoute('/tips')
-    await waitFor(() => expect(screen.getByRole('link', { name: 'Safety tips' })).toHaveAttribute('aria-current', 'page'))
-    expect(screen.getByRole('link', { name: 'Safety tips' })).toHaveClass('border-teal-400')
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Scam guide' })).toHaveAttribute('aria-current', 'page'))
+    expect(screen.getByRole('link', { name: 'Airlock' })).not.toHaveAttribute('aria-current')
   })
 })
 
-describe('navigation on small screens', () => {
-  it('folds the links behind a Menu button that expands and collapses', async () => {
+describe('header', () => {
+  it('keeps every other page in a "More" menu that opens, closes on Escape and after choosing a page', async () => {
     stubFetch(healthy())
     renderRoute('/')
-    const menu = screen.getByRole('button', { name: 'Menu' })
-    const nav = screen.getByRole('navigation', { name: 'Main', hidden: true })
-    expect(menu).toHaveAttribute('aria-expanded', 'false')
-    expect(menu).toHaveAttribute('aria-controls', nav.id)
-    expect(nav.className).toMatch(/(^| )hidden( |$)/)
-    expect(nav.className).toContain('lg:block') // always shown as a sidebar on wide screens
-    await userEvent.click(menu)
-    expect(menu).toHaveAttribute('aria-expanded', 'true')
-    expect(nav.className).not.toMatch(/(^| )hidden( |$)/)
-    await userEvent.click(screen.getByRole('link', { name: 'Safety tips' }))
-    expect(menu).toHaveAttribute('aria-expanded', 'false') // closes after choosing a page
+    const more = screen.getByRole('button', { name: 'More' })
+    const menu = document.getElementById(more.getAttribute('aria-controls') ?? '') as HTMLElement
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+    expect(menu).not.toBeVisible()
+    await userEvent.click(more)
+    expect(more).toHaveAttribute('aria-expanded', 'true')
+    for (const name of ['Check a link', 'Check a message', 'Check a QR code', 'Check a screenshot', 'Make a QR', 'About']) {
+      expect(screen.getByRole('link', { name })).toBeVisible()
+    }
+    await userEvent.keyboard('{Escape}')
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(more)
+    await userEvent.click(screen.getByRole('link', { name: 'About' }))
+    expect(more).toHaveAttribute('aria-expanded', 'false')
+  })
+
+  it('theme toggle switches the theme, says what it will do, and remembers the choice', async () => {
+    stubFetch(healthy())
+    localStorage.removeItem('qrguard-theme')
+    renderRoute('/')
+    const toggle = screen.getByTestId('theme-toggle')
+    const before = document.documentElement.getAttribute('data-theme')
+    expect(['light', 'dark']).toContain(before)
+    const after = before === 'dark' ? 'light' : 'dark'
+    expect(toggle).toHaveAccessibleName(`Switch to ${after} theme`)
+    await userEvent.click(toggle)
+    expect(document.documentElement.getAttribute('data-theme')).toBe(after)
+    expect(localStorage.getItem('qrguard-theme')).toBe(after)
+    expect(toggle).toHaveAccessibleName(`Switch to ${before} theme`)
+    localStorage.removeItem('qrguard-theme')
   })
 })
 

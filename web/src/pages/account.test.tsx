@@ -71,12 +71,14 @@ describe('sign-in (demo mode)', () => {
   it('signs in, shows history in the navigation and signs out', async () => {
     stubBackend({ 'GET .*/api/me$': () => jsonResponse(profile()) })
     renderRoute('/account', new DevAuthClient())
-    expect(screen.queryByRole('link', { name: 'History' })).toBeNull()
+    // History is always in the main navigation; Sign in / Account live in the "More" menu.
+    expect(screen.getByRole('link', { name: 'History' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Sign in', hidden: true })).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText('Demo user name'), 'alice')
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(await screen.findByText('Signed in')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'History' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Account' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Account', hidden: true })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
     expect(await screen.findByLabelText('Demo user name')).toBeInTheDocument()
   })
@@ -268,7 +270,7 @@ describe('admin', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Delete expired history now' }))
     expect(await screen.findByText('Deleted 3 expired results.')).toBeInTheDocument()
     expect(calls.some((c) => c.init.method === 'POST' && String(c.url).endsWith('/api/admin/history/purge-expired'))).toBe(true)
-    expect(screen.getByRole('link', { name: 'Admin' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Admin', hidden: true })).toBeInTheDocument()
   })
 })
 

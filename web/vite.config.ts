@@ -7,7 +7,12 @@ import { deployProblems } from './src/deployChecks'
 const config: ViteUserConfig = {
   plugins: [react(), tailwindcss()],
   server: { port: 5173 },
-  build: { sourcemap: false },
+  build: {
+    sourcemap: false,
+    // Never inline fonts as data: URIs: the Content-Security-Policy only allows same-origin
+    // fonts, and every font must be a normal file served by this site.
+    assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
+  },
   test: {
     environment: 'jsdom',
     globals: true,
