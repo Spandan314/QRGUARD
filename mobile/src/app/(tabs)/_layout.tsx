@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router'
 import { Text } from 'react-native'
+import { BrandTitle } from '../../components/BrandTitle'
 import { colors } from '../../constants/theme'
 import { useAuth } from '../../context/AuthContext'
 
@@ -12,7 +13,7 @@ export default function TabsLayout() {
   const { user } = useAuth()
   return (
     <Tabs screenOptions={{ tabBarActiveTintColor: colors.brand, headerTitleStyle: { fontWeight: '700' } }}>
-      <Tabs.Screen name="index" options={{ title: 'QRGUARD', tabBarLabel: 'Home', tabBarIcon: icon('🛡️') }} />
+      <Tabs.Screen name="index" options={{ title: 'QRGUARD', headerTitle: BrandTitle, tabBarLabel: 'Home', tabBarIcon: icon('🛡️') }} />
       <Tabs.Screen name="history" options={{ title: 'My history', tabBarLabel: 'History', tabBarIcon: icon('🕘') }} />
       <Tabs.Screen
         name="settings"

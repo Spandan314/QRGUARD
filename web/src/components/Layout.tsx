@@ -27,9 +27,11 @@ export function Layout() {
       </a>
       <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <NavLink to="/" className="flex items-center gap-2 text-xl font-bold text-teal-700 dark:text-teal-400">
-            <img src="/shield.svg" alt="" className="h-7 w-7" />
-            QRGUARD
+          <NavLink to="/" className="flex items-center gap-2 text-xl font-extrabold tracking-tight text-teal-700 dark:text-teal-400">
+            <img src="/qrguard-mark.svg" alt="" className="h-8 w-8" />
+            <span>
+              <span className="text-slate-900 dark:text-white">QR</span>GUARD
+            </span>
           </NavLink>
           <nav aria-label="Main">
             <ul className="flex flex-wrap gap-1 text-sm">
