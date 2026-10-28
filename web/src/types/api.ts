@@ -123,7 +123,16 @@ export interface AnalysisDetails {
   input_url?: string
   normalized_url?: string
   host?: string | null
-  redirects?: { checked: boolean; status?: string; final_url?: string | null; chain?: string[] }
+  redirects?: {
+    checked: boolean
+    status?: string
+    final_url?: string | null
+    final_domain?: string
+    redirect_count?: number
+    /** Each step the server followed (newer backends). */
+    hops?: { url: string; status_code: number | null }[]
+    chain?: string[]
+  }
   links?: LinkRow[]
   matched_phrases?: string[]
   low_confidence_reasons?: string[]

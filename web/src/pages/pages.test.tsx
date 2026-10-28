@@ -37,7 +37,7 @@ describe('dashboard', () => {
     expect(await screen.findByTestId('backend-status')).toHaveTextContent(
       'Server online · engine 0.1.0 · text recognition available · 1 threat-intelligence source active',
     )
-    expect(screen.getByRole('link', { name: /Check a link/ })).toHaveAttribute('href', '/check/url')
+    expect(screen.getByRole('link', { name: 'Check a link', hidden: true })).toHaveAttribute('href', '/check/url')
   })
 
   it('warns when the backend is unreachable', async () => {
@@ -278,5 +278,98 @@ describe('analysis in progress', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not complete the check')
     expect(screen.queryByTestId('analysis-progress')).toBeNull()
     expect(screen.getByRole('button', { name: 'Check link' })).toBeEnabled() // retry possible
+  })
+})
+
+describe('Airlock check page', () => {
+  // Reveal the stages at once (the page honours prefers-reduced-motion).
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce'), addEventListener() {}, removeEventListener() {} }))
+  })
+
+  function pendingAnalysis() {
+    let answer: (response: Response) => void = () => undefined
+    const fetchMock = vi.fn((url: RequestInfo | URL) =>
+      String(url).endsWith('/api/health') ? Promise.resolve(healthyResponse()) : new Promise<Response>((resolve) => (answer = resolve)),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    return { fetchMock, answer: (response: Response) => answer(response) }
+  }
+  const healthyResponse = () => jsonResponse({ status: 'ok', engine_version: '1.0.0', components: {} })
+  const analyzeCalls = (fetchMock: ReturnType<typeof vi.fn>) => fetchMock.mock.calls.filter(([url]) => /\/api\/analyze\//.test(String(url)))
+
+  it('detects a link, seals it in the chamber, then reveals the real stages, log and result', async () => {
+    const { fetchMock, answer } = pendingAnalysis()
+    renderRoute('/')
+    const field = screen.getByLabelText('Link, UPI ID or message')
+    await userEvent.type(field, 'http://sbi.co.in.kyc-verify.xyz/login')
+    expect(screen.getByTestId('detected-type')).toHaveTextContent('Detected: link')
+    await userEvent.click(screen.getByRole('button', { name: 'Put in the airlock' }))
+
+    expect(screen.getByTestId('chamber')).toHaveAttribute('data-phase', 'running')
+    expect(screen.getByTestId('chamber-status')).toHaveTextContent('Chamber 01 · SEALED')
+    expect(screen.getByTestId('specimen')).toHaveTextContent('http://sbi.co.in.kyc-verify.xyz/login')
+    expect(screen.getAllByTestId('stage').map((s) => s.dataset.state)).toEqual(['active', 'active', 'active', 'active', 'waiting'])
+    expect(screen.getByRole('button', { name: 'Put in the airlock' })).toBeDisabled() // no double submit
+    const [url, init] = analyzeCalls(fetchMock)[0] ?? []
+    expect(String(url)).toMatch(/\/api\/analyze\/url$/)
+    expect(JSON.parse(String(init?.body)).url).toBe('http://sbi.co.in.kyc-verify.xyz/login')
+    expect(screen.queryByRole('article', { name: 'Analysis result' })).toBeNull()
+
+    answer(jsonResponse(maliciousUrl))
+    expect(await screen.findByRole('article', { name: 'Analysis result' })).toBeInTheDocument()
+    expect(screen.getByTestId('chamber')).toHaveAttribute('data-phase', 'done')
+    expect(screen.getAllByTestId('stage').map((s) => s.dataset.state)).toEqual(['done', 'done', 'warning', 'warning', 'warning'])
+    const log = screen.getByTestId('chamber-log')
+    expect(log).toHaveTextContent('sent to our server · your device does not open it')
+    expect(log).toHaveTextContent('verdict: MALICIOUS · 73/100')
+  })
+
+  it('sends a UPI ID as a payment payload and a message to the message check', async () => {
+    const { fetchMock, answer } = pendingAnalysis()
+    renderRoute('/')
+    const field = screen.getByLabelText('Link, UPI ID or message')
+    await userEvent.type(field, 'refund.desk9912@okdemo{Enter}')
+    const [qrUrl, qrInit] = analyzeCalls(fetchMock)[0] ?? []
+    expect(String(qrUrl)).toMatch(/\/api\/analyze\/qr$/)
+    expect(JSON.parse(String(qrInit?.body)).content).toBe('upi://pay?pa=refund.desk9912%40okdemo')
+    answer(jsonResponse(qrResult))
+    await screen.findByRole('article', { name: 'Analysis result' })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Load a new specimen' }))
+    expect(screen.getByTestId('chamber')).toHaveAttribute('data-phase', 'idle')
+    expect(field).toHaveFocus()
+    await userEvent.clear(field)
+    await userEvent.type(field, 'Your KYC expires today, share the OTP{Enter}')
+    const [messageUrl, messageInit] = analyzeCalls(fetchMock)[1] ?? []
+    expect(String(messageUrl)).toMatch(/\/api\/analyze\/message$/)
+    expect(JSON.parse(String(messageInit?.body)).text).toBe('Your KYC expires today, share the OTP')
+  })
+
+  it('uploads an image to the combined QR + text check and refuses other files in the browser', async () => {
+    const { fetchMock, answer } = pendingAnalysis()
+    const { container } = renderRoute('/')
+    const input = container.querySelector('input[type=file]') as HTMLInputElement
+    await userEvent.upload(input, new File(['%PDF'], 'doc.pdf', { type: 'application/pdf' }), { applyAccept: false })
+    expect(screen.getByRole('alert')).toHaveTextContent('Please choose a PNG, JPEG or WEBP image.')
+    expect(analyzeCalls(fetchMock)).toHaveLength(0)
+    await userEvent.upload(input, new File(['png'], 'shot.png', { type: 'image/png' }))
+    expect(String(analyzeCalls(fetchMock)[0]?.[0])).toMatch(/\/api\/analyze\/screenshot$/)
+    expect(screen.getByTestId('specimen')).toHaveTextContent('shot.png')
+    answer(jsonResponse(screenshotResult))
+    await screen.findByRole('article', { name: 'Analysis result' })
+  })
+
+  it('a failed check aborts the chamber, shows the error and never a result', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url).endsWith('/api/health')) return healthyResponse()
+      throw new TypeError('offline')
+    }))
+    renderRoute('/')
+    await userEvent.type(screen.getByLabelText('Link, UPI ID or message'), 'example.com{Enter}')
+    expect(await screen.findByText('Could not complete the check')).toBeInTheDocument()
+    expect(screen.getByTestId('chamber')).toHaveAttribute('data-phase', 'failed')
+    expect(screen.getByTestId('chamber-log')).toHaveTextContent('aborted:')
+    expect(screen.queryByRole('article', { name: 'Analysis result' })).toBeNull()
   })
 })
