@@ -24,6 +24,12 @@ async function newUser() {
   return { context, page }
 }
 
+/** Pages other than Airlock / History / Scam guide are in the header's "More" menu. */
+async function openFromMore(page, name) {
+  await page.getByRole('button', { name: 'More' }).click()
+  await page.getByRole('link', { name, exact: true }).click()
+}
+
 const alice = await newUser()
 const a = alice.page
 
@@ -33,6 +39,29 @@ await check('served with the production security headers from vercel.json', asyn
   if (!headers['content-security-policy']?.includes("default-src 'self'")) throw new Error('no CSP')
   if (!headers['permissions-policy']?.includes('camera=(self)')) throw new Error('camera not allowed')
   if (headers['x-frame-options'] !== 'DENY') throw new Error('frame protection missing')
+})
+
+await check('self-hosted fonts and theme: no third-party requests; Airlock fonts load; theme follows the OS', async () => {
+  for (const scheme of ['dark', 'light']) {
+    const context = await browser.newContext({ colorScheme: scheme })
+    const page = watch(await context.newPage())
+    const hosts = new Set()
+    page.on('request', (r) => hosts.add(new URL(r.url()).hostname))
+    await page.goto(WEB)
+    // Fonts download only when used: request each one, so this proves all three load from this site.
+    await page.evaluate(() =>
+      Promise.all(['Inter Variable', 'Space Grotesk Variable', 'JetBrains Mono Variable'].map((f) => document.fonts.load(`16px "${f}"`))),
+    )
+    const outside = [...hosts].filter((h) => !['localhost', '127.0.0.1'].includes(h))
+    if (outside.length) throw new Error(`third-party requests: ${outside}`)
+    const state = await page.evaluate(() => ({
+      theme: document.documentElement.dataset.theme,
+      fonts: ['Inter Variable', 'Space Grotesk Variable', 'JetBrains Mono Variable'].map((f) => document.fonts.check(`16px "${f}"`)),
+    }))
+    if (state.theme !== scheme) throw new Error(`theme ${state.theme} for an OS in ${scheme} mode`)
+    if (state.fonts.includes(false)) throw new Error(`fonts not loaded: ${state.fonts}`)
+    await context.close()
+  }
 })
 
 await check('anonymous Firebase sign-in (Auth emulator) and profile from Flask', async () => {
@@ -45,7 +74,7 @@ await check('anonymous Firebase sign-in (Auth emulator) and profile from Flask',
 })
 
 await check('URL check -> demo blocklist hit 90 MALICIOUS (labelled demo data, not verified TI), saved to Firestore history', async () => {
-  await a.getByRole('link', { name: 'Link', exact: true }).click()
+  await openFromMore(a, 'Check a link')
   await a.locator('#url').fill('http://secure-sbi-kyc-update.example/login')
   if (!(await a.getByLabel(/Save the result to my history/).isChecked())) throw new Error('save not preselected')
   await a.getByRole('button', { name: 'Check link' }).click()
@@ -65,7 +94,7 @@ await check('report the result (linked to the saved scan)', async () => {
 })
 
 await check('message check saved; content never shown in history', async () => {
-  await a.getByRole('link', { name: 'Message', exact: true }).click()
+  await openFromMore(a, 'Check a message')
   await a.getByLabel('Message text').fill(
     'Dear customer, your SBI account will be BLOCKED today. Share the OTP and update KYC: http://sbi-kyc-update.xyz/login?t=E2ESECRET',
   )
@@ -74,7 +103,7 @@ await check('message check saved; content never shown in history', async () => {
 })
 
 await check('live camera QR scan (fake camera shows a UPI refund QR) -> SUSPICIOUS', async () => {
-  await a.getByRole('link', { name: 'QR code', exact: true }).click()
+  await openFromMore(a, 'Check a QR code')
   await a.getByRole('tab', { name: 'Use the camera' }).click()
   await a.getByTestId('qr-details').waitFor({ timeout: 30000 })
   const text = await a.getByRole('article').innerText()
@@ -107,7 +136,7 @@ await check('isolation: another user sees an empty history', async () => {
 await check('admin: a normal user is refused (page and API)', async () => {
   await bob.page.goto(`${WEB}/admin`)
   await bob.page.getByText('Administrator access is required.').waitFor({ timeout: 10000 })
-  if (await bob.page.getByRole('link', { name: 'Admin' }).count()) throw new Error('admin link shown')
+  if (await bob.page.getByRole('link', { name: 'Admin', includeHidden: true }).count()) throw new Error('admin link shown')
 })
 
 await check('admin e-mail user: claim on sign-in, stats and report review', async () => {
@@ -130,7 +159,8 @@ await check('admin e-mail user: claim on sign-in, stats and report review', asyn
   await p.getByLabel('E-mail').fill('admin@qrguard.test')
   await p.getByLabel('Password').fill('demo-password-123')
   await p.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await p.getByRole('link', { name: 'Admin' }).click({ timeout: 15000 })
+  await p.getByRole('link', { name: 'Admin', includeHidden: true }).waitFor({ state: 'attached', timeout: 15000 })
+  await openFromMore(p, 'Admin')
   await p.getByTestId('stat-Checks').waitFor({ timeout: 15000 })
   const checks = Number(await p.getByTestId('stat-Checks').innerText())
   if (!(checks >= 3)) throw new Error(`checks=${checks}`)
@@ -143,7 +173,7 @@ await check('admin e-mail user: claim on sign-in, stats and report review', asyn
 })
 
 await check('delete my data removes all history and signs out', async () => {
-  await a.getByRole('link', { name: 'Account' }).click()
+  await openFromMore(a, 'Account')
   await a.getByRole('button', { name: 'Delete my data' }).click()
   await a.getByRole('button', { name: 'Yes, delete everything' }).click()
   await a.getByRole('button', { name: 'Continue without an e-mail' }).waitFor({ timeout: 15000 })
