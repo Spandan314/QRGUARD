@@ -181,6 +181,96 @@ def test_partial_listing_adds_evidence_but_is_not_a_confirmation():
     assert body["risk_score"] > 0
 
 
+# ---- Partial listings (TI_PARTIAL: floor 30, never a confirmation, never HIGH confidence) -----
+CLEAN = "https://example-shop.net/item"  # no warning signs of its own
+OTHERS_ANSWERED = [
+    FakeProvider("urlhaus", TIStatus.NOT_LISTED),
+    FakeProvider("google_safe_browsing", TIStatus.NOT_LISTED),
+]
+MISLEADING = ("no known risks", "found no warning signs")
+
+
+def assert_partial_warning(body, confidence):
+    assert (body["risk_score"], body["risk_level"]) == (30, "SUSPICIOUS")
+    assert body["verdict"]["label"] == "SUSPICIOUS" and body["verdict"]["confirmed"] is False
+    assert body["verification"]["status"] == "UNVERIFIED"
+    assert body["confidence"] == confidence
+    assert "TI_PARTIAL" in [i["id"] for i in body["indicators"]]
+    shown = " ".join([body["verdict"]["title"], body["verdict"]["explanation"], body["summary"]])
+    assert not any(phrase in shown.lower() for phrase in MISLEADING)
+
+
+@pytest.mark.parametrize(
+    "partial",
+    [
+        FakeProvider("virustotal", TIStatus.PARTIAL, "suspicious"),  # 1-2 engines
+        FakeProvider("phishtank", TIStatus.PARTIAL, "phishing"),  # unverified report
+    ],
+    ids=["virustotal-1-2-engines", "phishtank-unverified-report"],
+)
+def test_a_partial_listing_alone_is_suspicious_with_medium_confidence(partial):
+    body = analyze(with_providers(*OTHERS_ANSWERED, partial), CLEAN)
+    assert_partial_warning(body, "MEDIUM")
+    assert body["score_breakdown"]["floor_applied"]["indicator"] == "TI_PARTIAL"
+
+
+def test_a_partial_listing_with_other_providers_down_is_suspicious_with_low_confidence():
+    body = analyze(
+        with_providers(
+            FakeProvider("urlhaus", TIStatus.ERROR),  # rejected key
+            FakeProvider("google_safe_browsing", TIStatus.UNAVAILABLE),  # timeout
+            FakeProvider("virustotal", TIStatus.PARTIAL, "suspicious"),
+        ),
+        CLEAN,
+    )
+    assert_partial_warning(body, "LOW")
+
+
+def test_a_full_listing_still_wins_over_a_partial_one():
+    body = analyze(
+        with_providers(
+            FakeProvider("google_safe_browsing", TIStatus.LISTED, "phishing"),
+            FakeProvider("virustotal", TIStatus.PARTIAL, "suspicious"),
+        ),
+        CLEAN,
+    )
+    assert (body["risk_score"], body["risk_level"], body["confidence"]) == (90, "MALICIOUS", "HIGH")
+    assert body["verification"] == {
+        "status": "VERIFIED",
+        "source": "threat_intelligence",
+        "message": "A threat-intelligence source lists this as known malicious.",
+    }
+    assert body["verdict"]["confirmed"] is True
+
+
+@pytest.mark.parametrize(
+    "providers",
+    [
+        [],  # no provider configured
+        [FakeProvider("urlhaus", TIStatus.DISABLED)],  # missing key
+        [FakeProvider("urlhaus", TIStatus.ERROR)],  # rejected key
+        [FakeProvider(n, TIStatus.UNAVAILABLE) for n in ("urlhaus", "virustotal")],  # outage
+    ],
+    ids=["none", "missing-key", "rejected-key", "outage"],
+)
+def test_missing_credentials_or_failures_alone_are_never_safe(providers):
+    body = analyze(with_providers(*providers), CLEAN)
+    assert body["verdict"]["label"] == "UNVERIFIED"
+    assert body["verification"]["status"] == "UNVERIFIED"
+    assert body["confidence"] == "LOW"
+    assert "TI_PARTIAL" not in [i["id"] for i in body["indicators"]]
+
+
+def test_a_partial_listing_does_not_change_a_lookalike_result():
+    baseline = analyze(with_providers(*OTHERS_ANSWERED), LOOKALIKE)
+    body = analyze(
+        with_providers(*OTHERS_ANSWERED, FakeProvider("virustotal", TIStatus.PARTIAL)), LOOKALIKE
+    )
+    assert (baseline["risk_level"], baseline["confidence"]) == ("MALICIOUS", "HIGH")
+    assert (body["risk_level"], body["confidence"]) == ("MALICIOUS", "HIGH")
+    assert body["score_breakdown"]["floor_applied"]["indicator"] == "BRAND_LOOKALIKE"
+
+
 def test_listed_overrides_a_trusted_domain():
     body = analyze(
         with_providers(FakeProvider("urlhaus", TIStatus.LISTED, "malware_download")),
