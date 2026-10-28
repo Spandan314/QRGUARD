@@ -188,3 +188,53 @@ describe('OpenLinkGuard', () => {
     expect(alert).toHaveBeenCalledWith('Copied', expect.any(String))
   })
 })
+
+describe('ResultView verification note', () => {
+  const CAVEAT = 'There is insufficient evidence to establish trust. A SAFE result does not guarantee that the website is safe.'
+  const unconfirmed = { status: 'UNVERIFIED' as const, source: null, message: CAVEAT }
+  const note = () => screen.getByTestId('verification')
+  // toHaveTextContent matches a whole string exactly; these checks look for a part of the note.
+  const part = (text: string) => new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+
+  it.each(['MALICIOUS', 'SUSPICIOUS'] as const)('%s without confirmation says so, without the SAFE caveat', async (level) => {
+    await render(<ResultView result={{ ...maliciousUrl, risk_level: level, verification: unconfirmed }} />)
+    expect(note()).toHaveTextContent(part('Not confirmed by a threat-intelligence source.'))
+    expect(note()).not.toHaveTextContent(/Verified|SAFE result/)
+    expect(screen.queryByText(/A SAFE result does not guarantee/)).toBeNull()
+  })
+
+  it('keeps the demo-blocklist note under a warning, still not confirmed', async () => {
+    const demo = 'Listed only on QRGUARD\'s demo blocklist (demonstration data). No real threat-intelligence source has confirmed it.'
+    await render(
+      <ResultView
+        result={{
+          ...maliciousUrl,
+          verification: { ...unconfirmed, message: demo },
+          verdict: { label: 'MALICIOUS', confirmed: false, evidence: 'demo_blocklist', title: 'Malicious – on QRGUARD\'s demo blocklist', explanation: demo },
+        }}
+      />,
+    )
+    expect(note()).toHaveTextContent(part('Not confirmed by a threat-intelligence source.'))
+    expect(note()).toHaveTextContent(part(demo))
+  })
+
+  it('a warning confirmed by threat intelligence still says so', async () => {
+    await render(<ResultView result={tiListed} />)
+    expect(note()).toHaveTextContent(part('Verified by threat intelligence'))
+    expect(note()).not.toHaveTextContent(part('Not confirmed'))
+  })
+
+  it('UNVERIFIED keeps the backend message, caveat included', async () => {
+    await render(<ResultView result={{ ...safeUnverified, verification: unconfirmed }} />)
+    expect(note()).toHaveTextContent(part('Unverified'))
+    expect(note()).toHaveTextContent(part(CAVEAT))
+    expect(note()).not.toHaveTextContent(part('Not confirmed'))
+  })
+
+  it('SAFE keeps the backend message', async () => {
+    const verification = { status: 'VERIFIED' as const, source: 'trusted_domain_list' as const, message: 'Recognised.' }
+    await render(<ResultView result={{ ...safeUnverified, verification }} />)
+    expect(note()).toHaveTextContent(part('Verified – recognised legitimate website'))
+    expect(note()).toHaveTextContent(part('Recognised.'))
+  })
+})

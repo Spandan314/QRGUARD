@@ -87,3 +87,51 @@ describe('ResultCard', () => {
     expect(screen.getByRole('region', { name: 'QR code content' })).toBeInTheDocument()
   })
 })
+
+describe('ResultCard verification note', () => {
+  const CAVEAT = 'There is insufficient evidence to establish trust. A SAFE result does not guarantee that the website is safe.'
+  const unconfirmed = { status: 'UNVERIFIED' as const, source: null, message: CAVEAT }
+  const note = () => screen.getByTestId('verification')
+
+  it.each(['MALICIOUS', 'SUSPICIOUS'] as const)('%s without confirmation says so, without the SAFE caveat', (level) => {
+    render(<ResultCard result={{ ...maliciousUrl, risk_level: level, verification: unconfirmed }} />)
+    expect(note()).toHaveTextContent('Not confirmed by a threat-intelligence source.')
+    expect(note()).not.toHaveTextContent(/Verified|SAFE result/)
+    expect(screen.queryByText(/A SAFE result does not guarantee/)).toBeNull()
+  })
+
+  it('keeps the demo-blocklist note under a warning, still not confirmed', () => {
+    const demo = 'Listed only on QRGUARD\'s demo blocklist (demonstration data). No real threat-intelligence source has confirmed it.'
+    render(
+      <ResultCard
+        result={{
+          ...maliciousUrl,
+          verification: { ...unconfirmed, message: demo },
+          verdict: { label: 'MALICIOUS', confirmed: false, evidence: 'demo_blocklist', title: 'Malicious – on QRGUARD\'s demo blocklist', explanation: demo },
+        }}
+      />,
+    )
+    expect(note()).toHaveTextContent('Not confirmed by a threat-intelligence source.')
+    expect(note()).toHaveTextContent(demo)
+  })
+
+  it('a warning confirmed by threat intelligence still says so', () => {
+    render(<ResultCard result={tiListed} />)
+    expect(note()).toHaveTextContent('Verified by threat intelligence')
+    expect(note()).not.toHaveTextContent('Not confirmed')
+  })
+
+  it('UNVERIFIED keeps the backend message, caveat included', () => {
+    render(<ResultCard result={{ ...safeUnverified, verification: unconfirmed }} />)
+    expect(note()).toHaveTextContent('Unverified')
+    expect(note()).toHaveTextContent(CAVEAT)
+    expect(note()).not.toHaveTextContent('Not confirmed')
+  })
+
+  it('SAFE keeps the backend message', () => {
+    const verification = { status: 'VERIFIED' as const, source: 'trusted_domain_list' as const, message: 'Recognised.' }
+    render(<ResultCard result={{ ...safeUnverified, verification }} />)
+    expect(note()).toHaveTextContent('Verified – recognised legitimate website')
+    expect(note()).toHaveTextContent('Recognised.')
+  })
+})
