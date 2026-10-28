@@ -1,3 +1,5 @@
+import pytest
+
 from app.analyzers.url_features import extract_url_features
 from app.analyzers.url_normalizer import normalize_url
 from app.analyzers.url_rules import load_url_rules
@@ -103,3 +105,69 @@ def test_encoding_embedded_url_backslash_and_special_chars():
 
 def test_scheme_assumed_is_informational():
     assert analyze("example.com")[1] == ["URL_SCHEME_ASSUMED"]
+
+
+# ---- Domain-name and query signs (brandless phishing domains) ------------------------------
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://account-verify-login.com/",
+        "https://verify-account-now.top/",
+        "http://free-gift-cards-2026.club/claim",
+        "https://login-secure.netlify.app/",  # the account name on a shared host
+    ],
+)
+def test_several_phishing_words_in_the_domain_name(url):
+    assert "URL_KEYWORDS_IN_DOMAIN" in analyze(url)[1]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://secure-shop.com/",  # one word is not enough
+        "https://example.com/login/verify/account",  # words in the path only
+        "https://login.verify.example.com/",  # words in the subdomain, not the name
+        "https://my-portfolio.netlify.app/",
+        "https://github.com/login",  # trusted
+    ],
+)
+def test_no_domain_keyword_sign_for_ordinary_names(url):
+    assert "URL_KEYWORDS_IN_DOMAIN" not in analyze(url)[1]
+
+
+@pytest.mark.parametrize(
+    "url",
+    ["https://x.example/login.php?email=a%40b.com", "https://x.example/?u=first.last@mail.co.in"],
+)
+def test_email_address_in_the_query(url):
+    assert "URL_EMAIL_IN_QUERY" in analyze(url)[1]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://x.example/?q=a+b",
+        "https://user@x.example/",  # userinfo, not the query (URL_USERINFO_AT)
+        "https://github.com/login?email=a@b.com",  # trusted
+    ],
+)
+def test_no_email_sign_without_an_address_in_the_query(url):
+    assert "URL_EMAIL_IN_QUERY" not in analyze(url)[1]
+
+
+def test_another_websites_address_hidden_in_the_subdomain():
+    features, ids = analyze("https://www.dropbox.com.download-file.xyz/invoice")
+    assert "URL_DOMAIN_IN_SUBDOMAIN" in ids and features["domain_in_subdomain"]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://mail.example.com/",
+        "https://in.example.com/",  # a country subdomain, not a hidden address
+        "https://site.s3.amazonaws.com/",
+        "https://en.wikipedia.org/",
+    ],
+)
+def test_no_hidden_domain_sign_for_normal_subdomains(url):
+    assert "URL_DOMAIN_IN_SUBDOMAIN" not in analyze(url)[1]

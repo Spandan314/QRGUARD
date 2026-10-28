@@ -20,6 +20,7 @@ export default function UrlCheck() {
       title="Check a link"
       intro="Paste a link you received. QRGUARD examines it without opening the page for you."
       state={state}
+      kind="url"
     >
       <form onSubmit={submit} className="space-y-3">
         <label htmlFor="url" className="block font-medium">

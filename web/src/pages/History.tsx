@@ -29,7 +29,7 @@ function describeTarget(item: HistoryItem): string {
 function HistoryRow({ item, onDelete }: { item: HistoryItem; onDelete: (id: string) => void }) {
   const [open, setOpen] = useState(false)
   return (
-    <li className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900" data-testid="history-item">
+    <li className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900" data-testid="history-item">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-3">
           <RiskBadge verdict={verdictLabel(item.risk_level, item.verification)} size="sm" />
@@ -53,7 +53,7 @@ function HistoryRow({ item, onDelete }: { item: HistoryItem; onDelete: (id: stri
       {open ? (
         <div className="mt-3 space-y-2 text-sm">
           <p>
-            {item.verification.status === 'VERIFIED' ? '🔎 Verified' : '❔ Unverified'} · confidence {item.confidence.toLowerCase()}
+            {item.verification.status === 'VERIFIED' ? 'Verified' : 'Unverified'} · confidence {item.confidence.toLowerCase()}
           </p>
           <ul className="list-disc space-y-1 pl-5">
             {item.indicators.map((indicator, index) => (
@@ -134,7 +134,7 @@ export default function History() {
   if (!user) {
     return (
       <div className="space-y-3">
-        <h1 className="text-3xl font-bold">My history</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">My history</h1>
         <p>
           <Link to="/account" className="text-teal-700 underline dark:text-teal-400">
             Sign in
@@ -148,7 +148,7 @@ export default function History() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-3xl font-bold">My history</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">My history</h1>
         {items.length > 0 ? (
           confirmAll ? (
             <span className="flex items-center gap-2" role="alertdialog" aria-label="Confirm delete all">

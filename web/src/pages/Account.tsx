@@ -209,8 +209,8 @@ export default function Account() {
   const { user, ready } = useAuth()
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Account &amp; privacy</h1>
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Account &amp; privacy</h1>
+      <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
         {!ready ? <p role="status">Loading…</p> : user ? <Profile /> : <SignIn />}
       </div>
     </div>

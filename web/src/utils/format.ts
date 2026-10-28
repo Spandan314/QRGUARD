@@ -1,37 +1,55 @@
 // Display helpers only. No security decisions are made in the web app.
+import type { IconName } from '../components/Icon'
 import type { Confidence, EvidenceSource, RiskLevel, Severity, VerdictLabel } from '../types/api'
 
-export const LEVEL_STYLE: Record<RiskLevel, { icon: string; label: string; classes: string; bar: string }> = {
+type StateStyle = {
+  icon: IconName
+  label: string
+  /** Badge colours. */
+  classes: string
+  /** Score bar fill. */
+  bar: string
+  /** Left accent and icon colour of the verdict panel. */
+  accent: string
+}
+
+// Red, amber and green are reserved for security states; everything else is neutral.
+export const LEVEL_STYLE: Record<RiskLevel, StateStyle> = {
   SAFE: {
-    icon: '✅',
+    icon: 'shield-check',
     label: 'Safe',
-    classes: 'bg-emerald-50 text-emerald-900 ring-emerald-600/30 dark:bg-emerald-950 dark:text-emerald-100',
+    classes: 'bg-emerald-50 text-emerald-800 ring-emerald-600/25 dark:bg-emerald-950 dark:text-emerald-200',
     bar: 'bg-emerald-600',
+    accent: 'border-emerald-600 text-emerald-700 dark:text-emerald-400',
   },
   SUSPICIOUS: {
-    icon: '⚠️',
+    icon: 'alert-triangle',
     label: 'Suspicious',
-    classes: 'bg-amber-50 text-amber-900 ring-amber-600/30 dark:bg-amber-950 dark:text-amber-100',
+    classes: 'bg-amber-50 text-amber-800 ring-amber-600/25 dark:bg-amber-950 dark:text-amber-200',
     bar: 'bg-amber-500',
+    accent: 'border-amber-500 text-amber-700 dark:text-amber-400',
   },
   MALICIOUS: {
-    icon: '⛔',
+    icon: 'x-octagon',
     label: 'Malicious',
-    classes: 'bg-red-50 text-red-900 ring-red-600/30 dark:bg-red-950 dark:text-red-100',
+    classes: 'bg-red-50 text-red-800 ring-red-600/25 dark:bg-red-950 dark:text-red-200',
     bar: 'bg-red-600',
+    accent: 'border-red-600 text-red-700 dark:text-red-400',
   },
 }
 
 /** The headline verdict. UNVERIFIED is neutral: neither a warning nor a promise of safety. */
-export const VERDICT_STYLE: Record<VerdictLabel, { icon: string; label: string; classes: string }> = {
-  SAFE: { icon: '✅', label: 'SAFE', classes: LEVEL_STYLE.SAFE.classes },
+export const VERDICT_STYLE: Record<VerdictLabel, StateStyle> = {
+  SAFE: { ...LEVEL_STYLE.SAFE, label: 'SAFE' },
   UNVERIFIED: {
-    icon: '❔',
+    icon: 'help',
     label: 'NOT VERIFIED',
-    classes: 'bg-slate-100 text-slate-900 ring-slate-500/30 dark:bg-slate-800 dark:text-slate-100',
+    classes: 'bg-slate-100 text-slate-700 ring-slate-500/25 dark:bg-slate-800 dark:text-slate-200',
+    bar: 'bg-slate-500',
+    accent: 'border-slate-400 text-slate-600 dark:text-slate-300',
   },
-  SUSPICIOUS: { icon: '⚠️', label: 'SUSPICIOUS', classes: LEVEL_STYLE.SUSPICIOUS.classes },
-  MALICIOUS: { icon: '⛔', label: 'MALICIOUS', classes: LEVEL_STYLE.MALICIOUS.classes },
+  SUSPICIOUS: { ...LEVEL_STYLE.SUSPICIOUS, label: 'SUSPICIOUS' },
+  MALICIOUS: { ...LEVEL_STYLE.MALICIOUS, label: 'MALICIOUS' },
 }
 
 export const CONFIDENCE_TEXT: Record<Confidence, string> = {
@@ -61,11 +79,11 @@ export const SOURCE_ORDER: EvidenceSource[] = [
 export const SEVERITY_ORDER: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 }
 
 export const SEVERITY_STYLE: Record<Severity, string> = {
-  critical: 'bg-red-700 text-white',
-  high: 'bg-red-100 text-red-900 dark:bg-red-900 dark:text-red-100',
-  medium: 'bg-amber-100 text-amber-900 dark:bg-amber-900 dark:text-amber-100',
-  low: 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100',
-  info: 'bg-sky-100 text-sky-900 dark:bg-sky-900 dark:text-sky-100',
+  critical: 'bg-red-50 text-red-800 ring-1 ring-inset ring-red-600/30 dark:bg-red-950 dark:text-red-200',
+  high: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/15 dark:bg-red-950 dark:text-red-300',
+  medium: 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-600/25 dark:bg-amber-950 dark:text-amber-200',
+  low: 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-800 dark:text-slate-200',
+  info: 'bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-400/20 dark:bg-slate-800 dark:text-slate-300',
 }
 
 export const PROVIDER_NAME: Record<string, string> = {

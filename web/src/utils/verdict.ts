@@ -44,15 +44,16 @@ export const NOT_CONFIRMED = 'Not confirmed by a threat-intelligence source.'
 export function verificationNote(
   result: Pick<AnalysisResult, 'verification'>,
   verdict: Pick<Verdict, 'label' | 'evidence'>,
-): { heading: string; message: string | null } {
+): { heading: string; message: string | null; verified: boolean } {
   const { verification } = result
   const warning = verdict.label === 'SUSPICIOUS' || verdict.label === 'MALICIOUS'
   if (warning && verification.status !== 'VERIFIED') {
-    return { heading: `❔ ${NOT_CONFIRMED}`, message: verdict.evidence === 'demo_blocklist' ? verification.message : null }
+    return { heading: NOT_CONFIRMED, message: verdict.evidence === 'demo_blocklist' ? verification.message : null, verified: false }
   }
+  const verified = verification.status === 'VERIFIED'
   const heading =
-    (verification.status === 'VERIFIED' ? '🔎 Verified' : '❔ Unverified') +
+    (verified ? 'Verified' : 'Unverified') +
     (verification.source === 'threat_intelligence' ? ' by threat intelligence' : '') +
     (verification.source === 'trusted_domain_list' ? ' – recognised legitimate website' : '')
-  return { heading, message: verification.message }
+  return { heading, message: verification.message, verified }
 }

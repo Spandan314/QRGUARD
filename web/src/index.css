@@ -1,10 +1,37 @@
 @import 'tailwindcss';
 
+/* System UI fonts only: no web font to download or allow in the Content-Security-Policy. */
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+}
+
 @layer base {
   html {
-    @apply bg-slate-100 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+    @apply bg-slate-50 font-sans text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
   }
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-teal-600;
+  }
+}
+
+/* Indeterminate progress bar: shows that work is running without inventing a percentage. */
+@keyframes qg-indeterminate {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+.qg-indeterminate {
+  animation: qg-indeterminate 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .qg-indeterminate {
+    animation: none;
+    transform: none;
+    width: 100%;
+    opacity: 0.4;
   }
 }

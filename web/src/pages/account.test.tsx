@@ -259,7 +259,7 @@ describe('admin', () => {
     renderRoute('/admin', new DevAuthClient())
     await screen.findByText(/Local blocklist: enabled/)
     expect(screen.getByTestId('stat-Checks')).toHaveTextContent('5')
-    expect(screen.getByTestId('stat-⛔ Malicious')).toHaveTextContent('2')
+    expect(screen.getByTestId('stat-Malicious')).toHaveTextContent('2')
     expect(screen.getByText(/Local blocklist: enabled/)).toBeInTheDocument()
     expect(screen.getByTestId('admin-report')).toHaveTextContent('False positive · sbi.co.in')
     await userEvent.click(screen.getByRole('button', { name: 'Mark as reviewed' }))

@@ -19,9 +19,9 @@ export function ErrorAlert({ error }: { error: ApiError }) {
   return (
     <div
       role="alert"
-      className="rounded-xl border border-red-300 bg-red-50 p-4 text-sm text-red-900 dark:border-red-800 dark:bg-red-950 dark:text-red-100"
+      className="rounded-lg border border-red-200 border-l-4 border-l-red-600 bg-white p-4 shadow-sm text-sm text-slate-800 dark:border-red-900 dark:bg-slate-900 dark:text-slate-100"
     >
-      <p className="font-semibold">Could not complete the check</p>
+      <p className="font-semibold text-red-700 dark:text-red-300">Could not complete the check</p>
       <p className="mt-1">{error.message}</p>
       {HINTS[error.code] ? <p className="mt-1">{HINTS[error.code]}</p> : null}
       {error.requestId ? (

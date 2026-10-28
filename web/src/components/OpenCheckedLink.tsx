@@ -52,7 +52,7 @@ export function OpenCheckedLink({
   }[action]
 
   return (
-    <section className="rounded-xl border border-slate-200 p-4 dark:border-slate-700" data-testid="open-checked-link">
+    <section className="rounded-md border border-slate-200 p-4 dark:border-slate-700" data-testid="open-checked-link">
       <h3 className="mb-1 font-semibold">The checked link</h3>
       <p className="break-all font-mono text-sm">{url}</p>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -62,7 +62,7 @@ export function OpenCheckedLink({
         {action !== 'never' && !confirming ? (
           <button
             type="button"
-            className={`${button} ${action === 'confirm' || action === 'caution' ? 'bg-teal-700 text-white' : 'bg-red-700 text-white'}`}
+            className={`${button} ${action === 'confirm' || action === 'caution' ? 'bg-teal-700 text-white hover:bg-teal-800' : 'border border-red-300 bg-white text-red-700 hover:bg-red-50 dark:border-red-800 dark:bg-transparent dark:text-red-300'}`}
             onClick={() => {
               setUnderstood(false)
               setConfirming(true)
@@ -80,7 +80,7 @@ export function OpenCheckedLink({
         </p>
       ) : null}
       {confirming ? (
-        <div role="alertdialog" aria-labelledby="open-link-title" className="mt-3 rounded-lg bg-slate-50 p-3 text-sm dark:bg-slate-800" data-testid="open-link-confirm">
+        <div role="alertdialog" aria-labelledby="open-link-title" className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 text-sm dark:bg-slate-800" data-testid="open-link-confirm">
           <p id="open-link-title" className="font-semibold">
             You are about to open {host}
           </p>
