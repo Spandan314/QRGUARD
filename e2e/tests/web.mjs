@@ -173,6 +173,17 @@ await check('QR image upload -> decoded link, verdict, reasons and recommended a
     if (!(await section('What you should do').innerText()).includes('Do not open, pay or connect using this QR code')) {
       throw new Error('recommended action missing')
     }
+    // The advice comes straight after the verdict, before the score and the evidence.
+    const nextAfterVerdict = await result.locator('header + section').getAttribute('data-testid')
+    if (nextAfterVerdict !== 'recommendation') throw new Error(`section after the verdict: ${nextAfterVerdict}`)
+    // No provider keys in this stack: only the demo blocklist answers, the rest are "Not configured",
+    // and the summary says that an unchecked source is not evidence of safety.
+    const summary = await result.getByTestId('ti-summary').innerText()
+    if (!summary.startsWith('1 of 5 sources checked this link, 4 not configured.') || !summary.includes('says nothing about whether it is safe')) {
+      throw new Error(`provider summary: ${summary}`)
+    }
+    const outcomes = await result.getByTestId('ti-provider').evaluateAll((rows) => rows.map((r) => r.dataset.outcome))
+    if (outcomes.filter((o) => o === 'not_configured').length !== 4) throw new Error(`provider outcomes: ${outcomes}`)
     await p.screenshot({ path: `${ARTIFACTS}/web-e2e-qr-upload.png`, fullPage: true })
   } finally {
     await u.context.close()

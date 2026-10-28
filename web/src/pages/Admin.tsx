@@ -3,7 +3,7 @@ import { ErrorAlert } from '../components/ErrorAlert'
 import { useAuth } from '../context/AuthContext'
 import { api, ApiError } from '../services/api'
 import type { AdminReport, AdminStats } from '../types/api'
-import { PROVIDER_NAME } from '../utils/format'
+import { formatDateTime, PROVIDER_NAME } from '../utils/format'
 
 const REPORT_LABEL: Record<AdminReport['reported_as'], string> = {
   false_positive: 'False positive',
@@ -174,7 +174,7 @@ export default function Admin() {
             <li key={report.id} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700" data-testid="admin-report">
               <p className="font-medium">
                 {REPORT_LABEL[report.reported_as]}
-                {report.domain ? ` · ${report.domain}` : ''} · {new Date(report.created_at).toLocaleString()}
+                {report.domain ? ` · ${report.domain}` : ''} · {formatDateTime(report.created_at)}
               </p>
               {report.note ? <p className="mt-1 whitespace-pre-wrap">{report.note}</p> : null}
               <button

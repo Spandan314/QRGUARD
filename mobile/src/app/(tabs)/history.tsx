@@ -2,6 +2,7 @@ import { useFocusEffect, useRouter } from 'expo-router'
 import { useCallback, useState } from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { RiskBadge } from '../../components/RiskBadge'
+import { formatDateTime } from '../../utils/format'
 import { verdictLabel } from '../../utils/verdict'
 import { ActionButton, Card, ErrorBanner, Screen, styles as ui } from '../../components/ui'
 import { colors } from '../../constants/theme'
@@ -40,7 +41,7 @@ function Row({ item, onDelete }: { item: HistoryItem; onDelete: (id: string) => 
         <Text style={[ui.body, { marginTop: 6 }]}>
           {TYPE_LABEL[item.input_type]} · {describeTarget(item)}
         </Text>
-        <Text style={ui.small}>{new Date(item.created_at).toLocaleString()}</Text>
+        <Text style={ui.small}>{formatDateTime(item.created_at)}</Text>
       </Pressable>
       {open ? (
         <View style={{ gap: 4 }}>

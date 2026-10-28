@@ -100,6 +100,11 @@ export function ResultCard({ result }: { result: AnalysisResult }) {
         <p className="mt-1 text-base font-medium">{result.summary}</p>
       </header>
 
+      <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800" data-testid="recommendation">
+        <h3 className="mb-1 font-semibold">What you should do</h3>
+        <p>{result.recommendation}</p>
+      </section>
+
       <ScoreGauge score={result.risk_score} level={result.risk_level} />
       <VerificationNote result={result} />
       <ChecksList result={result} />
@@ -116,11 +121,6 @@ export function ResultCard({ result }: { result: AnalysisResult }) {
           </ul>
         </section>
       ) : null}
-
-      <section className="rounded-xl bg-slate-50 p-4 dark:bg-slate-800">
-        <h3 className="mb-1 font-semibold">What you should do</h3>
-        <p className="text-sm">{result.recommendation}</p>
-      </section>
 
       <section>
         <h3 className="mb-2 font-semibold">Why this result</h3>

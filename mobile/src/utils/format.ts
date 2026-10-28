@@ -1,5 +1,5 @@
 // Display helpers only. No security decisions are made in the app.
-import type { Confidence, EvidenceSource, Severity, TIStatus } from '../types/api'
+import type { Confidence, EvidenceSource, Severity } from '../types/api'
 
 export const CONFIDENCE_TEXT: Record<Confidence, string> = {
   HIGH: 'High confidence',
@@ -28,14 +28,6 @@ export const PROVIDER_NAME: Record<string, string> = {
   phishtank: 'PhishTank',
 }
 
-export const TI_STATUS_TEXT: Record<TIStatus, string> = {
-  listed: 'Listed as malicious',
-  partial: 'Flagged by some sources',
-  not_listed: 'Not listed',
-  unavailable: 'Could not be checked',
-  disabled: 'Not enabled',
-  error: 'Configuration problem',
-}
 
 export function formatPoints(points: number): string {
   const rounded = Math.round(points * 10) / 10
@@ -49,4 +41,9 @@ export function evidenceSource(indicator: { source?: EvidenceSource; module: str
   if (indicator.module === 'message') return 'message'
   if (indicator.module === 'ocr') return 'ocr'
   return 'link'
+}
+
+/** "28 Oct 2026, 5:23 am" style: the month is spelled out, so day and month cannot be confused. */
+export function formatDateTime(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
