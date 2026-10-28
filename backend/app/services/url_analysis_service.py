@@ -53,6 +53,17 @@ class UrlAnalysis:
     incomplete_checks: bool = False
 
 
+def _combine(url_indicators: list[Indicator], brand_indicators: list[Indicator]) -> list[Indicator]:
+    """URL and brand indicators together, each piece of evidence counted once. The generic
+    domain-name signs are for brandless scam domains: when a brand check already describes the
+    domain ("sbi-kyc-verify.top", "sbi.co.in.kyc.xyz"), they would repeat the same evidence."""
+    if brand_indicators:
+        url_indicators = [i for i in url_indicators if i.id != "URL_KEYWORDS_IN_DOMAIN"]
+    if any(i.id == "OFFICIAL_DOMAIN_IN_SUBDOMAIN" for i in brand_indicators):
+        url_indicators = [i for i in url_indicators if i.id != "URL_DOMAIN_IN_SUBDOMAIN"]
+    return [*url_indicators, *brand_indicators]
+
+
 class UrlAnalysisService:
     def __init__(
         self,
@@ -111,7 +122,7 @@ class UrlAnalysisService:
 
         features, indicators = extract_url_features(parsed, self.rules)
         brand, brand_indicators = detect_lookalikes(parsed, self.rules)
-        analysis = UrlAnalysis(parsed, features, brand, [*indicators, *brand_indicators])
+        analysis = UrlAnalysis(parsed, features, brand, _combine(indicators, brand_indicators))
 
         if resolve_redirects:
             self._check_redirects(analysis)
@@ -225,7 +236,7 @@ class UrlAnalysisService:
         _, final_indicators = extract_url_features(final, self.rules)
         final_brand, final_brand_indicators = detect_lookalikes(final, self.rules)
         present = {i.id for i in analysis.indicators}
-        for indicator in [*final_indicators, *final_brand_indicators]:
+        for indicator in _combine(final_indicators, final_brand_indicators):
             if indicator.id in ("URL_SCHEME_ASSUMED",):
                 continue
             if indicator.id == "URL_SHORTENER" and host_matches(

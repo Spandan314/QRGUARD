@@ -289,6 +289,18 @@ def verdict_for(result: dict) -> dict:
             "significant warning signs were found.",
         }
     kind = "message" if input_type in ("message", "screenshot") else "url"
+    # Below the SUSPICIOUS band, but some warning signs added points: say so, never
+    # "no known risks". The label stays UNVERIFIED (not enough evidence either way).
+    if any((i.get("score_contribution") or 0) > 0 for i in result.get("indicators", [])):
+        return {
+            "label": VERDICT_UNVERIFIED,
+            "confirmed": False,
+            "evidence": "warning_signs",
+            "title": "Not verified – minor warning signs found",
+            "explanation": "QRGUARD found some warning signs, but not enough to call this "
+            "suspicious, and it has no evidence that it is safe. Check the reasons below "
+            "before you trust it.",
+        }
     return {
         "label": VERDICT_UNVERIFIED,
         "confirmed": False,

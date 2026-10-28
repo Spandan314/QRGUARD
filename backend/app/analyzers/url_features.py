@@ -27,6 +27,16 @@ _ENCODED_ALNUM_RE = re.compile(r"%(?:3[0-9]|4[1-9A-Fa-f]|5[0-9Aa]|6[1-9A-Fa-f]|7
 _EMBEDDED_URL_RE = re.compile(r"(?:https?:/|https?%3a%2f|https?:%2f|%2f%2f|//www\.)", re.IGNORECASE)
 _WORD_SPLIT_RE = re.compile(r"[^a-z0-9]+")
 MAX_KEYWORD_HITS = 3
+# An e-mail address carried in the query string (decoded), e.g. "?email=user@bank.com".
+_EMAIL_IN_QUERY_RE = re.compile(
+    r"[a-z0-9._%+-]+(?:@|%40)[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,}", re.IGNORECASE
+)
+# Endings of well-known domains. Seen as a label INSIDE the subdomain ("paypal.com.x.top"),
+# they hide another website's address at the start of the host.
+_DOMAIN_LIKE_LABELS = {"com", "net", "org", "co", "in", "gov", "edu", "info", "biz"}
+# Several phishing words in the domain name itself ("account-verify-login.com") are a much
+# stronger sign than the same words in the path: real services rarely register such names.
+MIN_KEYWORDS_IN_DOMAIN = 2
 
 
 def host_matches(host: str, entries: list[str]) -> str | None:
@@ -70,8 +80,11 @@ def is_trusted(parsed: ParsedURL, rules: UrlRules) -> bool:
 def _keyword_hits(parsed: ParsedURL, rules: UrlRules) -> list[str]:
     """Phishing keywords found as words in the host (except the suffix) and path/query."""
     host_part = ".".join(p for p in (parsed.subdomain, parsed.domain_name) if p)
-    text = f"{host_part} {parsed.path} {parsed.query}".lower()
-    words = [w for w in _WORD_SPLIT_RE.split(text) if w]
+    return _keywords_in(f"{host_part} {parsed.path} {parsed.query}", rules)
+
+
+def _keywords_in(text: str, rules: UrlRules) -> list[str]:
+    words = [w for w in _WORD_SPLIT_RE.split(text.lower()) if w]
     hits: list[str] = []
     for word in words:
         # Each word counts once, as its longest matching keyword ("netbanking" is one hit,
@@ -116,6 +129,17 @@ def extract_url_features(
         label for label in parsed.host_unicode.split(".") if len(label_scripts(label)) > 1
     ]
     hyphens = parsed.domain_name.count("-")
+    # The name the owner chose: the domain name, or the account name on a shared host
+    # ("login-secure" in login-secure.netlify.app).
+    chosen_name = (parsed.subdomain if user_content else "") or parsed.domain_name
+    domain_keywords = [] if trusted else _keywords_in(chosen_name or "", rules)
+    email_in_query = not trusted and bool(_EMAIL_IN_QUERY_RE.search(parsed.query))
+    hidden_domain = (
+        not trusted
+        and not user_content
+        and parsed.ip is None
+        and any(label in _DOMAIN_LIKE_LABELS for label in subdomain_labels[1:])
+    )
 
     # ---- indicators ------------------------------------------------------------------------
     if parsed.scheme_assumed:
@@ -170,6 +194,12 @@ def extract_url_features(
         indicators.append(Indicator("URL_MIXED_SCRIPT", mixed_script_labels[0]))
     for keyword in keyword_hits[:MAX_KEYWORD_HITS]:
         indicators.append(Indicator("URL_PHISHING_KEYWORD", keyword))
+    if len(domain_keywords) >= MIN_KEYWORDS_IN_DOMAIN:
+        indicators.append(Indicator("URL_KEYWORDS_IN_DOMAIN", ", ".join(domain_keywords[:3])))
+    if email_in_query:
+        indicators.append(Indicator("URL_EMAIL_IN_QUERY"))
+    if hidden_domain:
+        indicators.append(Indicator("URL_DOMAIN_IN_SUBDOMAIN", parsed.subdomain))
     if trusted:
         indicators.append(Indicator("TRUSTED_DOMAIN", parsed.registrable_domain))
 
@@ -195,6 +225,9 @@ def extract_url_features(
         "suspicious_tld": suspicious_tld,
         "executable_download": is_executable,
         "phishing_keywords": keyword_hits,
+        "phishing_keywords_in_domain": domain_keywords,
+        "email_in_query": email_in_query,
+        "domain_in_subdomain": hidden_domain,
         "is_trusted_domain": trusted,
     }
     return features, indicators

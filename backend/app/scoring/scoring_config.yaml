@@ -253,6 +253,33 @@ indicators:
     scam_categories: [phishing]
     title: Contains a word often used in phishing links
     message: The link contains words like "login", "verify" or "kyc" that scam sites use to look urgent or official.
+  URL_KEYWORDS_IN_DOMAIN:
+    module: url_qr
+    category: url_structure
+    weight: 20
+    scam_categories: [phishing]
+    title: Several phishing words in the domain name
+    message: >-
+      The website's own name is built from words such as "verify", "login" or "account".
+      Genuine services rarely register names like this; scam sites often do.
+  URL_EMAIL_IN_QUERY:
+    module: url_qr
+    category: url_structure
+    weight: 15
+    scam_categories: [phishing]
+    title: An e-mail address is built into the link
+    message: >-
+      The link carries an e-mail address, so the page can show "your" address and look
+      personal. Phishing pages often do this to make a fake sign-in form believable.
+  URL_DOMAIN_IN_SUBDOMAIN:
+    module: url_qr
+    category: url_structure
+    weight: 20
+    scam_categories: [phishing, impersonation]
+    title: Another website's address at the start of the link
+    message: >-
+      The start of the address looks like a different website (for example "something.com."),
+      but the real website is the part at the end. This is a common way to disguise a scam site.
 
   # ---- Brand / lookalike ----------------------------------------------------------------------
   OFFICIAL_DOMAIN_IN_SUBDOMAIN:
