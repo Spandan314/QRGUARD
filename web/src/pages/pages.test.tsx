@@ -369,7 +369,8 @@ describe('Airlock check page', () => {
     await userEvent.type(screen.getByLabelText('Link, UPI ID or message'), 'example.com{Enter}')
     expect(await screen.findByText('Could not complete the check')).toBeInTheDocument()
     expect(screen.getByTestId('chamber')).toHaveAttribute('data-phase', 'failed')
-    expect(screen.getByTestId('chamber-log')).toHaveTextContent('aborted:')
+    // the log line is appended on the next tick, after the error renders
+    await waitFor(() => expect(screen.getByTestId('chamber-log')).toHaveTextContent('aborted:'))
     expect(screen.queryByRole('article', { name: 'Analysis result' })).toBeNull()
   })
 })

@@ -11,6 +11,7 @@ import { ReportForm } from './ReportForm'
 import { RiskBadge } from './RiskBadge'
 import { ScoreGauge } from './ScoreGauge'
 import { ClaimsVsReality } from './result/ClaimsVsReality'
+import { InspectionPass } from './result/InspectionPass'
 import { LinkXray } from './result/LinkXray'
 import { RedirectChain } from './result/RedirectChain'
 import { ScoreBreakdown } from './result/ScoreBreakdown'
@@ -168,6 +169,8 @@ export function ResultCard({ result, actions }: { result: AnalysisResult; action
           <p className="mt-2 text-xs text-muted">We link to the official {official.brand} site we know, never to the one you scanned.</p>
         ) : null}
       </section>
+
+      <InspectionPass key={result.request_id} result={result} />
 
       <ClaimsVsReality rows={claims} />
       <LinkXray parts={xray} notes={xrayNotes(result, xray, verdict.label)} />
