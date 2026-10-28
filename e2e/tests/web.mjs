@@ -2,6 +2,7 @@
 // ID tokens) -> analysis + threat intelligence -> Firestore emulator (history). No mocks.
 // Run through ../run.sh, which starts everything.
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { ARTIFACTS, check, finish, launch, watch } from './harness.mjs'
 import { chromium } from 'playwright-core'
@@ -248,6 +249,17 @@ await check('Airlock: a pasted link is sealed, inspected on the server, and the 
     for (const href of await p.getByTestId('open-official-site').evaluateAll((links) => links.map((l) => l.href))) {
       if (new URL(href).host.includes('secure-sbi-kyc-update')) throw new Error(`official site points at the scanned link: ${href}`)
     }
+    // inspection pass: DENIED stamp, number from the request ID, and a real PNG under the production CSP
+    if ((await p.getByTestId('pass-stamp').innerText()).trim() !== 'DENIED') throw new Error('stamp is not DENIED')
+    const passNo = `QG-${body.request_id.replace(/[^a-z0-9]/gi, '').slice(0, 8).toUpperCase()}`
+    if (!(await p.getByTestId('pass-number').innerText()).includes(passNo)) throw new Error(`pass number is not ${passNo}`)
+    const saving = p.waitForEvent('download')
+    await p.getByRole('button', { name: 'Save as image' }).click()
+    const download = await saving
+    if (download.suggestedFilename() !== `QRGUARD-pass-${passNo}.png`) throw new Error(download.suggestedFilename())
+    const png = readFileSync(await download.path())
+    if (png.length < 5000 || png.subarray(1, 4).toString() !== 'PNG') throw new Error(`not a PNG (${png.length} bytes)`)
+    await download.saveAs(`${ARTIFACTS}/web-e2e-pass.png`)
     await p.screenshot({ path: `${ARTIFACTS}/web-e2e-airlock.png`, fullPage: true })
   } finally {
     await u.context.close()
