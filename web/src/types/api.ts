@@ -122,7 +122,18 @@ export interface QrCodeRow {
 export interface AnalysisDetails {
   input_url?: string
   normalized_url?: string
+  scheme?: string
   host?: string | null
+  /** The host in readable form when it was written with punycode (xn--…). */
+  host_unicode?: string | null
+  /** Registrable domain: who really owns the address. */
+  domain?: string | null
+  subdomain?: string | null
+  public_suffix?: string | null
+  /** A brand the link is about or imitates. match_type "official": it IS the brand's own site. */
+  brand?: { brand: string; match_type: 'official' | 'lookalike' | 'impersonation' | string } | null
+  /** Registration age (newer backends with the RDAP lookup switched on). */
+  domain_age?: { domain: string; status: string; registered: string | null; age_days: number | null } | null
   redirects?: {
     checked: boolean
     status?: string

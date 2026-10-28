@@ -239,6 +239,15 @@ await check('Airlock: a pasted link is sealed, inspected on the server, and the 
       throw new Error(`log: ${log.slice(0, 200)}`)
     }
     await p.getByRole('article', { name: 'Analysis result' }).waitFor()
+    // result page: claims vs reality, the score breakdown, and no way to open a malicious link
+    if ((await p.getByTestId('claim-row').count()) < 2) throw new Error('claims vs reality rows missing')
+    const why = await p.getByTestId('score-breakdown').innerText()
+    if (!why.includes(`Why ${body.risk_score}`)) throw new Error(`breakdown: ${why.slice(0, 120)}`)
+    if (await p.getByRole('button', { name: /Open checked link/ }).count()) throw new Error('open offered for a MALICIOUS link')
+    await p.getByTestId('never-open-reason').waitFor()
+    for (const href of await p.getByTestId('open-official-site').evaluateAll((links) => links.map((l) => l.href))) {
+      if (new URL(href).host.includes('secure-sbi-kyc-update')) throw new Error(`official site points at the scanned link: ${href}`)
+    }
     await p.screenshot({ path: `${ARTIFACTS}/web-e2e-airlock.png`, fullPage: true })
   } finally {
     await u.context.close()
@@ -258,9 +267,9 @@ await check('QR generator renders a Wi-Fi code under the production CSP', async 
   if (!(width > 0)) throw new Error('generated image did not load')
 })
 
-await check('mobile width: no horizontal scroll on the result page', async () => {
+await check('mobile width (360 px): no horizontal scroll on the result page', async () => {
   const m = await newUser()
-  await m.page.setViewportSize({ width: 375, height: 800 })
+  await m.page.setViewportSize({ width: 360, height: 800 })
   await m.page.goto(`${WEB}/check/url`)
   await m.page.locator('#url').fill('https://flipkrat.com/rewards')
   await m.page.getByRole('button', { name: 'Check link' }).click()
