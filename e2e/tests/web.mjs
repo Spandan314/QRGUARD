@@ -220,6 +220,31 @@ await check('QR image upload -> decoded link, verdict, reasons and recommended a
   }
 })
 
+await check('Airlock: a pasted link is sealed, inspected on the server, and the stages, log and result come out', async () => {
+  const u = await newUser()
+  try {
+    const p = u.page
+    await p.goto(WEB)
+    const field = p.getByLabel('Link, UPI ID or message')
+    await field.fill('http://secure-sbi-kyc-update.example/login')
+    if ((await p.getByTestId('detected-type').innerText()).toLowerCase() !== 'detected: link') throw new Error('not detected as a link')
+    const answered = p.waitForResponse((r) => r.url().endsWith('/api/analyze/url'))
+    await p.getByRole('button', { name: 'Put in the airlock' }).click()
+    const body = await (await answered).json()
+    await p.locator('[data-testid=chamber][data-phase=done]').waitFor({ timeout: 15000 })
+    const states = await p.getByTestId('stage').evaluateAll((rows) => rows.map((r) => r.dataset.state))
+    if (states.length !== 5 || states.includes('active') || states.includes('waiting')) throw new Error(`stages: ${states}`)
+    const log = await p.getByTestId('chamber-log').innerText()
+    if (!log.includes('your device does not open it') || !log.includes(`verdict: MALICIOUS · ${body.risk_score}/100`)) {
+      throw new Error(`log: ${log.slice(0, 200)}`)
+    }
+    await p.getByRole('article', { name: 'Analysis result' }).waitFor()
+    await p.screenshot({ path: `${ARTIFACTS}/web-e2e-airlock.png`, fullPage: true })
+  } finally {
+    await u.context.close()
+  }
+})
+
 await check('QR generator renders a Wi-Fi code under the production CSP', async () => {
   const g = await newUser()
   await g.page.goto(`${WEB}/generate`)

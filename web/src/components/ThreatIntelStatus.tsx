@@ -1,6 +1,6 @@
 import type { ThreatIntelBlock } from '../types/api'
 import { PROVIDER_NAME } from '../utils/format'
-import { providerState, providerSummary, type ProviderOutcome } from '../utils/providerStatus'
+import { providerState, providerSummary, uniqueProviders, type ProviderOutcome } from '../utils/providerStatus'
 import { Icon, type IconName } from './Icon'
 
 const OUTCOME_STYLE: Record<ProviderOutcome, { icon: IconName; classes: string; iconClasses: string }> = {
@@ -31,7 +31,7 @@ export function ThreatIntelStatus({ threatIntel }: { threatIntel: ThreatIntelBlo
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {threatIntel.providers.map((provider) => {
+                {uniqueProviders(threatIntel.providers).map((provider) => {
                   const state = providerState(provider)
                   const style = OUTCOME_STYLE[state.outcome]
                   return (

@@ -45,7 +45,7 @@ export function providerState(p: ProviderResult): ProviderState {
 
 /** One line on how many sources really answered, e.g. "2 of 5 sources checked this link …". */
 export function providerSummary(block: ThreatIntelBlock): string {
-  const states = block.providers.map(providerState)
+  const states = uniqueProviders(block.providers).map(providerState)
   const count = (o: ProviderOutcome) => states.filter((s) => s.outcome === o).length
   const answered = count('checked') + count('flagged')
   const parts = [`${answered} of ${states.length} sources checked this link`]
@@ -53,4 +53,19 @@ export function providerSummary(block: ThreatIntelBlock): string {
   if (count('not_configured')) parts.push(`${count('not_configured')} not configured`)
   const missing = count('not_checked') + count('not_configured')
   return parts.join(', ') + '.' + (missing ? ' A source that did not check this link says nothing about whether it is safe.' : '')
+}
+
+const OUTCOME_RANK: Record<ProviderOutcome, number> = { flagged: 3, not_checked: 2, checked: 1, not_configured: 0 }
+
+/**
+ * One row per provider. A shortened link is looked up twice (the short address and where it
+ * leads), so each provider can answer twice: keep its most serious answer, never the cleaner one.
+ */
+export function uniqueProviders(providers: ProviderResult[]): ProviderResult[] {
+  const best = new Map<string, ProviderResult>()
+  for (const p of providers) {
+    const current = best.get(p.provider)
+    if (!current || OUTCOME_RANK[providerState(p).outcome] > OUTCOME_RANK[providerState(current).outcome]) best.set(p.provider, p)
+  }
+  return [...best.values()]
 }
