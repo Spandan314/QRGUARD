@@ -56,7 +56,7 @@ export default function QrGenerator() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Make a QR code</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Make a QR code</h1>
         <p className="mt-2 text-slate-600 dark:text-slate-300">
           The code is created in your browser. Nothing you type here – including Wi-Fi passwords – is sent to
           QRGUARD.
@@ -64,7 +64,7 @@ export default function QrGenerator() {
       </div>
       <form
         onSubmit={submit}
-        className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+        className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
       >
         <fieldset>
           <legend className="mb-2 font-medium">Type</legend>
@@ -168,7 +168,7 @@ export default function QrGenerator() {
       </form>
 
       {generated ? (
-        <div className="flex flex-col items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex flex-col items-center gap-4 rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
           <img src={generated.png} alt="Generated QR code" className="h-64 w-64 bg-white" />
           <div className="flex gap-3">
             <a className={buttonClass} href={generated.png} download="qrguard-qr.png">

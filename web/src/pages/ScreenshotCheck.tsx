@@ -20,6 +20,7 @@ export default function ScreenshotCheck() {
       title="Check a screenshot"
       intro="Upload a screenshot of a suspicious message. The text (and any QR code) is read and checked. The image is not stored."
       state={state}
+      kind="screenshot"
     >
       <form onSubmit={submit} className="space-y-3">
         <FileDropzone label="Screenshot of the message" file={file} onFile={setFile} disabled={state.status === 'loading'} />

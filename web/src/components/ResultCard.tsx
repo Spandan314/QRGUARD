@@ -2,6 +2,7 @@ import type { AnalysisResult, CheckStatus } from '../types/api'
 import { CONFIDENCE_TEXT, VERDICT_STYLE } from '../utils/format'
 import { verdictOf, verificationNote } from '../utils/verdict'
 import { AnalysisDetailsView } from './AnalysisDetails'
+import { Icon, type IconName } from './Icon'
 import { IndicatorList } from './IndicatorList'
 import { OpenCheckedLink } from './OpenCheckedLink'
 import { ReportForm } from './ReportForm'
@@ -9,20 +10,31 @@ import { RiskBadge } from './RiskBadge'
 import { ScoreGauge } from './ScoreGauge'
 import { ThreatIntelStatus } from './ThreatIntelStatus'
 
+const sectionTitle = 'mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400'
+
 function VerificationNote({ result }: { result: AnalysisResult }) {
   const note = verificationNote(result, verdictOf(result))
   return (
-    <div
-      className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700"
-      data-testid="verification"
-    >
-      <p className="font-semibold">{note.heading}</p>
-      {note.message ? <p className="mt-1 text-slate-700 dark:text-slate-300">{note.message}</p> : null}
+    <div className="flex gap-3 text-sm" data-testid="verification">
+      <Icon
+        name={note.verified ? 'shield-check' : 'help'}
+        className={`mt-0.5 h-5 w-5 ${note.verified ? 'text-teal-700 dark:text-teal-400' : 'text-slate-400'}`}
+      />
+      <div>
+        <p className="font-medium">{note.heading}</p>
+        {note.message ? <p className="mt-0.5 text-slate-600 dark:text-slate-300">{note.message}</p> : null}
+      </div>
     </div>
   )
 }
 
-const CHECK_ICON: Record<CheckStatus, string> = { completed: '✔', limited: '◐', not_run: '–', incomplete: '⚠️', unavailable: '⚠️' }
+const CHECK_ICON: Record<CheckStatus, { icon: IconName; tone: string }> = {
+  completed: { icon: 'check', tone: 'text-teal-700 dark:text-teal-400' },
+  limited: { icon: 'half-circle', tone: 'text-amber-600 dark:text-amber-400' },
+  not_run: { icon: 'minus', tone: 'text-slate-400' },
+  incomplete: { icon: 'alert-triangle', tone: 'text-amber-600 dark:text-amber-400' },
+  unavailable: { icon: 'alert-triangle', tone: 'text-amber-600 dark:text-amber-400' },
+}
 const CHECK_TEXT: Record<CheckStatus, string> = {
   completed: 'done',
   limited: 'limited',
@@ -35,12 +47,15 @@ function ChecksList({ result }: { result: AnalysisResult }) {
   if (!result.checks?.length) return null
   return (
     <section>
-      <h3 className="mb-2 font-semibold">What QRGUARD checked</h3>
-      <ul className="space-y-1 text-sm">
+      <h3 className={sectionTitle}>What QRGUARD checked</h3>
+      <ul className="divide-y divide-slate-100 rounded-md border border-slate-200 text-sm dark:divide-slate-800 dark:border-slate-700">
         {result.checks.map((check) => (
-          <li key={check.id} data-testid={`check-${check.id}`}>
-            <span aria-hidden="true">{CHECK_ICON[check.status]}</span> {check.label}: {CHECK_TEXT[check.status]}
-            {check.detail ? ` (${check.detail})` : ''}
+          <li key={check.id} className="flex items-start gap-2.5 px-3 py-2" data-testid={`check-${check.id}`}>
+            <Icon name={CHECK_ICON[check.status].icon} className={`mt-0.5 h-4 w-4 ${CHECK_ICON[check.status].tone}`} />
+            <span>
+              {check.label}: <span className="font-medium">{CHECK_TEXT[check.status]}</span>
+              {check.detail ? <span className="text-slate-500 dark:text-slate-400"> ({check.detail})</span> : null}
+            </span>
           </li>
         ))}
       </ul>
@@ -60,7 +75,7 @@ function HistoryNotice({ result }: { result: AnalysisResult }) {
   return (
     <p className="text-sm text-slate-600 dark:text-slate-300" data-testid="history-notice">
       {result.history.saved
-        ? '💾 Saved to your history (verdict only).'
+        ? 'Saved to your history (verdict only).'
         : (HISTORY_REASON[result.history.reason ?? ''] ?? 'Not saved.')}
     </p>
   )
@@ -85,61 +100,80 @@ export function ResultCard({ result }: { result: AnalysisResult }) {
       : null
   return (
     <article
-      className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+      className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"
       aria-live="polite"
       aria-label="Analysis result"
     >
-      <header className={`rounded-xl p-4 ring-1 ring-inset ${style.classes}`}>
-        <div className="flex flex-wrap items-center gap-3">
-          <RiskBadge verdict={verdict.label} size="lg" />
-          <span className="text-sm">{CONFIDENCE_TEXT[result.confidence]}</span>
+      <header className={`grid gap-5 border-l-4 p-5 sm:grid-cols-[1fr_15rem] ${style.accent.split(' ')[0]}`}>
+        <div className="flex gap-4">
+          <Icon name={style.icon} className={`mt-1 h-8 w-8 ${style.accent.split(' ').slice(1).join(' ')}`} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <RiskBadge verdict={verdict.label} size="lg" />
+              <span className="text-xs text-slate-500 dark:text-slate-400">{CONFIDENCE_TEXT[result.confidence]}</span>
+            </div>
+            <p className="mt-2 text-xl font-semibold tracking-tight" data-testid="verdict-title">
+              {verdict.title}
+            </p>
+            <p className="mt-1 text-slate-600 dark:text-slate-300">{result.summary}</p>
+          </div>
         </div>
-        <p className="mt-3 text-lg font-semibold" data-testid="verdict-title">
-          {verdict.title}
-        </p>
-        <p className="mt-1 text-base font-medium">{result.summary}</p>
+        <div className="self-center">
+          <ScoreGauge score={result.risk_score} level={result.risk_level} />
+        </div>
       </header>
 
-      <section className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800" data-testid="recommendation">
-        <h3 className="mb-1 font-semibold">What you should do</h3>
-        <p>{result.recommendation}</p>
+      <section
+        className="flex gap-3 border-y border-teal-100 bg-teal-50/60 px-5 py-4 dark:border-teal-900 dark:bg-teal-950/40"
+        data-testid="recommendation"
+      >
+        <Icon name="arrow-right" className="mt-0.5 h-5 w-5 text-teal-700 dark:text-teal-400" />
+        <div>
+          <h3 className="font-semibold">What you should do</h3>
+          <p className="mt-1 text-slate-700 dark:text-slate-200">{result.recommendation}</p>
+        </div>
       </section>
 
-      <ScoreGauge score={result.risk_score} level={result.risk_level} />
-      <VerificationNote result={result} />
-      <ChecksList result={result} />
+      <div className="space-y-6 p-5">
+        <div className="grid gap-5 md:grid-cols-2">
+          <section>
+            <h3 className={sectionTitle}>Verification</h3>
+            <VerificationNote result={result} />
+            {result.categories.length > 0 ? (
+              <div className="mt-4">
+                <h3 className={sectionTitle}>Possible scam type</h3>
+                <ul className="flex flex-wrap gap-1.5">
+                  {result.categories.map((category) => (
+                    <li key={category.id} className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                      {category.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+          <ChecksList result={result} />
+        </div>
 
-      {result.categories.length > 0 ? (
         <section>
-          <h3 className="mb-2 font-semibold">Possible scam type</h3>
-          <ul className="flex flex-wrap gap-2">
-            {result.categories.map((category) => (
-              <li key={category.id} className="rounded-full bg-slate-100 px-3 py-1 text-sm dark:bg-slate-800">
-                {category.label}
-              </li>
-            ))}
-          </ul>
+          <h3 className={sectionTitle}>Why this result</h3>
+          <IndicatorList indicators={result.indicators} />
         </section>
-      ) : null}
 
-      <section>
-        <h3 className="mb-2 font-semibold">Why this result</h3>
-        <IndicatorList indicators={result.indicators} />
-      </section>
+        {target ? <OpenCheckedLink url={target} verdict={verdict.label} finalUrl={finalUrl} /> : null}
 
-      {target ? <OpenCheckedLink url={target} verdict={verdict.label} finalUrl={finalUrl} /> : null}
+        <section>
+          <h3 className={sectionTitle}>Threat-intelligence checks</h3>
+          <ThreatIntelStatus threatIntel={result.threat_intel} />
+        </section>
 
-      <AnalysisDetailsView result={result} />
+        <AnalysisDetailsView result={result} />
 
-      <section>
-        <h3 className="mb-2 font-semibold">Threat-intelligence checks</h3>
-        <ThreatIntelStatus threatIntel={result.threat_intel} />
-      </section>
+        <HistoryNotice result={result} />
+        <ReportForm scanId={result.history?.scan_id} />
+      </div>
 
-      <HistoryNotice result={result} />
-      <ReportForm scanId={result.history?.scan_id} />
-
-      <footer className="border-t border-slate-200 pt-3 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+      <footer className="border-t border-slate-200 bg-slate-50 px-5 py-3 text-xs text-slate-500 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-400">
         <p>{result.disclaimer}</p>
         <p className="mt-1">
           Request ID: <span className="font-mono">{result.request_id}</span>

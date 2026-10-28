@@ -27,8 +27,8 @@ export function AnalysisDetailsView({ result }: { result: AnalysisResult }) {
   if (!hasContent) return null
 
   return (
-    <details className="rounded-xl border border-slate-200 p-4 dark:border-slate-700" open={Boolean(a.qr || a.ocr)}>
-      <summary className="cursor-pointer font-semibold">Details</summary>
+    <details className="rounded-md border border-slate-200 px-4 py-3 dark:border-slate-700" open={Boolean(a.qr || a.ocr)}>
+      <summary className="cursor-pointer text-sm font-semibold text-slate-700 dark:text-slate-200">Technical details</summary>
       <div className="mt-3 space-y-4 text-sm">
         {rows.map((row) => (
           <p key={row.label}>

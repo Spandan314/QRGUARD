@@ -184,7 +184,8 @@ describe('static pages and routing', () => {
   it('marks the active navigation link', async () => {
     stubFetch()
     renderRoute('/tips')
-    await waitFor(() => expect(screen.getByRole('link', { name: 'Safety tips' })).toHaveClass('bg-teal-700'))
+    await waitFor(() => expect(screen.getByRole('link', { name: 'Safety tips' })).toHaveAttribute('aria-current', 'page'))
+    expect(screen.getByRole('link', { name: 'Safety tips' })).toHaveClass('border-teal-400')
   })
 })
 
@@ -197,11 +198,66 @@ describe('navigation on small screens', () => {
     expect(menu).toHaveAttribute('aria-expanded', 'false')
     expect(menu).toHaveAttribute('aria-controls', nav.id)
     expect(nav.className).toMatch(/(^| )hidden( |$)/)
-    expect(nav.className).toContain('sm:block') // always shown on wider screens
+    expect(nav.className).toContain('lg:block') // always shown as a sidebar on wide screens
     await userEvent.click(menu)
     expect(menu).toHaveAttribute('aria-expanded', 'true')
     expect(nav.className).not.toMatch(/(^| )hidden( |$)/)
     await userEvent.click(screen.getByRole('link', { name: 'Safety tips' }))
     expect(menu).toHaveAttribute('aria-expanded', 'false') // closes after choosing a page
+  })
+})
+
+describe('analysis in progress', () => {
+  /** A fetch that answers only when the test says so. */
+  function pendingFetch() {
+    let answer: (response: Response) => void = () => undefined
+    const fetchMock = vi.fn(() => new Promise<Response>((resolve) => (answer = resolve)))
+    vi.stubGlobal('fetch', fetchMock)
+    return { fetchMock, answer: (response: Response) => answer(response) }
+  }
+
+  it('shows the real checks while a link is analysed, blocks a second submit and shows the result only on the response', async () => {
+    const { fetchMock, answer } = pendingFetch()
+    renderRoute('/check/url')
+    await userEvent.type(screen.getByLabelText('Link'), 'http://sbi.co.in.kyc-verify.xyz/login')
+    await userEvent.click(screen.getByRole('button', { name: 'Check link' }))
+
+    const progress = await screen.findByTestId('analysis-progress')
+    expect(screen.getAllByTestId('analysis-stage').map((stage) => stage.textContent)).toEqual([
+      'Validating and normalizing the URL',
+      'Analyzing URL structure',
+      'Checking threat-intelligence sources',
+      'Evaluating risk indicators and calculating the score',
+    ])
+    expect(progress.textContent).not.toMatch(/\d+ ?%/) // no invented percentage
+    expect(screen.queryByRole('article', { name: 'Analysis result' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Check link' })).toBeDisabled() // no duplicate submit
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    answer(jsonResponse(maliciousUrl))
+    expect(await screen.findByRole('article', { name: 'Analysis result' })).toBeInTheDocument()
+    expect(screen.queryByTestId('analysis-progress')).toBeNull()
+  })
+
+  it('lists QR decoding first for an uploaded QR image', async () => {
+    const { answer } = pendingFetch()
+    const { container } = renderRoute('/check/qr')
+    await userEvent.upload(container.querySelector('input[type=file]') as HTMLInputElement, new File(['p'], 'qr.png', { type: 'image/png' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Check QR code' }))
+    const stages = (await screen.findAllByTestId('analysis-stage')).map((stage) => stage.textContent)
+    expect(stages[0]).toBe('Decoding the QR code')
+    expect(stages).toContain('Checking threat-intelligence sources')
+    answer(jsonResponse(qrResult))
+    expect(await screen.findByRole('article', { name: 'Analysis result' })).toBeInTheDocument()
+  })
+
+  it('replaces the progress with the error when the request fails', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('offline'))))
+    renderRoute('/check/url')
+    await userEvent.type(screen.getByLabelText('Link'), 'example.com')
+    await userEvent.click(screen.getByRole('button', { name: 'Check link' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not complete the check')
+    expect(screen.queryByTestId('analysis-progress')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Check link' })).toBeEnabled() // retry possible
   })
 })
