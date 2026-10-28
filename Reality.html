@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Claims vs reality</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&amp;family=Inter:wght@400;500;600&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#34E0B4}a:hover{color:#8AF0D3}
+</style>
+</helmet>
+<div style="min-height: 920px; background: #0A0F14; color: #E8EEF3; font-family: Inter, system-ui, sans-serif; padding: 48px 24px 56px; box-sizing: border-box">
+<main style="max-width: 1120px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px">
+
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px">
+<div style="display: flex; flex-direction: column; gap: 10px; max-width: 680px">
+<span style="align-self: flex-start; font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: 0.2em; color: #FF6B5B; border: 1px solid #FF6B5B; border-radius: 6px; padding: 5px 10px">MISMATCH ON 5 OF 5</span>
+<h1 style="margin: 0; font-family: 'Space Grotesk', sans-serif; font-size: 48px; line-height: 1.05; font-weight: 700; letter-spacing: -0.02em">It’s wearing a costume.</h1>
+<p style="margin: 0; font-size: 17px; line-height: 1.55; color: #93A4B5">On the left is what the page wants you to believe. On the right is what we found when we checked.</p>
+</div>
+<div style="display: flex; align-items: baseline; gap: 8px; font-family: 'Space Grotesk', sans-serif"><span style="font-size: 56px; font-weight: 700; color: #FF6B5B; line-height: 1">78</span><span style="font-size: 16px; color: #93A4B5">/ 100 risk</span></div>
+</div>
+
+<div style="overflow-x: auto; border-radius: 20px; border: 1px solid #22303D">
+<div role="table" aria-label="Claims compared with what we found" style="min-width: 760px; display: grid; grid-template-columns: minmax(0, 1fr) 64px minmax(0, 1fr)">
+
+<div role="row" style="display: contents">
+<div role="columnheader" style="background: #F3EFE6; color: #2B2620; padding: 20px 24px; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 10px">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle></svg>What it claims</div>
+<div role="columnheader" style="background: #1A222B; display: flex; align-items: center; justify-content: center"><span style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #93A4B5">VS</span></div>
+<div role="columnheader" style="background: #111922; padding: 20px 24px; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 10px; color: #34E0B4">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-4-4"></path></svg>What we found</div>
+</div>
+
+<div role="row" style="display: contents">
+<div role="cell" style="background: #F3EFE6; color: #2B2620; padding: 18px 24px; border-top: 1px solid #DDD6C8; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #6B6255">Who it is</span><span style="font-size: 17px; font-weight: 600">National Bank, secure login</span></div>
+<div role="cell" aria-label="does not match" style="background: #1A222B; border-top: 1px solid #22303D; display: flex; align-items: center; justify-content: center; color: #FF6B5B; font-size: 22px; font-weight: 700">≠</div>
+<div role="cell" style="background: #111922; padding: 18px 24px; border-top: 1px solid #22303D; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #93A4B5">Who it is</span><span style="font-size: 17px; font-weight: 600">A form on verify-acct.xyz</span></div>
+</div>
+
+<div role="row" style="display: contents">
+<div role="cell" style="background: #F3EFE6; color: #2B2620; padding: 18px 24px; border-top: 1px solid #DDD6C8; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #6B6255">Address</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 15px">nati0nalbank-login…</span></div>
+<div role="cell" aria-label="does not match" style="background: #1A222B; border-top: 1px solid #22303D; display: flex; align-items: center; justify-content: center; color: #FF6B5B; font-size: 22px; font-weight: 700">≠</div>
+<div role="cell" style="background: #111922; padding: 18px 24px; border-top: 1px solid #22303D; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #93A4B5">Address</span><span style="font-family: 'JetBrains Mono', monospace; font-size: 15px"><span style="color: #FFB547">0</span> instead of o · owner is verify-acct.xyz</span></div>
+</div>
+
+<div role="row" style="display: contents">
+<div role="cell" style="background: #F3EFE6; color: #2B2620; padding: 18px 24px; border-top: 1px solid #DDD6C8; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #6B6255">How long around</span><span style="font-size: 17px; font-weight: 600">A bank for decades</span></div>
+<div role="cell" aria-label="does not match" style="background: #1A222B; border-top: 1px solid #22303D; display: flex; align-items: center; justify-content: center; color: #FF6B5B; font-size: 22px; font-weight: 700">≠</div>
+<div role="cell" style="background: #111922; padding: 18px 24px; border-top: 1px solid #22303D; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #93A4B5">How long around</span><span style="font-size: 17px; font-weight: 600">Domain registered [N] days ago</span></div>
+</div>
+
+<div role="row" style="display: contents">
+<div role="cell" style="background: #F3EFE6; color: #2B2620; padding: 18px 24px; border-top: 1px solid #DDD6C8; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #6B6255">Why you’re here</span><span style="font-size: 17px; font-weight: 600">“Update your KYC”</span></div>
+<div role="cell" aria-label="does not match" style="background: #1A222B; border-top: 1px solid #22303D; display: flex; align-items: center; justify-content: center; color: #FF6B5B; font-size: 22px; font-weight: 700">≠</div>
+<div role="cell" style="background: #111922; padding: 18px 24px; border-top: 1px solid #22303D; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #93A4B5">Why you’re here</span><span style="font-size: 17px; font-weight: 600">To collect your login, password and OTP</span></div>
+</div>
+
+<div role="row" style="display: contents">
+<div role="cell" style="background: #F3EFE6; color: #2B2620; padding: 18px 24px; border-top: 1px solid #DDD6C8; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #6B6255">Safety</span><span style="font-size: 17px; font-weight: 600">Padlock, “secure”</span></div>
+<div role="cell" aria-label="does not match" style="background: #1A222B; border-top: 1px solid #22303D; display: flex; align-items: center; justify-content: center; color: #FF6B5B; font-size: 22px; font-weight: 700">≠</div>
+<div role="cell" style="background: #111922; padding: 18px 24px; border-top: 1px solid #22303D; display: flex; flex-direction: column; gap: 4px"><span style="font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #93A4B5">Safety</span><span style="font-size: 17px; font-weight: 600">The padlock only means encrypted, not honest</span></div>
+</div>
+
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+<button type="button" style="min-height: 48px; padding: 0 22px; border-radius: 10px; border: 0; background: #34E0B4; color: #06231B; font: 600 16px Inter, sans-serif; cursor: pointer">Open the real bank site instead</button>
+<button type="button" style="min-height: 48px; padding: 0 22px; border-radius: 10px; border: 1px solid #3A4B5C; background: transparent; color: #E8EEF3; font: 500 16px Inter, sans-serif; cursor: pointer">Share this unmasking</button>
+<span style="font-size: 14px; color: #93A4B5">We link to the official site we know, never to the one you scanned.</span>
+</div>
+
+</main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":920}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
