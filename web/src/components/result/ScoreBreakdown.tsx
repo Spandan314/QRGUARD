@@ -6,7 +6,7 @@ export function ScoreBreakdown({ rows, total, tone }: { rows: BreakdownRow[]; to
   return (
     <section aria-labelledby="why-title" className="rounded-panel border border-line bg-panel p-5" data-testid="score-breakdown">
       <h3 id="why-title" className="font-display text-lg font-semibold">
-        Why {total}
+        How we got {total} out of 100
       </h3>
       {rows.length ? (
         <ul className="mt-3 divide-y divide-line text-sm">
@@ -18,10 +18,10 @@ export function ScoreBreakdown({ rows, total, tone }: { rows: BreakdownRow[]; to
           ))}
         </ul>
       ) : (
-        <p className="mt-3 text-sm text-muted">No sign added points. A low score is not proof of safety.</p>
+        <p className="mt-3 text-sm text-muted">No warning sign added points. A low score does not prove it is safe.</p>
       )}
       <p className="mt-2 flex justify-between border-t-2 border-ink pt-2.5 text-sm font-semibold">
-        <span>Risk score</span>
+        <span>Risk score (0 = no warning signs, 100 = very likely a scam)</span>
         <span className="font-mono tabular-nums">{total}</span>
       </p>
     </section>

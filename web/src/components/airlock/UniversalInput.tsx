@@ -1,8 +1,10 @@
 import { useId, useRef, useState, type FormEvent } from 'react'
 import { ACCEPTED_IMAGE_TYPES, MAX_UPLOAD_BYTES } from '../../services/api'
-import { detectInput, SPECIMEN_LABEL } from '../../utils/airlock'
+import { detectInput } from '../../utils/airlock'
 import { formatBytes } from '../../utils/format'
 import { Icon } from '../Icon'
+
+const LOOKS_LIKE = { link: 'a link', upi: 'a UPI ID', message: 'a message' } as const
 
 export const primaryButton =
   'inline-flex min-h-11 items-center justify-center gap-2 rounded-btn bg-accent px-5 text-sm font-semibold text-on-accent hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50'
@@ -47,9 +49,9 @@ export function UniversalInput({
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3" aria-label="Load a specimen">
+    <form onSubmit={submit} className="space-y-3" aria-label="Check something">
       <label htmlFor={fieldId} className="label-mono block">
-        Link, UPI ID or message
+        Paste a link, UPI ID or message
       </label>
       <div className="rounded-panel border border-line bg-panel p-2 focus-within:border-accent">
         <textarea
@@ -60,7 +62,7 @@ export function UniversalInput({
           maxLength={5000}
           spellCheck={false}
           autoComplete="off"
-          placeholder="Paste a link, a UPI ID (name@bank) or the text of a message"
+          placeholder="For example: a link from an SMS, a UPI ID like name@bank, or the whole message"
           onChange={(event) => setValue(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter' && !event.shiftKey) {
@@ -72,15 +74,15 @@ export function UniversalInput({
         />
         <div className="flex flex-wrap items-center gap-2 border-t border-line px-1 pt-2">
           <span className="label-mono mr-auto px-2" data-testid="detected-type" aria-live="polite">
-            {detected ? `Detected: ${SPECIMEN_LABEL[detected]}` : 'Detects link · UPI ID · message'}
+            {detected ? `Looks like ${LOOKS_LIKE[detected]}` : 'We work out what it is'}
           </span>
           <button type="button" className={secondaryButton} onClick={onCamera} disabled={busy}>
             <Icon name="camera" className="h-4 w-4" />
-            Scan with camera
+            Scan a QR code
           </button>
           <label htmlFor={fileId} className={`${secondaryButton} cursor-pointer ${busy ? 'pointer-events-none opacity-50' : ''}`}>
             <Icon name="upload" className="h-4 w-4" />
-            Upload QR or screenshot
+            Upload a photo or screenshot
           </label>
           <input
             id={fileId}
@@ -95,7 +97,7 @@ export function UniversalInput({
             }}
           />
           <button type="submit" className={primaryButton} disabled={busy || !value.trim()}>
-            Put in the airlock
+            Check it
           </button>
         </div>
       </div>

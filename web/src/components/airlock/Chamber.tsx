@@ -31,7 +31,7 @@ const STATE_TEXT: Record<StageState, string> = { done: 'done', warning: 'warning
 /** The five-stage track: Decoded → Unshortened → Inspected → Threat lists → Verdict. */
 export function StageTrack({ stages }: { stages: Stage[] }) {
   return (
-    <ol className="grid grid-cols-1 gap-3 sm:grid-cols-5 sm:gap-0" aria-label="Inspection stages">
+    <ol className="grid grid-cols-1 gap-3 sm:grid-cols-5 sm:gap-0" aria-label="Checking steps">
       {stages.map((stage, index) => {
         const lineDone = index > 0 && stages[index - 1]?.state !== 'waiting' && stages[index - 1]?.state !== 'active'
         return (
@@ -94,22 +94,22 @@ export function Chamber({
   stages: Stage[]
 }) {
   const sealed = phase === 'running' || phase === 'revealing'
-  const status = phase === 'idle' ? 'READY' : phase === 'done' ? 'VERDICT OUT' : phase === 'failed' ? 'ABORTED' : 'SEALED'
+  const status = phase === 'idle' ? 'Ready' : phase === 'done' ? 'Done' : phase === 'failed' ? 'Stopped' : 'Checking…'
   return (
     <section
-      aria-label="Inspection chamber"
+      aria-label="Check progress"
       className="flex flex-col overflow-hidden rounded-panel-lg border border-line bg-panel sm:flex-row"
       data-testid="chamber"
       data-phase={phase}
     >
-      <Strip side="left" text="Intake · open" tone="accent" />
+      <Strip side="left" text="Checked here" tone="accent" />
       <div className="min-w-0 flex-1 space-y-6 p-5 sm:p-8">
         <p className="label-mono" data-testid="chamber-status">
-          Chamber 01 · {status}
+          Status · {status}
         </p>
         <div className="rounded-panel border border-dashed border-line bg-panel-2 px-5 py-4" data-testid="specimen">
           <p className="label-mono">
-            Specimen{specimen ? ` · from ${SPECIMEN_LABEL[specimen.kind]}` : ''}
+            What you’re checking{specimen ? ` · ${SPECIMEN_LABEL[specimen.kind]}` : ''}
           </p>
           {specimen ? (
             <>
@@ -119,19 +119,19 @@ export function Chamber({
               {destination ? (
                 <p className="mt-1 font-mono text-sm break-all text-warn" data-testid="final-destination">
                   <span aria-hidden="true">→ </span>
-                  <span className="sr-only">Leads to: </span>
+                  <span className="sr-only">Really leads to: </span>
                   {destination}
                 </p>
               ) : null}
             </>
           ) : (
-            <p className="mt-2 font-mono text-muted">Nothing loaded. Paste a link, UPI ID or message above.</p>
+            <p className="mt-2 font-mono text-muted">Nothing yet. Paste something above or scan a QR code.</p>
           )}
         </div>
         <StageTrack stages={stages} />
-        {sealed ? <p className="sr-only">The specimen is sealed and being inspected on our server.</p> : null}
+        {sealed ? <p className="sr-only">Checking on our server. Your phone does not open it.</p> : null}
       </div>
-      <Strip side="right" text={phase === 'done' ? 'Release · verdict only' : 'Release · locked'} tone={phase === 'done' ? 'accent' : 'danger'} />
+      <Strip side="right" text={phase === 'done' ? 'Answer only' : 'Not opened'} tone={phase === 'done' ? 'accent' : 'danger'} />
     </section>
   )
 }

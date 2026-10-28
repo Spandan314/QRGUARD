@@ -12,7 +12,7 @@ export function ClaimsVsReality({ rows }: { rows: ClaimRow[] }) {
     <section aria-labelledby="claims-title" className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
         <h3 id="claims-title" className="font-display text-lg font-semibold">
-          Claims vs reality
+          What it pretends to be vs what it really is
         </h3>
         <span
           className={`rounded-md border px-2 py-0.5 font-mono text-[11px] font-medium tracking-[0.14em] uppercase ${
@@ -20,7 +20,7 @@ export function ClaimsVsReality({ rows }: { rows: ClaimRow[] }) {
           }`}
           data-testid="mismatch-count"
         >
-          Mismatch on {mismatches} of {rows.length}
+          {mismatches ? `${mismatches} of ${rows.length} don’t match` : 'Everything matches'}
         </span>
       </div>
       <div className="overflow-hidden rounded-panel-lg border border-line">
@@ -31,7 +31,7 @@ export function ClaimsVsReality({ rows }: { rows: ClaimRow[] }) {
               <th scope="col" className="w-[46%] bg-paper px-5 py-3 font-display text-base font-semibold text-on-paper">
                 <span className="inline-flex items-center gap-2">
                   <Icon name="eye" className="h-4 w-4" />
-                  What it claims
+                  What it says
                 </span>
               </th>
               <th scope="col" className="w-[8%] bg-panel-2 px-2 py-3 text-center font-mono text-xs font-normal text-muted">
@@ -51,7 +51,7 @@ export function ClaimsVsReality({ rows }: { rows: ClaimRow[] }) {
                 <td className="col-span-2 bg-paper px-4 py-3 align-top text-on-paper sm:w-[46%] sm:px-5">
                   <span className="block font-mono text-[11px] tracking-[0.12em] text-on-paper-muted uppercase">
                     {row.label}
-                    <span className="sm:hidden"> · it claims</span>
+                    <span className="sm:hidden"> · what it says</span>
                   </span>
                   <span className={`mt-0.5 block font-semibold break-words ${row.key === 'address' ? 'font-mono text-sm' : ''}`}>{row.claim}</span>
                 </td>

@@ -82,7 +82,7 @@ function HistoryNotice({ result }: { result: AnalysisResult }) {
   return (
     <p className="text-sm text-muted" data-testid="history-notice">
       {result.history.saved
-        ? 'Saved to your history (verdict only).'
+        ? 'Saved to your history (only the result, not what you checked).'
         : (HISTORY_REASON[result.history.reason ?? ''] ?? 'Not saved.')}
     </p>
   )
@@ -138,7 +138,7 @@ export function ResultCard({ result, actions }: { result: AnalysisResult; action
             <span className={`font-display text-6xl leading-none font-bold tabular-nums ${tone}`} data-testid="big-score">
               {result.risk_score}
             </span>
-            <span className="text-muted">/ 100 risk</span>
+            <span className="text-muted">out of 100 risk</span>
           </p>
           <div className="mt-3">
             <ScoreGauge score={result.risk_score} level={result.risk_level} />
@@ -179,7 +179,7 @@ export function ResultCard({ result, actions }: { result: AnalysisResult; action
         <ScoreBreakdown rows={breakdown.rows} total={breakdown.total} tone={tone} />
         <section aria-labelledby="sources-title" className={panel}>
           <h3 id="sources-title" className="font-display text-lg font-semibold">
-            Threat sources
+            Scam databases
           </h3>
           <div className="mt-3">
             <ThreatIntelStatus threatIntel={result.threat_intel} />
@@ -191,7 +191,7 @@ export function ResultCard({ result, actions }: { result: AnalysisResult; action
 
       <div className="grid gap-5 md:grid-cols-2">
         <section className={panel}>
-          <h3 className={sectionTitle}>Verification</h3>
+          <h3 className={sectionTitle}>Confirmed?</h3>
           <VerificationNote result={result} />
           {result.categories.length > 0 ? (
             <div className="mt-4">

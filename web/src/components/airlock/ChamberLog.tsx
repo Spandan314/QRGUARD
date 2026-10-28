@@ -11,10 +11,10 @@ const stamp = (seconds: number) => seconds.toFixed(2).padStart(5, '0')
 
 export function ChamberLog({ lines, running }: { lines: TimedLine[]; running: boolean }) {
   return (
-    <section aria-label="Chamber log" className="rounded-panel border border-line bg-panel p-5 sm:p-6">
-      <h2 className="label-mono font-mono">Chamber log</h2>
+    <section aria-label="What we did" className="rounded-panel border border-line bg-panel p-5 sm:p-6">
+      <h2 className="label-mono font-mono">What we did</h2>
       <ol className="mt-3 space-y-1.5 font-mono text-[13px] leading-relaxed" aria-live="polite" data-testid="chamber-log">
-        {lines.length === 0 && !running ? <li className="text-muted">Waiting for a specimen.</li> : null}
+        {lines.length === 0 && !running ? <li className="text-muted">Nothing checked yet.</li> : null}
         {lines.map((line, index) => (
           <li key={index} className="flex gap-3">
             <span className="shrink-0 text-muted tabular-nums">{stamp(line.at)}</span>
@@ -31,7 +31,7 @@ export function ChamberLog({ lines, running }: { lines: TimedLine[]; running: bo
           </li>
         ) : null}
       </ol>
-      <p className="mt-3 text-xs text-muted">Times are seconds since you submitted, measured on this device.</p>
+      <p className="mt-3 text-xs text-muted">Times are seconds since you pressed “Check it”.</p>
     </section>
   )
 }

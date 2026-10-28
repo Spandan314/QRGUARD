@@ -5,22 +5,22 @@ import { Icon } from './Icon'
 export type AnalysisKind = 'url' | 'qr-image' | 'qr-content' | 'message' | 'screenshot'
 
 const URL_CHECKS = [
-  'Validating and normalizing the URL',
-  'Analyzing URL structure',
-  'Checking threat-intelligence sources',
-  'Evaluating risk indicators and calculating the score',
+  'Reading the link',
+  'Looking for tricks in the web address',
+  'Checking scam databases',
+  'Adding up the warning signs',
 ]
 
 const ANALYSIS_STAGES: Record<AnalysisKind, string[]> = {
   url: URL_CHECKS,
-  'qr-image': ['Decoding the QR code', ...URL_CHECKS],
+  'qr-image': ['Reading the QR code', ...URL_CHECKS],
   'qr-content': URL_CHECKS, // the camera already decoded the code on this device
-  message: ['Analyzing the message text', 'Checking the links it contains', 'Calculating the score'],
+  message: ['Reading the message', 'Checking the links it contains', 'Adding up the warning signs'],
   screenshot: [
-    'Reading the text in the image (OCR)',
-    'Decoding any QR codes in the image',
-    'Analyzing the text and links',
-    'Calculating the score',
+    'Reading the text in the image',
+    'Reading any QR codes in the image',
+    'Checking the text and links',
+    'Adding up the warning signs',
   ],
 }
 

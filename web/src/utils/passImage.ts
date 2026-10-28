@@ -9,9 +9,9 @@ const PAPER = '#f5efe4'
 const BRAND = '#0a7a5e'
 const PERFORATION = '#cfc6b5'
 export const STAMP_INK: Record<Stamp, string> = {
-  DENIED: '#b42318',
+  DANGER: '#b42318',
   CAUTION: '#8a4b00',
-  CLEARED: '#0a7a5e',
+  SAFE: '#0a7a5e',
   'NOT VERIFIED': '#5c5345',
 }
 
@@ -78,7 +78,7 @@ function layout(ctx: CanvasRenderingContext2D, pass: PassData, page: string): nu
   ctx.fillText('GUARD', left + PAD + ctx.measureText('QR').width, y)
   ctx.font = `500 10px ${MONO}`
   ctx.fillStyle = INK_MUTED
-  spaced(ctx, 'INSPECTION PASS', WIDTH - MARGIN - PAD, y + 3, 1.4, 'right')
+  spaced(ctx, 'SCAM CHECK RESULT', WIDTH - MARGIN - PAD, y + 3, 1.4, 'right')
   y += 34
 
   ctx.font = `700 25px ${DISPLAY}`
@@ -137,11 +137,11 @@ function layout(ctx: CanvasRenderingContext2D, pass: PassData, page: string): nu
 
   ctx.font = `500 11px ${MONO}`
   ctx.fillStyle = INK_MUTED
-  spaced(ctx, `PASS NO. ${pass.number}`, left + PAD, y, 1.1)
+  spaced(ctx, `CHECK NO. ${pass.number}`, left + PAD, y, 1.1)
   y += 20
   ctx.font = `400 13px ${SANS}`
   ctx.fillStyle = INK
-  for (const line of wrap(ctx, 'Inspected on the QRGUARD server, not on the device that scanned it.', textMax)) {
+  for (const line of wrap(ctx, 'Checked on the QRGUARD server, not on the phone that scanned it.', textMax)) {
     ctx.fillText(line, left + PAD, y)
     y += 19
   }

@@ -71,7 +71,7 @@ describe('sign-in (demo mode)', () => {
   it('signs in, shows history in the navigation and signs out', async () => {
     stubBackend({ 'GET .*/api/me$': () => jsonResponse(profile()) })
     renderRoute('/account', new DevAuthClient())
-    // History is always in the main navigation; Sign in / Account live in the "More" menu.
+    // History is in the main navigation; Sign in / Account sit beside the theme switch.
     expect(screen.getByRole('link', { name: 'History' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Sign in', hidden: true })).toBeInTheDocument()
     await userEvent.type(screen.getByLabelText('Demo user name'), 'alice')

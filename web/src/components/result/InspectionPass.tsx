@@ -5,9 +5,9 @@ import { renderPassImage } from '../../utils/passImage'
 import { Icon } from '../Icon'
 
 const STAMP_CLASS: Record<Stamp, string> = {
-  DENIED: 'border-stamp-denied text-stamp-denied',
+  DANGER: 'border-stamp-denied text-stamp-denied',
   CAUTION: 'border-stamp-caution text-stamp-caution',
-  CLEARED: 'border-stamp-cleared text-stamp-cleared',
+  SAFE: 'border-stamp-cleared text-stamp-cleared',
   'NOT VERIFIED': 'border-stamp-none text-stamp-none',
 }
 
@@ -27,17 +27,17 @@ export function InspectionPass({ result }: { result: AnalysisResult }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(pass.shareText)
-      setStatus('Pass copied. Paste it into a chat or a family group.')
+      setStatus('Copied. Paste it into a chat or a family group.')
     } catch {
-      setStatus('Could not copy the pass in this browser.')
+      setStatus('Could not copy it in this browser.')
     }
   }
 
   const share = async () => {
     if (typeof navigator.share === 'function') {
       try {
-        await navigator.share({ title: `QRGUARD inspection pass ${pass.number}`, text: pass.shareText })
-        setStatus('Pass shared.')
+        await navigator.share({ title: `QRGUARD check ${pass.number}`, text: pass.shareText })
+        setStatus('Shared.')
         return
       } catch (error) {
         if (error instanceof DOMException && error.name === 'AbortError') return // the user closed the share sheet
@@ -55,7 +55,7 @@ export function InspectionPass({ result }: { result: AnalysisResult }) {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `QRGUARD-pass-${pass.number}.png`
+    link.download = `QRGUARD-check-${pass.number}.png`
     document.body.append(link)
     link.click()
     link.remove()
@@ -64,14 +64,14 @@ export function InspectionPass({ result }: { result: AnalysisResult }) {
   }
 
   return (
-    <section aria-labelledby="pass-heading" className="grid items-start gap-6 md:grid-cols-[minmax(0,380px)_1fr]" data-testid="inspection-pass">
-      <div role="group" aria-labelledby="pass-title" className="relative rounded-panel bg-paper text-on-paper" data-testid="pass-ticket">
+    <section aria-labelledby="pass-heading" className="grid grid-cols-1 items-start gap-6 md:grid-cols-[minmax(0,380px)_1fr]" data-testid="inspection-pass">
+      <div role="group" aria-labelledby="pass-title" className="relative overflow-hidden rounded-panel bg-paper text-on-paper" data-testid="pass-ticket">
         <div className="space-y-4 px-5 pt-5 pb-4">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <span className="font-display text-[15px] font-bold tracking-[0.06em]">
               QR<span className="text-stamp-cleared">GUARD</span>
             </span>
-            <span className="font-mono text-[11px] tracking-[0.14em] text-on-paper-muted">INSPECTION PASS</span>
+            <span className="font-mono text-[11px] tracking-[0.14em] text-on-paper-muted">SCAM CHECK RESULT</span>
           </div>
           <h4 id="pass-title" className="font-display text-2xl leading-tight font-bold break-words">
             {pass.title}
@@ -93,13 +93,13 @@ export function InspectionPass({ result }: { result: AnalysisResult }) {
         <div className="flex items-center justify-between gap-3 px-5 pt-3 pb-5">
           <div className="min-w-0 space-y-1">
             <p className="font-mono text-[11px] tracking-[0.1em] whitespace-nowrap text-on-paper-muted" data-testid="pass-number">
-              PASS NO. {pass.number}
+              CHECK NO. {pass.number}
             </p>
-            <p className="text-[13px] leading-snug">Inspected on the QRGUARD server, not on the device that scanned it.</p>
+            <p className="text-[13px] leading-snug">Checked on the QRGUARD server, not on the phone that scanned it.</p>
           </div>
           <p
             role="img"
-            aria-label={`Verdict stamp: ${pass.stamp.toLowerCase()}`}
+            aria-label={`Result stamp: ${pass.stamp.toLowerCase()}`}
             className={`shrink-0 -rotate-12 rounded-[10px] border-4 px-2.5 py-0.5 font-display font-bold tracking-[0.12em] whitespace-nowrap ${pass.stamp.length > 8 ? 'text-base' : 'text-xl'} ${STAMP_CLASS[pass.stamp]}`}
             data-testid="pass-stamp"
           >
@@ -111,15 +111,15 @@ export function InspectionPass({ result }: { result: AnalysisResult }) {
       <div className="space-y-4">
         <div>
           <h3 id="pass-heading" className="font-display text-lg font-semibold">
-            Inspection pass
+            Share this result
           </h3>
-          <p className="mt-1 text-sm text-muted">Share the verdict instead of the link. The pass never contains a link anyone can tap.</p>
+          <p className="mt-1 text-sm text-muted">Send this card to family or friends instead of the link. It has no link anyone could tap by mistake.</p>
         </div>
         <p className="text-sm">{pass.advice}</p>
         <div className="flex flex-wrap gap-2">
           <button type="button" className={`${button} bg-accent text-on-accent`} onClick={() => void share()} data-testid="share-pass">
             <Icon name="share" className="h-4 w-4" />
-            Share the pass
+            Share the card
           </button>
           <button type="button" className={`${button} border border-line text-ink hover:bg-panel-2`} onClick={() => void save()} data-testid="save-pass">
             <Icon name="download" className="h-4 w-4" />

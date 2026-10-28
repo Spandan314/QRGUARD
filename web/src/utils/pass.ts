@@ -4,18 +4,18 @@
 import type { AnalysisResult, VerdictLabel } from '../types/api'
 import { verdictOf } from './verdict'
 
-export type Stamp = 'DENIED' | 'CAUTION' | 'CLEARED' | 'NOT VERIFIED'
+export type Stamp = 'DANGER' | 'CAUTION' | 'SAFE' | 'NOT VERIFIED'
 
-/** NOT VERIFIED is never stamped CLEARED: missing evidence is not a clean bill. */
+/** SAFE only for a SAFE verdict; NOT VERIFIED is never stamped SAFE: missing evidence is not a clean bill. */
 export const STAMP: Record<VerdictLabel, Stamp> = {
-  MALICIOUS: 'DENIED',
+  MALICIOUS: 'DANGER',
   SUSPICIOUS: 'CAUTION',
-  SAFE: 'CLEARED',
+  SAFE: 'SAFE',
   UNVERIFIED: 'NOT VERIFIED',
 }
 
 export interface PassField {
-  label: 'CLAIMS' | 'ACTUALLY' | 'FOUND' | 'CHECKED'
+  label: 'SAYS IT IS' | 'REALLY IS' | 'MAIN FINDING' | 'CHECKED ON'
   value: string
 }
 
@@ -84,21 +84,21 @@ export function passData(result: AnalysisResult, checkedAt: Date): PassData {
   const vpa = a.qr?.content_type === 'upi' ? a.qr.parsed?.payee_vpa : undefined
   const payee = a.qr?.content_type === 'upi' ? a.qr.parsed?.payee_name : undefined
   if (brand && a.domain) {
-    fields.push({ label: 'CLAIMS', value: brand.brand })
-    fields.push({ label: 'ACTUALLY', value: brand.match_type === 'official' ? `${brand.brand}'s own site` : `A site on ${a.domain}` })
+    fields.push({ label: 'SAYS IT IS', value: brand.brand })
+    fields.push({ label: 'REALLY IS', value: brand.match_type === 'official' ? `${brand.brand}'s own website` : `A website on ${a.domain}` })
   } else if (typeof payee === 'string' && payee && typeof vpa === 'string' && vpa) {
-    fields.push({ label: 'CLAIMS', value: payee })
-    fields.push({ label: 'ACTUALLY', value: `Pays UPI ID ${vpa}` })
+    fields.push({ label: 'SAYS IT IS', value: payee })
+    fields.push({ label: 'REALLY IS', value: `Pays UPI ID ${vpa}` })
   }
 
   const top = [...result.indicators].filter((i) => i.score_contribution > 0).sort((x, y) => y.score_contribution - x.score_contribution)[0]
-  fields.push({ label: 'FOUND', value: top ? top.title : verdict === 'SAFE' ? 'No warning signs' : 'No warning signs, not confirmed' })
-  fields.push({ label: 'CHECKED', value: formatChecked(checkedAt) })
+  fields.push({ label: 'MAIN FINDING', value: top ? top.title : verdict === 'SAFE' ? 'No warning signs' : 'No warning signs, not confirmed' })
+  fields.push({ label: 'CHECKED ON', value: formatChecked(checkedAt) })
 
   const number = passNumber(result.request_id)
   const stamp = STAMP[verdict]
   const shown = isHost ? defang(title) : title
-  const found = fields.find((f) => f.label === 'FOUND')?.value ?? ''
-  const shareText = `QRGUARD inspection pass ${number}: ${stamp}. ${shown}. Found: ${found}. ${ADVICE[verdict]}`
+  const found = fields.find((f) => f.label === 'MAIN FINDING')?.value ?? ''
+  const shareText = `QRGUARD check ${number}: ${stamp}. ${shown}. ${found}. ${ADVICE[verdict]}`
   return { number, title, verdict, stamp, fields, advice: ADVICE[verdict], shareText }
 }
