@@ -2,6 +2,7 @@
 // ID tokens) -> analysis + threat intelligence -> Firestore emulator (history). No mocks.
 // Run through ../run.sh, which starts everything.
 import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { ARTIFACTS, check, finish, launch, watch } from './harness.mjs'
 import { chromium } from 'playwright-core'
 
@@ -146,6 +147,36 @@ await check('delete my data removes all history and signs out', async () => {
   await a.getByRole('button', { name: 'Delete my data' }).click()
   await a.getByRole('button', { name: 'Yes, delete everything' }).click()
   await a.getByRole('button', { name: 'Continue without an e-mail' }).waitFor({ timeout: 15000 })
+})
+
+await check('QR image upload -> decoded link, verdict, reasons and recommended action', async () => {
+  // A photo of a QR code that points to a look-alike of flipkart.com (postman fixture).
+  const fixture = fileURLToPath(new URL('../../postman/fixtures/qr-lookalike-link.png', import.meta.url))
+  const u = await newUser()
+  try {
+    const p = u.page
+    await p.goto(`${WEB}/check/qr`)
+    await p.getByRole('tab', { name: 'Upload an image' }).click()
+    await p.getByLabel('Image with a QR code').setInputFiles(fixture)
+    await p.getByRole('button', { name: 'Check QR code' }).click()
+    const result = p.getByRole('article', { name: 'Analysis result' })
+    await result.waitFor({ timeout: 20000 })
+    const decoded = await p.getByTestId('open-checked-link').innerText()
+    if (!decoded.includes('https://flipkrat.com/rewards')) throw new Error(`decoded link: ${decoded.slice(0, 120)}`)
+    const text = await result.innerText()
+    if (!text.includes('MALICIOUS')) throw new Error(`verdict: ${text.slice(0, 120)}`)
+    if (!(await p.getByTestId('verdict-title').innerText()).trim()) throw new Error('no verdict title')
+    const section = (heading) => result.locator('section, div').filter({ has: p.getByRole('heading', { name: heading, exact: true }) }).last()
+    if (!(await section('Why this result').innerText()).includes("Look-alike of a well-known brand's domain")) {
+      throw new Error('look-alike reason missing')
+    }
+    if (!(await section('What you should do').innerText()).includes('Do not open, pay or connect using this QR code')) {
+      throw new Error('recommended action missing')
+    }
+    await p.screenshot({ path: `${ARTIFACTS}/web-e2e-qr-upload.png`, fullPage: true })
+  } finally {
+    await u.context.close()
+  }
 })
 
 await check('QR generator renders a Wi-Fi code under the production CSP', async () => {
