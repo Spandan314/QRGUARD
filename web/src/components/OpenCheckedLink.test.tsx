@@ -101,14 +101,13 @@ describe('Open checked link', () => {
     expect(open).not.toHaveBeenCalled()
   })
 
-  it('needs an explicit acknowledgement for a MALICIOUS link', async () => {
-    render(<ResultCard result={urlResult('https://amaz0n-offers.example/deal', 'https://amaz0n-offers.example/deal', maliciousUrl)} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Open checked link (not recommended)' }))
-    // Before the acknowledgement there is no link to follow, only a disabled button.
+  it.each(['SUSPICIOUS', 'MALICIOUS'] as const)('a %s link can only be copied, never opened', (level) => {
+    const base = urlResult('https://amaz0n-offers.example/deal', 'https://amaz0n-offers.example/deal', maliciousUrl)
+    render(<ResultCard result={{ ...base, risk_level: level, verdict: undefined }} />)
+    expect(screen.getByRole('button', { name: 'Copy link' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Open checked link/ })).toBeNull()
     expect(screen.queryByRole('link', { name: /in a new tab/ })).toBeNull()
-    expect(screen.getByRole('button', { name: 'Open amaz0n-offers.example in a new tab' })).toBeDisabled()
-    await userEvent.click(screen.getByLabelText('I understand this link is very likely dangerous'))
-    expect(confirmLink('amaz0n-offers.example').getAttribute('href')).toBe('https://amaz0n-offers.example/deal')
+    expect(screen.getByTestId('never-open-reason')).toHaveTextContent('does not offer to open links it found suspicious')
   })
 
   it.each([

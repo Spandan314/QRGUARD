@@ -27,12 +27,12 @@ export function AnalysisDetailsView({ result }: { result: AnalysisResult }) {
   if (!hasContent) return null
 
   return (
-    <details className="rounded-md border border-slate-200 px-4 py-3 dark:border-slate-700" open={Boolean(a.qr || a.ocr)}>
-      <summary className="cursor-pointer text-sm font-semibold text-slate-700 dark:text-slate-200">Technical details</summary>
+    <details className="rounded-panel border border-line px-4 py-3" open={Boolean(a.qr || a.ocr)}>
+      <summary className="cursor-pointer text-sm font-semibold text-ink">Technical details</summary>
       <div className="mt-3 space-y-4 text-sm">
         {rows.map((row) => (
           <p key={row.label}>
-            <span className="text-slate-500 dark:text-slate-400">{row.label}: </span>
+            <span className="text-muted">{row.label}: </span>
             <Plain>{row.value}</Plain>
           </p>
         ))}
@@ -40,14 +40,14 @@ export function AnalysisDetailsView({ result }: { result: AnalysisResult }) {
         {a.qr ? (
           <div data-testid="qr-details">
             <p>
-              <span className="text-slate-500 dark:text-slate-400">QR content ({a.qr.content_type}): </span>
+              <span className="text-muted">QR content ({a.qr.content_type}): </span>
               <Plain>{a.qr.decoded_content}</Plain>
             </p>
             {parsedRows.length > 0 ? (
               <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
                 {parsedRows.map(([key, value]) => (
                   <div key={key} className="contents">
-                    <dt className="text-slate-500 dark:text-slate-400">{key.replaceAll('_', ' ')}</dt>
+                    <dt className="text-muted">{key.replaceAll('_', ' ')}</dt>
                     <dd className="break-all">{formatValue(value)}</dd>
                   </div>
                 ))}
@@ -63,7 +63,7 @@ export function AnalysisDetailsView({ result }: { result: AnalysisResult }) {
               {a.qr_codes.map((code) => (
                 <li key={code.index} className="flex flex-wrap items-center gap-2">
                   {code.risk_level ? <RiskBadge verdict={code.risk_level === 'SAFE' ? 'UNVERIFIED' : code.risk_level} size="sm" /> : null}
-                  <span className="text-slate-500 dark:text-slate-400">{code.content_type}</span>
+                  <span className="text-muted">{code.content_type}</span>
                   <Plain>{code.decoded_content}</Plain>
                   {code.scored ? <span className="text-xs">(decided the result)</span> : null}
                 </li>
@@ -81,7 +81,7 @@ export function AnalysisDetailsView({ result }: { result: AnalysisResult }) {
                   {link.risk_level ? <RiskBadge verdict={link.risk_level === 'SAFE' ? 'UNVERIFIED' : link.risk_level} size="sm" /> : null}
                   <Plain>{link.url}</Plain>
                   {link.found_in === 'qr' ? <span className="text-xs">(from a QR code)</span> : null}
-                  {link.error ? <span className="text-xs text-slate-500">({link.error})</span> : null}
+                  {link.error ? <span className="text-xs text-muted">({link.error})</span> : null}
                 </li>
               ))}
             </ul>
@@ -92,22 +92,22 @@ export function AnalysisDetailsView({ result }: { result: AnalysisResult }) {
           <div data-testid="ocr-details">
             <p className="font-medium">
               Text read from the image{' '}
-              <span className="font-normal text-slate-500 dark:text-slate-400">
+              <span className="font-normal text-muted">
                 (OCR quality: {a.ocr.quality}
                 {a.ocr.confidence !== null ? `, ${Math.round(a.ocr.confidence)}%` : ''})
               </span>
             </p>
-            <p className="mt-1 whitespace-pre-wrap break-words rounded bg-slate-50 p-2 dark:bg-slate-800">
+            <p className="mt-1 whitespace-pre-wrap break-words rounded bg-panel-2 p-2">
               {a.ocr.extracted_text}
             </p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-1 text-xs text-muted">
               Compare this with your screenshot: text recognition can misread letters.
             </p>
           </div>
         ) : null}
 
         {a.image ? (
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs text-muted">
             Image: {a.image.format}, {a.image.width}×{a.image.height}, {formatBytes(a.image.size_bytes)}
           </p>
         ) : null}
