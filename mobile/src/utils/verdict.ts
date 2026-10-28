@@ -32,3 +32,27 @@ export function verdictOf(result: Pick<AnalysisResult, 'verdict' | 'risk_level' 
     explanation: result.verification.message,
   }
 }
+
+export const NOT_CONFIRMED = 'Not confirmed by a threat-intelligence source.'
+
+/**
+ * The verification note under the verdict. A SUSPICIOUS or MALICIOUS result that no source has
+ * confirmed says so plainly: the backend's generic "insufficient evidence" text (with its
+ * caveat about SAFE results) is meant for SAFE and UNVERIFIED results and is not shown under a
+ * warning. Its demo-blocklist note is kept, because it explains what the warning rests on.
+ */
+export function verificationNote(
+  result: Pick<AnalysisResult, 'verification'>,
+  verdict: Pick<Verdict, 'label' | 'evidence'>,
+): { heading: string; message: string | null } {
+  const { verification } = result
+  const warning = verdict.label === 'SUSPICIOUS' || verdict.label === 'MALICIOUS'
+  if (warning && verification.status !== 'VERIFIED') {
+    return { heading: `❔ ${NOT_CONFIRMED}`, message: verdict.evidence === 'demo_blocklist' ? verification.message : null }
+  }
+  const heading =
+    (verification.status === 'VERIFIED' ? '🔎 Verified' : '❔ Unverified') +
+    (verification.source === 'threat_intelligence' ? ' by threat intelligence' : '') +
+    (verification.source === 'trusted_domain_list' ? ' – recognised legitimate website' : '')
+  return { heading, message: verification.message }
+}

@@ -1,6 +1,6 @@
 import type { AnalysisResult, CheckStatus } from '../types/api'
 import { CONFIDENCE_TEXT, VERDICT_STYLE } from '../utils/format'
-import { verdictOf } from '../utils/verdict'
+import { verdictOf, verificationNote } from '../utils/verdict'
 import { AnalysisDetailsView } from './AnalysisDetails'
 import { IndicatorList } from './IndicatorList'
 import { OpenCheckedLink } from './OpenCheckedLink'
@@ -10,19 +10,14 @@ import { ScoreGauge } from './ScoreGauge'
 import { ThreatIntelStatus } from './ThreatIntelStatus'
 
 function VerificationNote({ result }: { result: AnalysisResult }) {
-  const { verification } = result
-  const verified = verification.status === 'VERIFIED'
+  const note = verificationNote(result, verdictOf(result))
   return (
     <div
       className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700"
       data-testid="verification"
     >
-      <p className="font-semibold">
-        {verified ? '🔎 Verified' : '❔ Unverified'}
-        {verification.source === 'threat_intelligence' ? ' by threat intelligence' : ''}
-        {verification.source === 'trusted_domain_list' ? ' – recognised legitimate website' : ''}
-      </p>
-      <p className="mt-1 text-slate-700 dark:text-slate-300">{verification.message}</p>
+      <p className="font-semibold">{note.heading}</p>
+      {note.message ? <p className="mt-1 text-slate-700 dark:text-slate-300">{note.message}</p> : null}
     </div>
   )
 }

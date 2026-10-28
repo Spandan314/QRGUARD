@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from 'react-native'
 import { colors, LEVEL_THEME, VERDICT_THEME } from '../constants/theme'
 import type { AnalysisResult, CheckStatus, RiskLevel } from '../types/api'
 import { CONFIDENCE_TEXT, PROVIDER_NAME, TI_STATUS_TEXT } from '../utils/format'
-import { verdictOf } from '../utils/verdict'
+import { verdictOf, verificationNote } from '../utils/verdict'
 import { IndicatorList } from './IndicatorList'
 import { OpenLinkGuard } from './OpenLinkGuard'
 import { ReportForm } from './ReportForm'
@@ -54,7 +54,7 @@ function linkIcon(level: RiskLevel): string {
 export function ResultView({ result }: { result: AnalysisResult }) {
   const verdict = verdictOf(result)
   const theme = VERDICT_THEME[verdict.label]
-  const verified = result.verification.status === 'VERIFIED'
+  const note = verificationNote(result, verdict)
   const a = result.analysis
   const target = openableTarget(result)
   const redirects = a.redirects
@@ -77,12 +77,8 @@ export function ResultView({ result }: { result: AnalysisResult }) {
       <Card>
         <ScoreGauge score={result.risk_score} level={result.risk_level} />
         <View testID="verification" style={{ gap: 2 }}>
-          <Text style={ui.label}>
-            {verified ? '🔎 Verified' : '❔ Unverified'}
-            {result.verification.source === 'threat_intelligence' ? ' by threat intelligence' : ''}
-            {result.verification.source === 'trusted_domain_list' ? ' – recognised legitimate website' : ''}
-          </Text>
-          <Text style={ui.body}>{result.verification.message}</Text>
+          <Text style={ui.label}>{note.heading}</Text>
+          {note.message ? <Text style={ui.body}>{note.message}</Text> : null}
         </View>
       </Card>
 
