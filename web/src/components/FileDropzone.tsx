@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type DragEvent } from 'react'
 import { ACCEPTED_IMAGE_TYPES, MAX_UPLOAD_BYTES } from '../services/api'
 import { formatBytes } from '../utils/format'
+import { Icon } from './Icon'
 
 interface Props {
   label: string
@@ -48,14 +49,14 @@ export function FileDropzone({ label, file, onFile, disabled = false }: Props) {
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        className={`flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 text-center transition ${
+        className={`flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center transition ${
           dragging
             ? 'border-teal-600 bg-teal-50 dark:bg-teal-950'
-            : 'border-slate-300 hover:border-teal-600 dark:border-slate-600'
+            : 'border-slate-300 bg-slate-50/60 hover:border-teal-600 dark:border-slate-600 dark:bg-slate-950'
         }`}
       >
-        <span className="text-3xl" aria-hidden="true">
-          🖼️
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          <Icon name="upload" />
         </span>
         <span className="font-medium">{label}</span>
         <span className="text-sm text-slate-500 dark:text-slate-400">

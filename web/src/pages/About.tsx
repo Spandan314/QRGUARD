@@ -1,7 +1,7 @@
 export default function About() {
   return (
     <div className="prose max-w-3xl space-y-4 dark:prose-invert">
-      <h1 className="text-3xl font-bold">About QRGUARD</h1>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">About QRGUARD</h1>
       <p>
         QRGUARD is an intelligent QR and digital scam detection system built as a final-year Computer Engineering
         project. It combines explainable rules, URL analysis, text recognition and threat-intelligence sources.

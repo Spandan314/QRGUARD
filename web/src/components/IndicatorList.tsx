@@ -23,33 +23,33 @@ export function IndicatorList({ indicators }: { indicators: Indicator[] }) {
     <div className="space-y-4">
       {SOURCE_ORDER.filter((source) => groups.has(source)).map((source) => (
         <section key={source} aria-label={SOURCE_LABEL[source]}>
-          <h4 className="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          <h4 className="mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-200">
             {SOURCE_LABEL[source]}
           </h4>
-          <ul className="space-y-2">
+          <ul className="divide-y divide-slate-100 rounded-md border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
             {[...(groups.get(source) ?? [])]
               .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity])
               .map((indicator, index) => (
                 <li
                   key={`${indicator.id}-${index}`}
-                  className="rounded-lg border border-slate-200 p-3 dark:border-slate-700"
+                  className="px-3 py-2.5"
                   data-testid="indicator"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="font-medium">{indicator.title}</span>
+                    <span className="text-sm font-medium">{indicator.title}</span>
                     <span className="flex items-center gap-2 text-xs">
-                      <span className={`rounded px-1.5 py-0.5 font-semibold uppercase ${SEVERITY_STYLE[indicator.severity]}`}>
+                      <span className={`rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${SEVERITY_STYLE[indicator.severity]}`}>
                         {indicator.severity}
                       </span>
                       <span
-                        className="font-mono text-slate-600 dark:text-slate-300"
+                        className="w-14 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300"
                         title="Points this sign added to the final score"
                       >
                         {formatPoints(indicator.score_contribution)} pts
                       </span>
                     </span>
                   </div>
-                  <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{indicator.message}</p>
+                  <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300">{indicator.message}</p>
                   {indicator.evidence ? (
                     <p className="mt-1 break-all text-xs text-slate-500 dark:text-slate-400">
                       Evidence: <span className="font-mono">{indicator.evidence}</span>

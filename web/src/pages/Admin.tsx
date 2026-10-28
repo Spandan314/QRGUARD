@@ -61,7 +61,7 @@ export default function Admin() {
   if (!profile?.admin) {
     return (
       <div className="space-y-2">
-        <h1 className="text-3xl font-bold">Admin</h1>
+        <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Admin</h1>
         <p>Administrator access is required.</p>
       </div>
     )
@@ -79,19 +79,19 @@ export default function Admin() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">Admin dashboard</h1>
+      <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Admin dashboard</h1>
       {error ? <ErrorAlert error={error} /> : null}
       {!stats ? <p role="status">Loading statistics…</p> : null}
       <section aria-label="Last 30 days" className={stats ? 'grid gap-3 sm:grid-cols-4' : 'hidden'}>
         {(
           [
             ['Checks', totals.total],
-            ['✅ Safe', totals.SAFE],
-            ['⚠️ Suspicious', totals.SUSPICIOUS],
-            ['⛔ Malicious', totals.MALICIOUS],
+            ['Safe', totals.SAFE],
+            ['Suspicious', totals.SUSPICIOUS],
+            ['Malicious', totals.MALICIOUS],
           ] as const
         ).map(([label, value]) => (
-          <div key={label} className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+          <div key={label} className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
             <p className="text-sm text-slate-500">{label} (30 days)</p>
             <p className="text-2xl font-bold" data-testid={`stat-${label}`}>
               {value}

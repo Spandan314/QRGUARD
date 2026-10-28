@@ -21,6 +21,7 @@ export default function MessageCheck() {
       title="Check a message"
       intro="Paste an SMS, WhatsApp or e-mail message. Links inside it are checked too. The text is not stored."
       state={state}
+      kind="message"
     >
       <form onSubmit={submit} className="space-y-3">
         <label htmlFor="message" className="block font-medium">

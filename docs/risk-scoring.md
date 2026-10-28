@@ -73,6 +73,9 @@ In the API, each indicator becomes:
 | `URL_MIXED_SCRIPT` | Letters from different alphabets in one label | url_structure | 25 | |
 | `URL_SCHEME_ASSUMED` | No `http(s)://` typed | url_structure | 0 (info) | |
 | `URL_PHISHING_KEYWORD` | `login`, `verify`, `kyc`, `refund`… (max 3 reported) | lexical | 5 each | |
+| `URL_KEYWORDS_IN_DOMAIN` | ≥ 2 phishing words in the domain name itself (`account-verify-login.com`; the account name on a shared host such as `login-secure.netlify.app`). Not for trusted domains, and not when a brand check already describes the domain | url_structure | 20 | |
+| `URL_EMAIL_IN_QUERY` | An e-mail address in the query (`login.php?email=a%40b.com`), as phishing kits use to personalise a fake sign-in. Not for trusted domains | url_structure | 15 | |
+| `URL_DOMAIN_IN_SUBDOMAIN` | A domain ending (`com`, `net`, `org`, `in`…) inside the subdomain: another website's address used as a prefix (`www.dropbox.com.download-file.xyz`). Not for trusted or shared hosts, and not when `OFFICIAL_DOMAIN_IN_SUBDOMAIN` already matched | url_structure | 20 | |
 | `OFFICIAL_DOMAIN_IN_SUBDOMAIN` | `sbi.co.in.kyc-verify.xyz` | brand | 40 | **60** |
 | `OFFICIAL_DOMAIN_IN_USERINFO` | `https://www.sbi.co.in@evil.xyz` | brand | 40 | **60** |
 | `BRAND_LOOKALIKE` | `paypa1.com`, `hdfcbnak.com`, Cyrillic `аpple.com` | brand | 40 | **60** |
@@ -214,6 +217,7 @@ Rules (configured in `verification:`):
 |---|---|
 | SAFE + VERIFIED | "No significant suspicious indicators detected, and the domain is on QRGUARD's list of recognised websites." |
 | SAFE + UNVERIFIED | "No significant suspicious indicators detected. The link could not be verified, so this does not guarantee that the website is safe." |
+| SAFE band (< 30) + UNVERIFIED, but some indicators added points | Verdict title "Not verified – minor warning signs found" (`verdict.evidence: "warning_signs"`), never "no known risks found". The label stays UNVERIFIED. |
 | SUSPICIOUS (any) | "Several warning signs were found. Treat this link as suspicious." |
 | MALICIOUS + VERIFIED (threat_intelligence) | "Strong warning signs…" plus verification message "A threat-intelligence source lists this as known malicious." |
 | MALICIOUS from the demo blocklist only (`TI_DEMO_LISTED`) | Same score floor (90) as a real listing so the demo works, but UNVERIFIED with the message "Listed only on QRGUARD's demo blocklist (demonstration data)…", `verdict.confirmed: false`, `verdict.evidence: "demo_blocklist"`, and no HIGH confidence from the floor alone. Real feeds downloaded with `ti-update-feeds` and the API providers produce `TI_LISTED`. |

@@ -6,7 +6,8 @@ describe('ResultCard', () => {
   it('shows the level with icon, word and score', () => {
     render(<ResultCard result={maliciousUrl} />)
     const badge = screen.getAllByTestId('risk-badge')[0]
-    expect(badge).toHaveTextContent('⛔')
+    expect(badge).toHaveAttribute('data-icon', 'x-octagon') // line icon, not an emoji
+    expect(badge?.querySelector('svg')).not.toBeNull()
     expect(badge).toHaveTextContent('MALICIOUS')
     expect(screen.getByRole('meter', { name: 'Risk score' })).toHaveAttribute('aria-valuenow', '73')
     expect(screen.getByText(maliciousUrl.summary)).toBeInTheDocument()
@@ -80,13 +81,13 @@ describe('ResultCard', () => {
     render(<ResultCard result={{ ...maliciousUrl, threat_intel: { checked: true, providers, note: 'n' } }} />)
     const outcomes = screen.getAllByTestId('ti-provider').map((row) => [row.textContent, row.dataset.outcome])
     expect(outcomes).toEqual([
-      ['Google Safe Browsing⛔ Listed as malicious', 'flagged'],
-      ['VirusTotal⛔ Flagged by some sources (2/94 engines)', 'flagged'],
-      ['PhishTank✓ Checked – not listed', 'checked'],
-      ['URLhaus⚠ Key rejected – not checked', 'not_checked'],
-      ['Local blocklist⚠ Rate limited – not checked', 'not_checked'],
-      ['other⚠ Unavailable – not checked', 'not_checked'],
-      ['disabled_one– Not configured', 'not_configured'],
+      ['Google Safe BrowsingListed as malicious', 'flagged'],
+      ['VirusTotalFlagged by some sources (2/94 engines)', 'flagged'],
+      ['PhishTankChecked – not listed', 'checked'],
+      ['URLhausKey rejected – not checked', 'not_checked'],
+      ['Local blocklistRate limited – not checked', 'not_checked'],
+      ['otherUnavailable – not checked', 'not_checked'],
+      ['disabled_oneNot configured', 'not_configured'],
     ])
     expect(screen.getByTestId('ti-summary')).toHaveTextContent(
       '3 of 7 sources checked this link, 3 could not, 1 not configured. A source that did not check this link says nothing about whether it is safe.',
@@ -185,7 +186,7 @@ describe('ResultCard layout', () => {
         }}
       />,
     )
-    const details = screen.getByText('Details').closest('details') as HTMLElement
+    const details = screen.getByText('Technical details').closest('details') as HTMLElement
     expect(within(details).getAllByText(url)).toHaveLength(1)
     expect(within(details).queryByText('Checked address:')).toBeNull()
   })
