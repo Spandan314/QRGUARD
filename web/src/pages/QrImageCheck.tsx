@@ -47,7 +47,7 @@ export default function QrImageCheck() {
       kind={mode === 'image' ? 'qr-image' : 'qr-content'}
       decodedOnDevice={mode === 'camera'}
     >
-      <div className="mb-5 inline-flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-slate-950" role="tablist" aria-label="How to read the QR code">
+      <div className="mb-5 inline-flex gap-1 rounded-btn bg-panel-2 p-1" role="tablist" aria-label="How to read the QR code">
         {(['image', 'camera'] as const).map((option) => (
           <button
             key={option}
@@ -58,10 +58,10 @@ export default function QrImageCheck() {
               setMode(option)
               setScanned(false)
             }}
-            className={`inline-flex min-h-11 items-center gap-2 rounded-md px-4 text-sm font-medium ${
+            className={`inline-flex min-h-11 items-center gap-2 rounded-[8px] px-4 text-sm font-medium ${
               mode === option
-                ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 dark:bg-slate-800 dark:text-white dark:ring-slate-700'
-                : 'text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white'
+                ? 'bg-panel text-ink ring-1 ring-line'
+                : 'text-muted hover:text-ink'
             }`}
           >
             <Icon name={option === 'image' ? 'upload' : 'camera'} className="h-4 w-4" />

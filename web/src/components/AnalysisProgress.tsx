@@ -45,33 +45,33 @@ export function AnalysisProgress({ kind, decodedOnDevice = false }: { kind: Anal
       role="status"
       aria-live="polite"
       aria-label="Analysis in progress"
-      className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+      className="rounded-panel border border-line bg-panel p-5"
       data-testid="analysis-progress"
     >
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="font-semibold">Analyzing…</h2>
-        <span className="text-xs tabular-nums text-slate-500 dark:text-slate-400" data-testid="analysis-elapsed">
+        <span className="text-xs tabular-nums text-muted" data-testid="analysis-elapsed">
           {seconds}s
         </span>
       </div>
-      <div className="mt-3 h-1 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" aria-hidden="true">
-        <div className="qg-indeterminate h-full w-2/5 rounded-full bg-teal-600" />
+      <div className="mt-3 h-1 overflow-hidden rounded-full bg-panel-2" aria-hidden="true">
+        <div className="qg-indeterminate h-full w-2/5 rounded-full bg-accent" />
       </div>
       <ol className="mt-4 space-y-2 text-sm">
         {decodedOnDevice ? (
-          <li className="flex items-center gap-2.5 text-slate-700 dark:text-slate-300">
-            <Icon name="check" className="h-4 w-4 text-teal-700 dark:text-teal-400" />
+          <li className="flex items-center gap-2.5 text-ink">
+            <Icon name="check" className="h-4 w-4 text-accent" />
             QR code decoded on this device
           </li>
         ) : null}
         {ANALYSIS_STAGES[kind].map((stage) => (
-          <li key={stage} className="flex items-center gap-2.5 text-slate-700 dark:text-slate-300" data-testid="analysis-stage">
-            <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-slate-300 border-t-teal-600 motion-reduce:animate-none dark:border-slate-600 dark:border-t-teal-400" aria-hidden="true" />
+          <li key={stage} className="flex items-center gap-2.5 text-ink" data-testid="analysis-stage">
+            <span className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-line border-t-accent motion-reduce:animate-none" aria-hidden="true" />
             {stage}
           </li>
         ))}
       </ol>
-      <p className="mt-4 text-xs text-slate-500 dark:text-slate-400">
+      <p className="mt-4 text-xs text-muted">
         {seconds >= SLOW_AFTER_SECONDS
           ? 'Still working – the server may be starting up, which can take up to a minute. You do not need to resubmit.'
           : 'The result appears as soon as the analysis finishes.'}

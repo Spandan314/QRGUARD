@@ -97,7 +97,7 @@ export function AnalysisDetailsView({ result }: { result: AnalysisResult }) {
                 {a.ocr.confidence !== null ? `, ${Math.round(a.ocr.confidence)}%` : ''})
               </span>
             </p>
-            <p className="mt-1 whitespace-pre-wrap break-words rounded bg-panel-2 p-2">
+            <p className="mt-1 whitespace-pre-wrap break-words rounded-btn bg-panel-2 p-2">
               {a.ocr.extracted_text}
             </p>
             <p className="mt-1 text-xs text-muted">

@@ -11,7 +11,7 @@ const PRIMARY = [
 ]
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
-  `inline-flex min-h-11 items-center rounded-btn px-3.5 text-sm font-medium transition-colors ${
+  `inline-flex min-h-11 items-center rounded-btn px-2.5 text-sm font-medium transition-colors sm:px-3.5 ${
     isActive ? 'bg-panel text-ink ring-1 ring-line' : 'text-muted hover:text-ink'
   }`
 
@@ -68,7 +68,7 @@ function MoreMenu() {
         aria-expanded={open}
         aria-controls="more-menu"
         onClick={() => setOpen(!open)}
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-btn px-3.5 text-sm font-medium text-muted hover:text-ink"
+        className="inline-flex min-h-11 items-center gap-1 rounded-btn px-2.5 text-sm font-medium text-muted hover:text-ink sm:gap-1.5 sm:px-3.5"
       >
         More
         <Icon name="chevron-down" className="h-4 w-4" />
@@ -114,7 +114,7 @@ export function Layout() {
           <div className="flex items-center gap-1 sm:order-last">
             <ThemeToggle />
           </div>
-          <nav aria-label="Main" className="order-last flex w-full flex-wrap items-center gap-1 sm:order-none sm:w-auto">
+          <nav aria-label="Main" className="order-last flex w-full flex-wrap items-center gap-0.5 sm:order-none sm:w-auto sm:gap-1">
             {PRIMARY.map((item) => (
               <NavLink key={item.to} to={item.to} end={item.end ?? false} className={navClass}>
                 {item.label}

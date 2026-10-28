@@ -14,9 +14,9 @@ export default function SecurityTips() {
       <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Safety tips</h1>
       <ul className="grid gap-4 sm:grid-cols-2">
         {TIPS.map((tip) => (
-          <li key={tip.title} className="rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
+          <li key={tip.title} className="rounded-panel border border-line bg-panel p-5">
             <h2 className="font-semibold">{tip.title}</h2>
-            <p className="mt-1 text-slate-600 dark:text-slate-300">{tip.text}</p>
+            <p className="mt-1 text-muted">{tip.text}</p>
           </li>
         ))}
       </ul>
