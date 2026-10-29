@@ -289,6 +289,26 @@ reports a missing URL while building, check `eas env:list --environment preview`
 Install the APK from the link or QR code EAS prints (allow "Install unknown apps" for the
 browser). Permissions: camera only (QR scanning); photos use the system picker.
 
+### 4a. APK without an Expo account (GitHub Actions)
+
+The `mobile-apk` workflow builds the same app on GitHub's runners (`expo prebuild` + Gradle):
+
+1. GitHub → **Actions** → **mobile-apk** → **Run workflow** (it also runs when `mobile/`
+   changes on `main`).
+2. When the run is green, the APK is published to the **`android-latest`** release. On the phone,
+   open `https://github.com/Spandan314/QRGUARD/releases/download/android-latest/QRGUARD.apk`
+   (no GitHub login needed) and install it (allow "Install unknown apps" for the browser).
+3. The same file is also attached to the run under **Artifacts** (needs a GitHub login; 30 days).
+   Pull-request runs build and verify the APK but do not publish it.
+
+Settings live under repository **Settings → Secrets and variables → Actions → Variables**, all
+public app values: `QRGUARD_API_BASE_URL` (defaults to the Render service) and, to enable
+sign-in, `EXPO_PUBLIC_FIREBASE_API_KEY`, `_AUTH_DOMAIN`, `_PROJECT_ID`, `_APP_ID`. Without the
+Firebase values sign-in is off and every check still works. The build targets 64-bit ARM phones
+and is signed with a debug key: fine for installing directly, not for the Play Store (use EAS
+`production` for that). The workflow fails if the app would lack the camera permission or gain
+microphone/storage permissions.
+
 ---
 
 ## 5. Go-live checklist
