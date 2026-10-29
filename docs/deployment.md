@@ -104,7 +104,7 @@ defaults only; every secret is `sync: false`, so Render asks for it.
 
    | Variable | Value |
    |---|---|
-   | `ALLOWED_ORIGINS` | your Vercel URL(s), comma-separated, exact origins, e.g. `https://qrguard.vercel.app`. You can put a placeholder such as `https://example.invalid` now and correct it after step 3. `*` is refused. |
+   | `ALLOWED_ORIGINS` | your Vercel URL(s), comma-separated, exact origins, e.g. `https://qrguard.vercel.app`. You can put a placeholder such as `https://example.invalid` now and correct it after step 3. `*` and patterns such as `https://*.vercel.app` are refused. |
    | `FIREBASE_PROJECT_ID` | the Firebase project ID. Leave empty to run without sign-in/history (analysis still works; history answers 503). |
    | `URLHAUS_AUTH_KEY`, `GOOGLE_SAFE_BROWSING_API_KEY`, `VIRUSTOTAL_API_KEY`, `PHISHTANK_API_KEY` | **secret**, optional. Empty = provider disabled; the demo blocklist still works. |
 
@@ -223,8 +223,31 @@ docker run -p 5000:5000 -e APP_ENV=production -e ALLOWED_ORIGINS=https://your-we
    - Firebase → Authentication → **Settings → Authorized domains** → add the Vercel domain.
    - Re-run the smoke test with `--web-origin https://<your-app>.vercel.app`.
 
-Vercel *preview* URLs change per deployment; add one to `ALLOWED_ORIGINS` only if you need to
-test a preview against the production backend.
+### Testing a Vercel preview against the Render backend
+
+The backend answers CORS only for the exact origins in `ALLOWED_ORIGINS`. A preview has its own
+origin, so until it is listed the browser blocks every call. The server still answers (Render
+logs show `200`), but the response has no `Access-Control-Allow-Origin` header. DevTools shows
+`No 'Access-Control-Allow-Origin' header is present` and `net::ERR_FAILED 200 (OK)`, and the web
+app shows "Cannot reach the QRGUARD server". This is not an outage.
+
+To allow one preview:
+
+1. Use the preview's **branch alias**, which stays the same for every push to that branch, for
+   example `https://qrguard-git-<branch>-<team>.vercel.app`. The per-deployment URLs (with a random
+   hash) change on every push.
+2. Render → **qrguard-api → Environment → `ALLOWED_ORIGINS`** → append it after a comma, keeping
+   the production origin:
+   `https://qrguard.vercel.app,https://qrguard-git-<branch>-<team>.vercel.app`
+   Then choose **Save and deploy**.
+3. Check it: `python scripts/smoke_test.py https://<service>.onrender.com --web-origin <preview origin>`.
+4. Remove the preview origin again when the branch is merged.
+
+Each entry must be an exact origin (`https://host` or `https://host:port`, no path). The backend
+refuses to start with wildcards or patterns such as `https://*.vercel.app`: flask-cors would treat
+them as regular expressions and allow any matching site, including other people's apps on
+`vercel.app`. Sign-in from a preview also needs its domain under Firebase → Authentication →
+Authorized domains; checks work without it.
 
 ---
 
@@ -265,6 +288,26 @@ reports a missing URL while building, check `eas env:list --environment preview`
 
 Install the APK from the link or QR code EAS prints (allow "Install unknown apps" for the
 browser). Permissions: camera only (QR scanning); photos use the system picker.
+
+### 4a. APK without an Expo account (GitHub Actions)
+
+The `mobile-apk` workflow builds the same app on GitHub's runners (`expo prebuild` + Gradle):
+
+1. GitHub → **Actions** → **mobile-apk** → **Run workflow** (it also runs when `mobile/`
+   changes on `main`).
+2. When the run is green, the APK is published to the **`android-latest`** release. On the phone,
+   open `https://github.com/Spandan314/QRGUARD/releases/download/android-latest/QRGUARD.apk`
+   (no GitHub login needed) and install it (allow "Install unknown apps" for the browser).
+3. The same file is also attached to the run under **Artifacts** (needs a GitHub login; 30 days).
+   Pull-request runs build and verify the APK but do not publish it.
+
+Settings live under repository **Settings → Secrets and variables → Actions → Variables**, all
+public app values: `QRGUARD_API_BASE_URL` (defaults to the Render service) and, to enable
+sign-in, `EXPO_PUBLIC_FIREBASE_API_KEY`, `_AUTH_DOMAIN`, `_PROJECT_ID`, `_APP_ID`. Without the
+Firebase values sign-in is off and every check still works. The build targets 64-bit ARM phones
+and is signed with a debug key: fine for installing directly, not for the Play Store (use EAS
+`production` for that). The workflow fails if the app would lack the camera permission or gain
+microphone/storage permissions.
 
 ---
 
