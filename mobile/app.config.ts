@@ -63,7 +63,9 @@ const config: ExpoConfig = {
       'expo-image-picker',
       {
         photosPermission: 'QRGUARD needs access to the photo you choose to check it for scams.',
-        cameraPermission: false,
+        // No `cameraPermission: false` here: the plugin turns that into an app-wide *blocked*
+        // CAMERA permission, which would also take the camera away from the QR scanner above.
+        // The picker never opens the camera (it only uses launchImageLibraryAsync).
         microphonePermission: false,
       },
     ],

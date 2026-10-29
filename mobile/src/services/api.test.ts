@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, jest } from '@jest/globals'
+import { Platform } from 'react-native'
 import { jsonResponse, maliciousUrl } from '../test/fixtures'
 import { api, ApiError } from './api'
 
@@ -33,6 +34,25 @@ describe('api client', () => {
     // fetch must set the multipart boundary itself
     expect((init?.headers as Record<string, string>)['Content-Type']).toBeUndefined()
     expect(String(fetchMock.mock.calls[0]?.[0])).toMatch(/\/api\/analyze\/screenshot$/)
+  })
+
+  it('on the web build, uploads the picked image as a real file (not "[object Object]")', async () => {
+    const original = Platform.OS
+    Object.defineProperty(Platform, 'OS', { value: 'web', configurable: true })
+    try {
+      const fetchMock = stubFetch(async (input) =>
+        String(input).startsWith('blob:') ? new Response(new Blob(['jpeg-bytes'])) : jsonResponse(maliciousUrl),
+      )
+      await api.analyzeImage({ uri: 'blob:http://localhost/1234', name: 'image.jpg', mimeType: 'image/jpeg' })
+      expect(String(fetchMock.mock.calls[0]?.[0])).toBe('blob:http://localhost/1234') // read locally first
+      const body = fetchMock.mock.calls[1]?.[1]?.body as FormData
+      const file = body.get('file') as File
+      expect(file).toBeInstanceOf(Blob)
+      expect([file.name, file.type, await file.text()]).toEqual(['image.jpg', 'image/jpeg', 'jpeg-bytes'])
+      expect(body.get('save_to_history')).toBe('false')
+    } finally {
+      Object.defineProperty(Platform, 'OS', { value: original, configurable: true })
+    }
   })
 
   it('tells an interrupted upload apart from being offline', async () => {

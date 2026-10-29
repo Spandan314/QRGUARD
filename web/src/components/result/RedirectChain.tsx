@@ -22,7 +22,7 @@ export function RedirectChain({ chain }: { chain: string[] }) {
           </li>
         ))}
       </ol>
-      <p className="mt-3 text-sm text-muted">Short links are followed on our server, so you see the final destination without visiting it.</p>
+      <p className="mt-3 text-sm text-muted">We followed the link on our server, so you can see where it really goes without visiting it.</p>
     </section>
   )
 }

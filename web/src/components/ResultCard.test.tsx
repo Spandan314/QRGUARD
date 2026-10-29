@@ -40,8 +40,8 @@ describe('ResultCard', () => {
 
   it('shows a threat-intelligence verification', () => {
     render(<ResultCard result={tiListed} />)
-    expect(screen.getByTestId('verification')).toHaveTextContent('Verified by threat intelligence')
-    expect(screen.getByText(/Listed as malicious · demo list only/)).toBeInTheDocument()
+    expect(screen.getByTestId('verification')).toHaveTextContent('Verified by a scam database')
+    expect(screen.getByText(/On our test list only \(demo data\)/)).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Threat intelligence' })).toBeInTheDocument()
   })
 
@@ -64,8 +64,8 @@ describe('ResultCard', () => {
 
   it('shows provider problems honestly', () => {
     render(<ResultCard result={maliciousUrl} />)
-    expect(screen.getByText('Timed out – not checked')).toBeInTheDocument()
-    expect(screen.getByText('Not configured')).toBeInTheDocument()
+    expect(screen.getByText('Too slow to answer – not checked')).toBeInTheDocument()
+    expect(screen.getByText('Not set up')).toBeInTheDocument()
   })
 
   it('tells checked, flagged, failed and unconfigured sources apart, and never calls a failure clean', () => {
@@ -81,16 +81,16 @@ describe('ResultCard', () => {
     render(<ResultCard result={{ ...maliciousUrl, threat_intel: { checked: true, providers, note: 'n' } }} />)
     const outcomes = screen.getAllByTestId('ti-provider').map((row) => [row.textContent, row.dataset.outcome])
     expect(outcomes).toEqual([
-      ['Google Safe BrowsingListed as malicious', 'flagged'],
+      ['Google Safe BrowsingListed as dangerous', 'flagged'],
       ['VirusTotalFlagged by some sources (2/94 engines)', 'flagged'],
-      ['PhishTankChecked – not listed', 'checked'],
+      ['PhishTankChecked – not on the list', 'checked'],
       ['URLhausKey rejected – not checked', 'not_checked'],
-      ['Local blocklistRate limited – not checked', 'not_checked'],
-      ['otherUnavailable – not checked', 'not_checked'],
-      ['disabled_oneNot configured', 'not_configured'],
+      ['Local blocklistBusy, try later – not checked', 'not_checked'],
+      ['otherDid not answer – not checked', 'not_checked'],
+      ['disabled_oneNot set up', 'not_configured'],
     ])
     expect(screen.getByTestId('ti-summary')).toHaveTextContent(
-      '3 of 7 sources checked this link, 3 could not, 1 not configured. A source that did not check this link says nothing about whether it is safe.',
+      '3 of 7 scam databases checked this, 3 did not answer, 1 not set up. A database that did not check it tells us nothing either way.',
     )
   })
 
@@ -122,7 +122,7 @@ describe('ResultCard verification note', () => {
 
   it.each(['MALICIOUS', 'SUSPICIOUS'] as const)('%s without confirmation says so, without the SAFE caveat', (level) => {
     render(<ResultCard result={{ ...maliciousUrl, risk_level: level, verification: unconfirmed }} />)
-    expect(note()).toHaveTextContent('Not confirmed by a threat-intelligence source.')
+    expect(note()).toHaveTextContent('Not confirmed by a scam database.')
     expect(note()).not.toHaveTextContent(/Verified|SAFE result/)
     expect(screen.queryByText(/A SAFE result does not guarantee/)).toBeNull()
   })
@@ -138,13 +138,13 @@ describe('ResultCard verification note', () => {
         }}
       />,
     )
-    expect(note()).toHaveTextContent('Not confirmed by a threat-intelligence source.')
+    expect(note()).toHaveTextContent('Not confirmed by a scam database.')
     expect(note()).toHaveTextContent(demo)
   })
 
   it('a warning confirmed by threat intelligence still says so', () => {
     render(<ResultCard result={tiListed} />)
-    expect(note()).toHaveTextContent('Verified by threat intelligence')
+    expect(note()).toHaveTextContent('Verified by a scam database')
     expect(note()).not.toHaveTextContent('Not confirmed')
   })
 
@@ -158,7 +158,7 @@ describe('ResultCard verification note', () => {
   it('SAFE keeps the backend message', () => {
     const verification = { status: 'VERIFIED' as const, source: 'trusted_domain_list' as const, message: 'Recognised.' }
     render(<ResultCard result={{ ...safeUnverified, verification }} />)
-    expect(note()).toHaveTextContent('Verified – recognised legitimate website')
+    expect(note()).toHaveTextContent('Verified – a known, genuine website')
     expect(note()).toHaveTextContent('Recognised.')
   })
 })

@@ -50,9 +50,9 @@ export function claimsVsReality(result: AnalysisResult, verdict: VerdictLabel): 
     const own = brand.match_type === 'official'
     rows.push({
       key: 'who',
-      label: 'Who it is',
+      label: 'Who it says it is',
       claim: brand.brand,
-      found: own ? `${brand.brand}'s own domain (${owner})` : `A site on ${owner}`,
+      found: own ? `${brand.brand}'s own website (${owner})` : `A website on ${owner}`,
       matches: own,
     })
   }
@@ -61,13 +61,13 @@ export function claimsVsReality(result: AnalysisResult, verdict: VerdictLabel): 
   const tricked = has(result, ...ADDRESS_TRICKS)
   rows.push({
     key: 'address',
-    label: 'Address',
+    label: 'Web address',
     claim: shown,
     found: tricked
       ? `The real owner is ${owner}${brand && brand.match_type !== 'official' ? `, not ${brand.brand}` : ''}`
       : a.subdomain
         ? `Owned by ${owner}`
-        : `${owner}, as written`,
+        : `${owner}, as it looks`,
     matches: !tricked,
   })
 
@@ -76,9 +76,9 @@ export function claimsVsReality(result: AnalysisResult, verdict: VerdictLabel): 
     const recent = age.age_days < 30
     rows.push({
       key: 'age',
-      label: 'Age of the domain',
-      claim: `${brand.brand}: an established organisation`,
-      found: `${owner} was registered ${age.age_days} day${age.age_days === 1 ? '' : 's'} ago`,
+      label: 'How old the website is',
+      claim: `${brand.brand} has been around for years`,
+      found: `${owner} was set up only ${age.age_days} day${age.age_days === 1 ? '' : 's'} ago`,
       matches: !recent,
     })
   }
@@ -90,7 +90,7 @@ export function claimsVsReality(result: AnalysisResult, verdict: VerdictLabel): 
       key: 'asks',
       label: 'What it asks for',
       claim: `“${words.join(' · ')}”`,
-      found: suspicious ? 'Wording used to make a fake page look official' : 'Ordinary wording; no other warning signs',
+      found: suspicious ? 'Words scammers use to make a fake page look official' : 'Ordinary words; no other warning signs',
       matches: !suspicious,
     })
   }
@@ -98,13 +98,13 @@ export function claimsVsReality(result: AnalysisResult, verdict: VerdictLabel): 
   if (a.scheme === 'https') {
     rows.push({
       key: 'padlock',
-      label: 'Padlock / HTTPS',
-      claim: warning(verdict) ? 'Padlock: looks “secure”' : 'Padlock (https)',
-      found: 'The padlock only means encrypted, not honest',
+      label: 'Padlock (https)',
+      claim: warning(verdict) ? 'Has a padlock, so it looks “secure”' : 'Has a padlock (https)',
+      found: 'A padlock only means the connection is private, not that the site is honest',
       matches: !warning(verdict),
     })
   } else if (a.scheme === 'http') {
-    rows.push({ key: 'padlock', label: 'Padlock / HTTPS', claim: 'No padlock (http)', found: 'Not encrypted: what you type can be read on the way', matches: false })
+    rows.push({ key: 'padlock', label: 'Padlock (https)', claim: 'No padlock (http)', found: 'Not private: what you type can be read by others on the way', matches: false })
   }
   return rows
 }
@@ -163,7 +163,7 @@ export function scoreBreakdown(result: AnalysisResult): { rows: BreakdownRow[]; 
     .map((i) => ({ label: i.evidence ? `${i.title} (${i.evidence.replace(/^destination:\s*/, '')})` : i.title, points: i.score_contribution }))
   const floor = result.score_breakdown?.floor_applied
   if (floor && floor.points_added > 0) {
-    rows.push({ label: `Minimum score for “${titleOf(floor.indicator)}”`, points: floor.points_added })
+    rows.push({ label: `Minimum score because of “${titleOf(floor.indicator)}”`, points: floor.points_added })
   }
   return { rows, total: result.risk_score }
 }
@@ -196,29 +196,29 @@ export function xrayNotes(result: AnalysisResult, parts: XrayPart[], verdict: Ve
     if (part.kind === 'scheme') {
       notes.push(
         a.scheme === 'https'
-          ? { title: 'HTTPS', text: 'Only means the connection is encrypted. Scam sites use it too.' }
-          : { title: a.scheme?.toUpperCase() ?? 'Scheme', text: a.scheme === 'http' ? 'Not encrypted: what you type can be read on the way.' : 'Not a normal web address.' },
+          ? { title: 'Start (https)', text: 'Only means the connection is private. Scam sites have it too.' }
+          : { title: a.scheme?.toUpperCase() ?? 'Scheme', text: a.scheme === 'http' ? 'Not private: what you type can be read by others on the way.' : 'Not a normal web address.' },
       )
     } else if (part.kind === 'subdomain') {
       notes.push(
         part.lookalikes.length
-          ? { title: 'Look-alike name', text: 'Uses a digit or a foreign letter in place of a normal letter. Anything left of the owner can be typed freely.' }
-          : { title: 'Decoration', text: 'Anything left of the owner can be typed freely by whoever owns the domain.' },
+          ? { title: 'Made-up part (with look-alike letters)', text: 'Uses a number or a foreign letter in place of a normal letter. The owner can type anything here.' }
+          : { title: 'Made-up part', text: 'The owner of the website can type anything here, even a bank’s name.' },
       )
     } else if (part.kind === 'owner') {
       const brand = a.brand
       const notBrand = brand && brand.match_type !== 'official' ? `, not ${brand.brand}` : ''
-      const age = a.domain_age?.status === 'found' && a.domain_age.age_days !== null ? ` Registered ${a.domain_age.age_days} days ago.` : ''
+      const age = a.domain_age?.status === 'found' && a.domain_age.age_days !== null ? ` Set up only ${a.domain_age.age_days} days ago.` : ''
       notes.push({
-        title: part.lookalikes.length ? 'Look-alike owner' : 'Who owns it',
+        title: part.lookalikes.length ? 'Real owner (with look-alike letters)' : 'Real owner',
         text: `${a.domain}${notBrand}.${age}`,
       })
     } else {
       const words = linkWords(result)
       notes.push(
         words.length && warning(verdict)
-          ? { title: 'Wording', text: `“${words.join(', ')}” pages are a common way to steal logins and OTPs.` }
-          : { title: 'Path', text: 'The page on that website.' },
+          ? { title: 'Page', text: `“${words.join(', ')}” pages are a common way to steal passwords and OTPs.` }
+          : { title: 'Page', text: 'The page on that website.' },
       )
     }
   }

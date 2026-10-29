@@ -16,13 +16,13 @@ afterEach(() => {
 describe('InspectionPass', () => {
   it('shows the ticket with the stamp, the pass number and no link', () => {
     render(<InspectionPass result={maliciousUrl} />)
-    expect(screen.getByRole('img', { name: 'Verdict stamp: denied' })).toHaveTextContent('DENIED')
-    expect(screen.getByTestId('pass-number')).toHaveTextContent('PASS NO. QG-REQ123')
+    expect(screen.getByRole('img', { name: 'Result stamp: danger' })).toHaveTextContent('DANGER')
+    expect(screen.getByTestId('pass-number')).toHaveTextContent('CHECK NO. QG-REQ123')
     expect(screen.getByTestId('pass-ticket').querySelector('a')).toBeNull()
     expect(screen.getByTestId('pass-ticket')).not.toHaveTextContent(/confirm|scan this/i)
   })
 
-  it('stamps a not verified result NOT VERIFIED, never CLEARED', () => {
+  it('stamps a not verified result NOT VERIFIED, never SAFE', () => {
     render(<InspectionPass result={safeUnverified} />)
     expect(screen.getByTestId('pass-stamp')).toHaveTextContent('NOT VERIFIED')
   })
@@ -31,21 +31,21 @@ describe('InspectionPass', () => {
     const share = vi.fn(async () => {})
     setShare(share)
     render(<InspectionPass result={maliciousUrl} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Share the pass' }))
-    expect(share).toHaveBeenCalledWith(expect.objectContaining({ title: 'QRGUARD inspection pass QG-REQ123', text: expect.stringContaining('DENIED') }))
-    expect(screen.getByTestId('pass-status')).toHaveTextContent('Pass shared.')
+    await userEvent.click(screen.getByRole('button', { name: 'Share the card' }))
+    expect(share).toHaveBeenCalledWith(expect.objectContaining({ title: 'QRGUARD check QG-REQ123', text: expect.stringContaining('DANGER') }))
+    expect(screen.getByTestId('pass-status')).toHaveTextContent('Shared.')
   })
 
   it('copies the text when the browser cannot share, and does nothing when the user cancels', async () => {
     const user = userEvent.setup()
     render(<InspectionPass result={maliciousUrl} />)
-    await user.click(screen.getByRole('button', { name: 'Share the pass' }))
-    expect(await navigator.clipboard.readText()).toMatch(/^QRGUARD inspection pass QG-REQ123: DENIED\./)
-    expect(screen.getByTestId('pass-status')).toHaveTextContent('Pass copied')
+    await user.click(screen.getByRole('button', { name: 'Share the card' }))
+    expect(await navigator.clipboard.readText()).toMatch(/^QRGUARD check QG-REQ123: DANGER\./)
+    expect(screen.getByTestId('pass-status')).toHaveTextContent('Copied')
 
     setShare(vi.fn(async () => Promise.reject(new DOMException('cancelled', 'AbortError'))))
-    await user.click(screen.getByRole('button', { name: 'Share the pass' }))
-    expect(screen.getByTestId('pass-status')).toHaveTextContent('Pass copied') // unchanged
+    await user.click(screen.getByRole('button', { name: 'Share the card' }))
+    expect(screen.getByTestId('pass-status')).toHaveTextContent('Copied') // unchanged
   })
 
   it('says so when the image cannot be drawn', async () => {

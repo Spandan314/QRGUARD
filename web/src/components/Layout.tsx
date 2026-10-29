@@ -1,17 +1,23 @@
-import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet } from 'react-router'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../hooks/useTheme'
 import { Icon } from './Icon'
 
-const PRIMARY = [
-  { to: '/', label: 'Airlock', end: true },
+// Every page is one tap away on the main bar: no hidden menus. On phones the bar wraps.
+const NAV = [
+  { to: '/', label: 'Check anything', end: true },
+  { to: '/check/url', label: 'Link' },
+  { to: '/check/message', label: 'Message' },
+  { to: '/check/qr', label: 'QR code' },
+  { to: '/check/screenshot', label: 'Screenshot' },
+  { to: '/generate', label: 'Make a QR' },
   { to: '/history', label: 'History' },
-  { to: '/tips', label: 'Scam guide' },
+  { to: '/tips', label: 'Safety tips' },
+  { to: '/about', label: 'About' },
 ]
 
 const navClass = ({ isActive }: { isActive: boolean }) =>
-  `inline-flex min-h-11 items-center rounded-btn px-2.5 text-sm font-medium transition-colors sm:px-3.5 ${
+  `inline-flex min-h-11 items-center rounded-btn px-3 text-sm font-medium transition-colors ${
     isActive ? 'bg-panel text-ink ring-1 ring-line' : 'text-muted hover:text-ink'
   }`
 
@@ -32,67 +38,26 @@ function ThemeToggle() {
   )
 }
 
-/** Everything that is not in the three main links, so every existing page stays one click away. */
-function MoreMenu() {
+/** Sign in / Account (when sign-in is set up) and Admin (for admins), beside the theme switch. */
+function AccountLinks() {
   const { client, user, profile } = useAuth()
-  const [open, setOpen] = useState(false)
-  const box = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const onDown = (event: MouseEvent) => {
-      if (box.current && !box.current.contains(event.target as Node)) setOpen(false)
-    }
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false)
-    document.addEventListener('mousedown', onDown)
-    document.addEventListener('keydown', onKey)
-    return () => {
-      document.removeEventListener('mousedown', onDown)
-      document.removeEventListener('keydown', onKey)
-    }
-  }, [open])
-
-  const items = [
-    { to: '/check/url', label: 'Check a link' },
-    { to: '/check/message', label: 'Check a message' },
-    { to: '/check/qr', label: 'Check a QR code' },
-    { to: '/check/screenshot', label: 'Check a screenshot' },
-    { to: '/generate', label: 'Make a QR' },
-    { to: '/about', label: 'About' },
-    ...(client.mode !== 'off' ? [{ to: '/account', label: user ? 'Account' : 'Sign in' }] : []),
-    ...(profile?.admin ? [{ to: '/admin', label: 'Admin' }] : []),
-  ]
+  const link = ({ isActive }: { isActive: boolean }) =>
+    `inline-flex min-h-11 items-center rounded-btn border px-3 text-sm font-medium ${
+      isActive ? 'border-accent text-ink' : 'border-line text-ink hover:bg-panel'
+    }`
   return (
-    <div className="relative" ref={box}>
-      <button
-        type="button"
-        aria-expanded={open}
-        aria-controls="more-menu"
-        onClick={() => setOpen(!open)}
-        className="inline-flex min-h-11 items-center gap-1 rounded-btn px-2.5 text-sm font-medium text-muted hover:text-ink sm:gap-1.5 sm:px-3.5"
-      >
-        More
-        <Icon name="chevron-down" className="h-4 w-4" />
-      </button>
-      <ul
-        id="more-menu"
-        hidden={!open}
-        className="absolute left-0 z-20 mt-2 w-56 rounded-panel sm:right-0 sm:left-auto border border-line bg-panel p-1.5"
-      >
-        {items.map((item) => (
-          <li key={item.to}>
-            <NavLink
-              to={item.to}
-              onClick={() => setOpen(false)}
-              className={({ isActive }) =>
-                `flex min-h-11 items-center rounded-btn px-3 text-sm ${isActive ? 'bg-panel-2 text-ink' : 'text-muted hover:bg-panel-2 hover:text-ink'}`
-              }
-            >
-              {item.label}
-            </NavLink>
-          </li>
-        ))}
-      </ul>
-    </div>
+    <>
+      {profile?.admin ? (
+        <NavLink to="/admin" className={link}>
+          Admin
+        </NavLink>
+      ) : null}
+      {client.mode !== 'off' ? (
+        <NavLink to="/account" className={link}>
+          {user ? 'Account' : 'Sign in'}
+        </NavLink>
+      ) : null}
+    </>
   )
 }
 
@@ -106,30 +71,30 @@ export function Layout() {
         Skip to content
       </a>
       <header className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line py-3">
+        <div className="flex items-center justify-between gap-3 pt-3 pb-2">
           <Link to="/" className="font-display text-xl font-bold tracking-tight" aria-label="QRGUARD home">
             <span className="text-ink">QR</span>
             <span className="text-accent">GUARD</span>
           </Link>
-          <div className="flex items-center gap-1 sm:order-last">
+          <div className="flex items-center gap-2">
+            <AccountLinks />
             <ThemeToggle />
           </div>
-          <nav aria-label="Main" className="order-last flex w-full flex-wrap items-center gap-0.5 sm:order-none sm:w-auto sm:gap-1">
-            {PRIMARY.map((item) => (
-              <NavLink key={item.to} to={item.to} end={item.end ?? false} className={navClass}>
-                {item.label}
-              </NavLink>
-            ))}
-            <MoreMenu />
-          </nav>
         </div>
+        <nav aria-label="Main" className="flex flex-wrap items-center gap-1 border-b border-line pb-2">
+          {NAV.map((item) => (
+            <NavLink key={item.to} to={item.to} end={item.end ?? false} className={navClass}>
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
       </header>
       <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
         <Outlet />
       </main>
       <footer className="mx-auto w-full max-w-6xl px-4 sm:px-6">
         <div className="border-t border-line py-6 text-xs text-muted">
-          <p>QRGUARD gives an automated security assessment, not a guarantee. Your device never opens the links you check.</p>
+          <p>QRGUARD gives an automatic check, not a guarantee. We check links on our server, so your phone never opens them.</p>
           <p className="mt-1">In India, report financial fraud by calling 1930 or at cybercrime.gov.in.</p>
         </div>
       </footer>

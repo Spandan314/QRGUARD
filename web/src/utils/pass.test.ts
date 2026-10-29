@@ -5,8 +5,8 @@ import { STAMP, defang, passData, passNumber } from './pass'
 const at = new Date(2026, 9, 28, 19, 4)
 
 describe('inspection pass', () => {
-  it('stamps each verdict, and never stamps NOT VERIFIED as cleared', () => {
-    expect(STAMP).toEqual({ MALICIOUS: 'DENIED', SUSPICIOUS: 'CAUTION', SAFE: 'CLEARED', UNVERIFIED: 'NOT VERIFIED' })
+  it('stamps each verdict, and never stamps NOT VERIFIED as safe', () => {
+    expect(STAMP).toEqual({ MALICIOUS: 'DANGER', SUSPICIOUS: 'CAUTION', SAFE: 'SAFE', UNVERIFIED: 'NOT VERIFIED' })
     expect(passData(safeUnverified, at).stamp).toBe('NOT VERIFIED')
   })
 
@@ -23,10 +23,10 @@ describe('inspection pass', () => {
     const pass = passData(fake, at)
     expect(pass.title).toBe('sbi.co.in.kyc-verify.xyz')
     expect(pass.fields).toEqual([
-      { label: 'CLAIMS', value: 'State Bank of India' },
-      { label: 'ACTUALLY', value: 'A site on kyc-verify.xyz' },
-      { label: 'FOUND', value: 'Real brand address used as a disguise' },
-      { label: 'CHECKED', value: '28 Oct · 19:04' },
+      { label: 'SAYS IT IS', value: 'State Bank of India' },
+      { label: 'REALLY IS', value: 'A website on kyc-verify.xyz' },
+      { label: 'MAIN FINDING', value: 'Real brand address used as a disguise' },
+      { label: 'CHECKED ON', value: '28 Oct · 19:04' },
     ])
   })
 
@@ -41,8 +41,8 @@ describe('inspection pass', () => {
   it('names a UPI QR by its payee and leaves out facts that are missing', () => {
     const pass = passData(qrResult, at)
     expect(pass.title).toBe('UPI QR · refund.desk9912@okdemo')
-    expect(pass.fields.map((f) => f.label)).toEqual(['FOUND', 'CHECKED']) // no payee name: no CLAIMS/ACTUALLY
+    expect(pass.fields.map((f) => f.label)).toEqual(['MAIN FINDING', 'CHECKED ON']) // no payee name: no SAYS IT IS / REALLY IS
     expect(passData(screenshotResult, at).title).toBe('A screenshot')
-    expect(passData(safeUnverified, at).fields[0]).toEqual({ label: 'FOUND', value: 'No warning signs, not confirmed' })
+    expect(passData(safeUnverified, at).fields[0]).toEqual({ label: 'MAIN FINDING', value: 'No warning signs, not confirmed' })
   })
 })

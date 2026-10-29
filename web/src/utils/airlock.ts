@@ -54,11 +54,11 @@ export interface Stage {
 }
 
 const STAGE_LABELS: [Stage['id'], string][] = [
-  ['decoded', 'Decoded'],
-  ['unshortened', 'Unshortened'],
-  ['inspected', 'Inspected'],
-  ['threats', 'Threat lists'],
-  ['verdict', 'Verdict'],
+  ['decoded', 'Read it'],
+  ['unshortened', 'Followed the link'],
+  ['inspected', 'Warning signs'],
+  ['threats', 'Scam databases'],
+  ['verdict', 'Result'],
 ]
 
 /** While the request runs: the server works on the first four together, the verdict waits. */
@@ -66,7 +66,7 @@ export function runningStages(): Stage[] {
   return STAGE_LABELS.map(([id, label]) =>
     id === 'verdict'
       ? { id, label, state: 'waiting', detail: 'waiting' }
-      : { id, label, state: 'active', detail: 'on our server…' },
+      : { id, label, state: 'active', detail: 'checking…' },
   )
 }
 
@@ -80,26 +80,26 @@ function decoded(result: AnalysisResult): Stage {
   const a = result.analysis
   if (result.input_type === 'qr') {
     const type = a.qr?.content_type
-    return { id: 'decoded', label: 'Decoded', state: 'done', detail: type ? `QR → ${type === 'url' ? 'link' : type.toUpperCase()}` : 'QR read' }
+    return { id: 'decoded', label: 'Read it', state: 'done', detail: type === 'url' ? 'QR code with a link' : type === 'upi' ? 'QR code for a UPI payment' : 'QR code read' }
   }
   if (result.input_type === 'screenshot') {
     const codes = a.qr_codes?.length ?? 0
-    return { id: 'decoded', label: 'Decoded', state: 'done', detail: codes ? `text + ${codes} QR` : 'text read (OCR)' }
+    return { id: 'decoded', label: 'Read it', state: 'done', detail: codes ? `text and ${codes} QR code${codes === 1 ? '' : 's'} read` : 'text read from the image' }
   }
-  if (result.input_type === 'message') return { id: 'decoded', label: 'Decoded', state: 'done', detail: 'message read' }
-  return { id: 'decoded', label: 'Decoded', state: 'done', detail: 'link read' }
+  if (result.input_type === 'message') return { id: 'decoded', label: 'Read it', state: 'done', detail: 'message read' }
+  return { id: 'decoded', label: 'Read it', state: 'done', detail: 'link read' }
 }
 
 function unshortened(result: AnalysisResult): Stage {
-  const base = { id: 'unshortened' as const, label: 'Unshortened' }
+  const base = { id: 'unshortened' as const, label: 'Followed the link' }
   const destination = check(result, 'destination')
   if (destination) {
     const hops = result.analysis.redirects?.redirect_count ?? 0
     if (destination.status === 'completed') {
-      return { ...base, state: 'done', detail: hops ? `${hops} redirect${hops === 1 ? '' : 's'}` : 'no redirect' }
+      return { ...base, state: 'done', detail: hops ? `sent on to ${hops} other page${hops === 1 ? '' : 's'}` : 'goes straight to the page' }
     }
-    if (destination.status === 'not_run') return { ...base, state: 'done', detail: 'not a short link' }
-    return { ...base, state: 'warning', detail: 'could not follow' }
+    if (destination.status === 'not_run') return { ...base, state: 'done', detail: 'not a short link, no need' }
+    return { ...base, state: 'warning', detail: 'could not follow it' }
   }
   const links = result.analysis.links?.length ?? 0
   return { ...base, state: 'done', detail: links ? `${links} link${links === 1 ? '' : 's'} checked` : 'no links' }
@@ -108,12 +108,12 @@ function unshortened(result: AnalysisResult): Stage {
 function inspected(result: AnalysisResult): Stage {
   const signs = result.indicators.filter((i) => i.score_contribution > 0).length
   return signs
-    ? { id: 'inspected', label: 'Inspected', state: 'warning', detail: `${signs} warning sign${signs === 1 ? '' : 's'}` }
-    : { id: 'inspected', label: 'Inspected', state: 'done', detail: 'no warning signs' }
+    ? { id: 'inspected', label: 'Warning signs', state: 'warning', detail: `${signs} found` }
+    : { id: 'inspected', label: 'Warning signs', state: 'done', detail: 'none found' }
 }
 
 function threats(result: AnalysisResult): Stage {
-  const base = { id: 'threats' as const, label: 'Threat lists' }
+  const base = { id: 'threats' as const, label: 'Scam databases' }
   const providers = uniqueProviders(result.threat_intel.providers)
   const states = providers.map(providerState)
   const flagged = states.filter((s) => s.outcome === 'flagged').length
@@ -121,17 +121,17 @@ function threats(result: AnalysisResult): Stage {
   const realFlags = providers.filter((p, i) => states[i]?.outcome === 'flagged' && !p.limited_coverage).length
   const checked = states.filter((s) => s.outcome === 'checked').length + flagged
   const failed = states.filter((s) => s.outcome === 'not_checked').length
-  if (realFlags) return { ...base, state: 'warning', detail: `${realFlags} flagged it` }
-  if (flagged) return { ...base, state: 'warning', detail: 'demo list only' }
-  if (failed) return { ...base, state: 'warning', detail: `${failed} could not check` }
-  if (!checked) return { ...base, state: 'warning', detail: 'none checked' }
+  if (realFlags) return { ...base, state: 'warning', detail: `on ${realFlags} scam list${realFlags === 1 ? '' : 's'}` }
+  if (flagged) return { ...base, state: 'warning', detail: 'on our test list only' }
+  if (failed) return { ...base, state: 'warning', detail: `${failed} did not answer` }
+  if (!checked) return { ...base, state: 'warning', detail: 'none answered' }
   // "not listed" is not proof of safety, but the stage itself completed
-  return { ...base, state: 'done', detail: `${checked} checked` }
+  return { ...base, state: 'done', detail: `not on ${checked} list${checked === 1 ? '' : 's'}` }
 }
 
 function verdictStage(label: string): Stage {
   const warn = label === 'SUSPICIOUS' || label === 'MALICIOUS'
-  return { id: 'verdict', label: 'Verdict', state: warn ? 'warning' : 'done', detail: label === 'UNVERIFIED' ? 'not verified' : label.toLowerCase() }
+  return { id: 'verdict', label: 'Result', state: warn ? 'warning' : 'done', detail: label === 'UNVERIFIED' ? 'not verified' : label.toLowerCase() }
 }
 
 /** The five stages as the real response reports them. */
@@ -178,14 +178,14 @@ export interface LogLine {
 export function chamberLog(result: AnalysisResult, verdictLabel: string): LogLine[] {
   const lines: LogLine[] = []
   const a = result.analysis
-  if (result.input_type === 'qr' && a.qr) lines.push({ text: `QR decoded → ${a.qr.content_type}`, tone: 'normal' })
+  if (result.input_type === 'qr' && a.qr) lines.push({ text: `QR code read: ${a.qr.content_type === 'url' ? 'a link' : a.qr.content_type === 'upi' ? 'a UPI payment' : a.qr.content_type}`, tone: 'normal' })
   if (result.input_type === 'screenshot') {
-    lines.push({ text: `text read from the image (OCR quality: ${a.ocr?.quality ?? 'unknown'})`, tone: 'normal' })
+    lines.push({ text: `text read from the image (quality: ${a.ocr?.quality ?? 'unknown'})`, tone: 'normal' })
   }
   const final = finalDestination(result)
   const hops = a.redirects?.redirect_count ?? 0
-  if (final) lines.push({ text: `followed ${hops} redirect${hops === 1 ? '' : 's'} on our server → ${hostOf(final)}`, tone: 'warn' })
-  else if (check(result, 'destination')?.status === 'not_run') lines.push({ text: 'not a short link: not followed', tone: 'normal' })
+  if (final) lines.push({ text: `the link sends you on to ${hostOf(final)} (${hops} step${hops === 1 ? '' : 's'}, followed on our server)`, tone: 'warn' })
+  else if (check(result, 'destination')?.status === 'not_run') lines.push({ text: 'not a short link, so nothing to follow', tone: 'normal' })
 
   const signs = [...result.indicators].filter((i) => i.score_contribution > 0).sort((x, y) => y.score_contribution - x.score_contribution)
   for (const sign of signs.slice(0, 6)) {
@@ -205,9 +205,9 @@ export function chamberLog(result: AnalysisResult, verdictLabel: string): LogLin
     })
   }
   const unconfigured = providers.filter((p) => providerState(p).outcome === 'not_configured').length
-  if (unconfigured) lines.push({ text: `${unconfigured} threat source${unconfigured === 1 ? '' : 's'} not configured`, tone: 'normal' })
+  if (unconfigured) lines.push({ text: `${unconfigured} scam database${unconfigured === 1 ? '' : 's'} not set up`, tone: 'normal' })
 
   const tone = verdictLabel === 'MALICIOUS' ? 'danger' : verdictLabel === 'SUSPICIOUS' ? 'warn' : 'normal'
-  lines.push({ text: `verdict: ${verdictLabel === 'UNVERIFIED' ? 'NOT VERIFIED' : verdictLabel} · ${result.risk_score}/100`, tone })
+  lines.push({ text: `result: ${verdictLabel === 'UNVERIFIED' ? 'NOT VERIFIED' : verdictLabel} · risk ${result.risk_score} out of 100`, tone })
   return lines
 }

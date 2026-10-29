@@ -52,7 +52,7 @@ describe('claimsVsReality', () => {
       ['padlock', false],
     ])
     expect(rows[1]?.found).toBe('The real owner is kyc-verify.xyz, not State Bank of India')
-    expect(rows[2]?.found).toBe('kyc-verify.xyz was registered 8 days ago')
+    expect(rows[2]?.found).toBe('kyc-verify.xyz was set up only 8 days ago')
     expect(rows[3]?.claim).toBe('“login”') // the same word from the destination is not repeated
   })
 
@@ -80,7 +80,7 @@ describe('linkXray', () => {
       ['owner', 'kyc-verify.xyz'],
       ['path', '/login'],
     ])
-    expect(xrayNotes(lookalike, parts, 'MALICIOUS').map((n) => n.title)).toEqual(['HTTPS', 'Decoration', 'Who owns it', 'Wording'])
+    expect(xrayNotes(lookalike, parts, 'MALICIOUS').map((n) => n.title)).toEqual(['Start (https)', 'Made-up part', 'Real owner', 'Page'])
   })
 
   it('marks digits posing as letters and non-Latin characters', () => {
@@ -100,7 +100,7 @@ describe('scoreBreakdown', () => {
     expect(rows).toEqual([
       { label: 'Real brand address used as a disguise (<img src=x onerror=alert(1)>)', points: 40 },
       { label: 'No secure connection (http://)', points: 8 },
-      { label: 'Minimum score for “No secure connection”', points: 25 },
+      { label: 'Minimum score because of “No secure connection”', points: 25 },
     ])
     expect(total).toBe(73)
   })

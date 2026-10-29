@@ -1,10 +1,10 @@
 import type { XrayPart } from '../../utils/result'
 
 const PART: Record<XrayPart['kind'], { label: string; box: string; note: string }> = {
-  scheme: { label: 'scheme', box: 'text-muted', note: 'text-muted' },
-  subdomain: { label: 'subdomain (decoration)', box: 'bg-warn/15 text-warn', note: 'text-warn' },
+  scheme: { label: 'start', box: 'text-muted', note: 'text-muted' },
+  subdomain: { label: 'made-up part', box: 'bg-warn/15 text-warn', note: 'text-warn' },
   owner: { label: 'real owner', box: 'bg-accent/15 font-semibold text-accent', note: 'text-accent' },
-  path: { label: 'path', box: 'text-muted', note: 'text-muted' },
+  path: { label: 'page', box: 'text-muted', note: 'text-muted' },
 }
 
 function Marked({ part }: { part: XrayPart }) {
@@ -31,9 +31,9 @@ export function LinkXray({ parts, notes }: { parts: XrayPart[]; notes: { title: 
     <section aria-labelledby="xray-title" className="space-y-3">
       <div>
         <h3 id="xray-title" className="font-display text-lg font-semibold">
-          Link X-ray
+          How to read this link
         </h3>
-        <p className="text-sm text-muted">The link split into its parts. Read from right to left to find who really owns it.</p>
+        <p className="text-sm text-muted">The real owner is the name just before the first single “/”. Anything to the left of it can be made up by whoever owns that name.</p>
       </div>
       <div className="overflow-x-auto rounded-panel border border-line bg-panel-2 p-4">
         <ol className="flex min-w-max items-start font-mono text-base sm:text-lg" data-testid="xray">
