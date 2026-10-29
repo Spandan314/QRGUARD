@@ -12,7 +12,7 @@ audit.
 | Input validation | Pydantic models, length limits, type checks. Control characters stripped. Unknown fields rejected. | Rejects malformed and oversized input early |
 | File uploads | `MAX_CONTENT_LENGTH`. Extension **and** magic bytes checked (PNG/JPEG/WEBP only). `Image.verify()`. `Image.MAX_IMAGE_PIXELS` cap against decompression bombs. Processed in memory and never written to disk. EXIF ignored. | Blocks malicious or huge files |
 | Rate limiting | Flask-Limiter: per IP for anonymous callers, per uid for signed-in ones, with a tighter limit on OCR | Protects CPU and third-party quotas from abuse |
-| API key protection | Server secrets only in env/Render secrets. Keys never go into client bundles. `.env` is git-ignored. `gitleaks` runs in CI. | Stops key leakage |
+| API key protection | Server secrets only in env/Render secrets. Keys never go into client bundles. `.env` is git-ignored. Secrets were scanned once by hand (git history and app bundles, see the audit below); **no secret scanner runs in CI yet**. | Stops key leakage |
 | CORS | Explicit origin allowlist from `ALLOWED_ORIGINS`. No wildcard with credentials. | Stops other websites from calling the API with a user's session |
 | SSRF protection | See "SSRF protection" below (implemented) | Stops the URL checker from being used as a proxy into internal networks |
 | Redirect handling | Manual redirect loop, max 5 hops, every hop re-validated, IP pinning, no body read | Stops a redirect to `http://169.254.169.254/` |
@@ -22,7 +22,7 @@ audit.
 | Firestore rules | Deny by default. Owner-only reads and deletes. No client writes to scans. | Protects data if the API is bypassed |
 | Output safety | Web shows URLs as text (React escaping, no `dangerouslySetInnerHTML`). Mobile `OpenLinkGuard` blocks dangerous schemes. | No XSS, and no accidental navigation to the link being checked |
 | ReDoS | Scam patterns are simple alternations with no nested quantifiers. Input is capped at 5000 chars. Rules are unit-tested for time. | Stops CPU exhaustion from crafted text |
-| Dependencies | Pinned `requirements.txt` / lockfiles, Dependabot, `pip-audit` and `npm audit` in CI | Supply-chain hygiene |
+| Dependencies | Pinned `requirements.txt` / lockfiles. `pip-audit` and `npm audit` were run by hand in the audit below; **no Dependabot or dependency audit runs in CI yet** | Supply-chain hygiene |
 
 ## SSRF protection and safe redirect checking (implemented)
 
