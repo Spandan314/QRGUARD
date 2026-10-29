@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native'
 import { BackendStatus } from '../../components/BackendStatus'
 import { TabIcon, type TabIconName } from '../../components/TabIcon'
 import { Screen } from '../../components/ui'
-import { colors, MIN_TOUCH, fonts } from '../../constants/theme'
+import { colors, MIN_TOUCH, fonts, themedStyles } from '../../constants/theme'
 
 const ACTIONS: { href: Href; icon: TabIconName; title: string; text: string }[] = [
   { href: '/scan/camera', icon: 'scan', title: 'Scan a QR code', text: 'Check a QR code before you pay or open it.' },
@@ -54,7 +54,8 @@ export default function Home() {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() =>
+  StyleSheet.create({
   heading: { fontFamily: fonts.display, fontSize: 22, fontWeight: '700', color: colors.text },
   card: {
     minHeight: MIN_TOUCH,
@@ -81,4 +82,5 @@ const styles = StyleSheet.create({
   },
   title: { fontFamily: fonts.display, fontSize: 17, fontWeight: '700', color: colors.text },
   text: { fontFamily: fonts.sans, color: colors.muted },
-})
+}),
+)

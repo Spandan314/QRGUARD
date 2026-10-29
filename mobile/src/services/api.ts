@@ -1,3 +1,4 @@
+import { File, UploadType } from 'expo-file-system'
 import { Platform } from 'react-native'
 import { API_BASE_URL } from '../constants/config'
 import type {
@@ -82,18 +83,24 @@ async function request<T>(path: string, init: RequestInit, signal?: AbortSignal,
   } catch {
     body = null
   }
-  if (!response.ok) {
-    if (isErrorBody(body)) throw new ApiError(response.status, body.error.code, body.error.message, body.error.request_id)
-    if (response.status === 413) {
+  return answer<T>(response.status, body)
+}
+
+/** The parsed JSON answer, or the ApiError that matches the status and body. */
+function answer<T>(status: number, body: unknown): T {
+  const ok = status >= 200 && status < 300
+  if (!ok) {
+    if (isErrorBody(body)) throw new ApiError(status, body.error.code, body.error.message, body.error.request_id)
+    if (status === 413) {
       throw new ApiError(413, 'PAYLOAD_TOO_LARGE', 'The image is too large for the server (maximum 5 MB).')
     }
-    if (response.status >= 500) {
+    if (status >= 500) {
       // Not a QRGUARD answer: the hosting platform's own page while the server starts or restarts.
-      throw new ApiError(response.status, 'SERVER_UNAVAILABLE', 'The QRGUARD server is starting up or temporarily unavailable.')
+      throw new ApiError(status, 'SERVER_UNAVAILABLE', 'The QRGUARD server is starting up or temporarily unavailable.')
     }
-    throw new ApiError(response.status, 'HTTP_ERROR', `The server answered with an error (${response.status}).`)
+    throw new ApiError(status, 'HTTP_ERROR', `The server answered with an error (${status}).`)
   }
-  if (body === null) throw new ApiError(response.status, 'BAD_RESPONSE', 'The server sent an unreadable answer.')
+  if (body === null) throw new ApiError(status, 'BAD_RESPONSE', 'The server sent an unreadable answer.')
   return body as T
 }
 
@@ -119,29 +126,74 @@ async function serverReachable(): Promise<boolean> {
 // worker; one automatic retry after a short pause fixes most of these without bothering the user.
 export const UPLOAD_RETRY_DELAY_MS = 1500
 
+/** Web only: a browser's FormData needs a real Blob for the picked image. */
 async function imageForm(image: PickedImage, save: boolean): Promise<FormData> {
   const form = new FormData()
-  // The Content-Type header (with the multipart boundary) is set by fetch itself and must not be
-  // set here.
-  if (Platform.OS === 'web') {
-    // A browser's FormData needs a real Blob: the picked image is a local blob:/data: URI, so it is
-    // read in the browser (no network request). React Native's { uri } descriptor would be sent as
-    // the text "[object Object]" and the server would see no file at all.
-    const blob = await (await fetch(image.uri)).blob()
-    form.append('file', new Blob([blob], { type: image.mimeType }), image.name)
-  } else {
-    // React Native's FormData accepts a { uri, name, type } descriptor for files.
-    form.append('file', { uri: image.uri, name: image.name, type: image.mimeType } as unknown as Blob)
-  }
+  // The picked image is a local blob:/data: URI, so it is read in the browser (no network request).
+  // The Content-Type header (with the multipart boundary) is set by fetch itself.
+  const blob = await (await fetch(image.uri)).blob()
+  form.append('file', new Blob([blob], { type: image.mimeType }), image.name)
   form.append('save_to_history', save ? 'true' : 'false')
   return form
+}
+
+/**
+ * Android and iOS: the file is uploaded by Expo's native uploader (expo-file-system), which streams
+ * it from disk as a standard multipart form. React Native's fetch with a { uri } form part failed on
+ * Android phones ("Network request failed") although the server accepts the same form from other
+ * clients, so phones do not use it for images.
+ */
+async function uploadNative<T>(path: string, image: PickedImage, save: boolean, signal?: AbortSignal): Promise<T> {
+  const controller = new AbortController()
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, UPLOAD_TIMEOUT_MS)
+  const onAbort = () => controller.abort()
+  signal?.addEventListener('abort', onAbort)
+  let status: number
+  let text: string
+  try {
+    const token = await tokenProvider().catch(() => null)
+    const result = await new File(image.uri).upload(`${API_BASE_URL}${path}`, {
+      httpMethod: 'POST',
+      uploadType: UploadType.MULTIPART,
+      fieldName: 'file',
+      mimeType: image.mimeType,
+      parameters: { save_to_history: save ? 'true' : 'false' },
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      signal: controller.signal,
+    })
+    status = result.status
+    text = result.body
+  } catch (error) {
+    if (signal?.aborted) throw error
+    if (timedOut) throw new ApiError(0, 'TIMEOUT', 'The check took too long. Please try again.')
+    throw new ApiError(0, 'NETWORK_ERROR', 'Cannot reach the QRGUARD server. Check your internet connection.')
+  } finally {
+    clearTimeout(timer)
+    signal?.removeEventListener('abort', onAbort)
+  }
+  let body: unknown = null
+  try {
+    body = text ? JSON.parse(text) : null
+  } catch {
+    body = null
+  }
+  return answer<T>(status, body)
+}
+
+async function sendImage<T>(path: string, image: PickedImage, save: boolean, signal?: AbortSignal): Promise<T> {
+  if (Platform.OS !== 'web') return uploadNative<T>(path, image, save, signal)
+  // A fresh form for every attempt: a request body cannot be sent twice.
+  return request<T>(path, { method: 'POST', body: await imageForm(image, save) }, signal, UPLOAD_TIMEOUT_MS)
 }
 
 async function postImage<T>(path: string, image: PickedImage, save: boolean, signal?: AbortSignal): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
-      // A fresh form for every attempt: a request body cannot be sent twice.
-      return await request<T>(path, { method: 'POST', body: await imageForm(image, save) }, signal, UPLOAD_TIMEOUT_MS)
+      return await sendImage<T>(path, image, save, signal)
     } catch (error) {
       // "Network request failed" during an upload does not always mean the phone is offline: the
       // connection can also be cut off mid-upload. Ask the server directly to tell which it was.
