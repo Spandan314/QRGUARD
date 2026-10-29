@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Text, TextInput, View } from 'react-native'
 import { ActionButton, Card, ErrorBanner, Screen, styles as ui } from '../../components/ui'
 import { MAX_URL_CHARS } from '../../constants/config'
+import { colors } from '../../constants/theme'
 import { useAnalysis } from '../../hooks/useAnalysis'
 import { api } from '../../services/api'
 
@@ -19,6 +20,7 @@ export default function UrlCheck() {
           Link
         </Text>
         <TextInput
+        placeholderTextColor={colors.muted}
           accessibilityLabelledBy="url-label"
           accessibilityLabel="Link"
           style={ui.input}
