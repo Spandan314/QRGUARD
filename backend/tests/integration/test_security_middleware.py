@@ -1,3 +1,5 @@
+import pytest
+
 from tests.conftest import make_app
 from tests.integration.test_errors import assert_error
 
@@ -18,6 +20,81 @@ def test_cors_allows_configured_origin(client):
 def test_cors_blocks_unknown_origin(client):
     response = client.get("/api/health", headers={"Origin": "https://evil.example"})
     assert "Access-Control-Allow-Origin" not in response.headers
+
+
+PRODUCTION = "https://qrguard.vercel.app"
+PREVIEW = "https://qrguard-git-airlock-redesign-develop-qrguard.vercel.app"
+
+
+def _deployed_client():
+    """The production allowlist with one Vercel preview added, as on Render."""
+    return make_app(APP_ENV="production", ALLOWED_ORIGINS=f"{PRODUCTION},{PREVIEW}").test_client()
+
+
+def _preflight(client, origin, path="/api/analyze/message"):
+    return client.options(
+        path,
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type, Authorization, X-Request-ID",
+        },
+    )
+
+
+@pytest.mark.parametrize("origin", [PRODUCTION, PREVIEW])
+def test_listed_origins_get_cors_headers_on_health_and_preflight(origin):
+    client = _deployed_client()
+    health = client.get("/api/health", headers={"Origin": origin})
+    assert health.status_code == 200
+    assert health.headers["Access-Control-Allow-Origin"] == origin
+    assert "Origin" in health.headers.get("Vary", "")  # caches must not reuse it for another origin
+
+    preflight = _preflight(client, origin)
+    assert preflight.status_code == 200
+    assert preflight.headers["Access-Control-Allow-Origin"] == origin
+    assert "POST" in preflight.headers["Access-Control-Allow-Methods"]
+    allowed_headers = preflight.headers["Access-Control-Allow-Headers"].lower()
+    for header in ("content-type", "authorization", "x-request-id"):
+        assert header in allowed_headers
+    assert "Access-Control-Allow-Credentials" not in preflight.headers
+
+
+def test_listed_origin_can_read_results_and_errors():
+    client = _deployed_client()
+    ok = client.post(
+        "/api/analyze/message",
+        json={"text": "Your parcel is waiting, pay the fee"},
+        headers={"Origin": PREVIEW},
+    )
+    assert ok.status_code == 200
+    assert ok.headers["Access-Control-Allow-Origin"] == PREVIEW
+    assert "X-Request-ID" in ok.headers["Access-Control-Expose-Headers"]
+    bad = client.post("/api/analyze/message", json={}, headers={"Origin": PREVIEW})
+    assert bad.status_code == 400
+    assert bad.headers["Access-Control-Allow-Origin"] == PREVIEW  # the page can show the real error
+
+
+@pytest.mark.parametrize(
+    "origin",
+    [
+        "https://evil.example",
+        "http://qrguard-git-airlock-redesign-develop-qrguard.vercel.app",  # wrong scheme
+        "https://qrguard-git-airlock-redesign-develop-qrguard.vercel.app.attacker.example",
+        "https://attacker-qrguard.vercel.app",
+        "https://qrguard-git-other-branch-qrguard.vercel.app",  # other previews stay closed
+        "null",
+    ],
+)
+def test_unlisted_origins_get_no_cors_headers(origin):
+    client = _deployed_client()
+    health = client.get("/api/health", headers={"Origin": origin})
+    assert health.status_code == 200  # the server answers; the browser refuses to hand it over
+    assert "Access-Control-Allow-Origin" not in health.headers
+
+    preflight = _preflight(client, origin)
+    assert "Access-Control-Allow-Origin" not in preflight.headers
+    assert "Access-Control-Allow-Methods" not in preflight.headers
 
 
 def test_rate_limit_returns_429_with_retry_after():

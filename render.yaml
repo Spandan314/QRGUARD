@@ -22,7 +22,8 @@ services:
         value: production
       - key: LOG_LEVEL
         value: INFO
-      # Your Vercel URL(s), comma-separated, e.g. https://qrguard.vercel.app. Never "*".
+      # Your Vercel URL(s), comma-separated exact origins, e.g. https://qrguard.vercel.app.
+      # Never "*" or a pattern such as https://*.vercel.app (refused at startup).
       - key: ALLOWED_ORIGINS
         sync: false
       # Render puts exactly one proxy in front of the app.
