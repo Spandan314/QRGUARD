@@ -30,7 +30,7 @@ const config: ExpoConfig = {
   android: {
     package: 'com.qrguard.app',
     adaptiveIcon: {
-      backgroundColor: '#F0FDFA',
+      backgroundColor: '#34E0B4',
       foregroundImage: './assets/android-icon-foreground.png',
       backgroundImage: './assets/android-icon-background.png',
       monochromeImage: './assets/android-icon-monochrome.png',
