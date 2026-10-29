@@ -76,6 +76,7 @@ In the API, each indicator becomes:
 | `URL_KEYWORDS_IN_DOMAIN` | ≥ 2 phishing words in the domain name itself (`account-verify-login.com`; the account name on a shared host such as `login-secure.netlify.app`). Not for trusted domains, and not when a brand check already describes the domain | url_structure | 20 | |
 | `URL_EMAIL_IN_QUERY` | An e-mail address in the query (`login.php?email=a%40b.com`), as phishing kits use to personalise a fake sign-in. Not for trusted domains | url_structure | 15 | |
 | `URL_DOMAIN_IN_SUBDOMAIN` | A domain ending (`com`, `net`, `org`, `in`…) inside the subdomain: another website's address used as a prefix (`www.dropbox.com.download-file.xyz`). Not for trusted or shared hosts, and not when `OFFICIAL_DOMAIN_IN_SUBDOMAIN` already matched | url_structure | 20 | |
+| `DOMAIN_RECENTLY_REGISTERED` | The registry's RDAP record (server from IANA's bootstrap) shows the domain the link leads to was registered < 30 days ago. Only when `DOMAIN_AGE_LOOKUP=true`; skipped for recognised domains, IP addresses and shared hosting. An unknown age (timeout, rate limit, no record, no RDAP for the ending) adds no points; an unreachable registry lowers confidence | registration (cap 20) | 20 | |
 | `OFFICIAL_DOMAIN_IN_SUBDOMAIN` | `sbi.co.in.kyc-verify.xyz` | brand | 40 | **60** |
 | `OFFICIAL_DOMAIN_IN_USERINFO` | `https://www.sbi.co.in@evil.xyz` | brand | 40 | **60** |
 | `BRAND_LOOKALIKE` | `paypa1.com`, `hdfcbnak.com`, Cyrillic `аpple.com` | brand | 40 | **60** |

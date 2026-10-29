@@ -33,6 +33,7 @@ category_caps:
   lexical: 15
   brand: 40
   redirect: 40
+  registration: 20   # domain age from the registry (RDAP): one sign, never decisive alone
   trust: 100
   reputation: 100
   # scam-message groups
@@ -280,6 +281,17 @@ indicators:
     message: >-
       The start of the address looks like a different website (for example "something.com."),
       but the real website is the part at the end. This is a common way to disguise a scam site.
+
+  DOMAIN_RECENTLY_REGISTERED:
+    module: url_qr
+    category: registration
+    weight: 20
+    scam_categories: [phishing]
+    title: The website's domain was registered very recently
+    message: >-
+      The domain's official registry (RDAP) shows it was registered less than 30 days ago.
+      Scam sites are often brand new; established services rarely are. On its own this is not
+      proof of a scam.
 
   # ---- Brand / lookalike ----------------------------------------------------------------------
   OFFICIAL_DOMAIN_IN_SUBDOMAIN:
