@@ -115,7 +115,11 @@ async function serverReachable(): Promise<boolean> {
   }
 }
 
-async function postImage<T>(path: string, image: PickedImage, save: boolean, signal?: AbortSignal): Promise<T> {
+// An upload cut off while the server is up is usually the free server waking up or restarting a
+// worker; one automatic retry after a short pause fixes most of these without bothering the user.
+export const UPLOAD_RETRY_DELAY_MS = 1500
+
+async function imageForm(image: PickedImage, save: boolean): Promise<FormData> {
   const form = new FormData()
   // The Content-Type header (with the multipart boundary) is set by fetch itself and must not be
   // set here.
@@ -130,19 +134,29 @@ async function postImage<T>(path: string, image: PickedImage, save: boolean, sig
     form.append('file', { uri: image.uri, name: image.name, type: image.mimeType } as unknown as Blob)
   }
   form.append('save_to_history', save ? 'true' : 'false')
-  try {
-    return await request<T>(path, { method: 'POST', body: form }, signal, UPLOAD_TIMEOUT_MS)
-  } catch (error) {
-    // "Network request failed" during an upload does not always mean the phone is offline: the
-    // connection can also be cut off mid-upload. Ask the server directly to tell which it was.
-    if (error instanceof ApiError && error.code === 'NETWORK_ERROR' && !signal?.aborted && (await serverReachable())) {
-      throw new ApiError(
-        0,
-        'UPLOAD_FAILED',
-        'The server is reachable, but the image upload was interrupted before the check could finish.',
-      )
+  return form
+}
+
+async function postImage<T>(path: string, image: PickedImage, save: boolean, signal?: AbortSignal): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      // A fresh form for every attempt: a request body cannot be sent twice.
+      return await request<T>(path, { method: 'POST', body: await imageForm(image, save) }, signal, UPLOAD_TIMEOUT_MS)
+    } catch (error) {
+      // "Network request failed" during an upload does not always mean the phone is offline: the
+      // connection can also be cut off mid-upload. Ask the server directly to tell which it was.
+      const cutOff = error instanceof ApiError && error.code === 'NETWORK_ERROR' && !signal?.aborted
+      if (!cutOff || !(await serverReachable())) throw error
+      if (attempt >= 2) {
+        throw new ApiError(
+          0,
+          'UPLOAD_FAILED',
+          'The server is reachable, but the image upload was interrupted before the check could finish.',
+        )
+      }
+      await new Promise((resolve) => setTimeout(resolve, UPLOAD_RETRY_DELAY_MS))
+      if (signal?.aborted) throw error
     }
-    throw error
   }
 }
 
