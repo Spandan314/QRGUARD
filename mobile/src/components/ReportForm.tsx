@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Pressable, Text, TextInput, View } from 'react-native'
-import { colors, MIN_TOUCH } from '../constants/theme'
+import { colors, MIN_TOUCH, fonts } from '../constants/theme'
 import { useOptionalAuth } from '../context/AuthContext'
 import { api, ApiError } from '../services/api'
 import type { ReportKind } from '../types/api'
@@ -46,13 +46,14 @@ export function ReportForm({ scanId }: { scanId?: string | undefined }) {
           onPress={() => setKind(option.value)}
           style={{ minHeight: MIN_TOUCH, justifyContent: 'center' }}
         >
-          <Text style={{ color: kind === option.value ? colors.brand : colors.text, fontWeight: kind === option.value ? '700' : '400' }}>
+          <Text style={{ fontFamily: fonts.sans, color: kind === option.value ? colors.brand : colors.text, fontWeight: kind === option.value ? '700' : '400' }}>
             {kind === option.value ? '◉ ' : '○ '}
             {option.label}
           </Text>
         </Pressable>
       ))}
       <TextInput
+        placeholderTextColor={colors.muted}
         accessibilityLabel="Note (optional)"
         style={[ui.input, { minHeight: 70, textAlignVertical: 'top' }]}
         value={note}

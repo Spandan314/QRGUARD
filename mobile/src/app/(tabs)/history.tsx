@@ -5,7 +5,7 @@ import { RiskBadge } from '../../components/RiskBadge'
 import { formatDateTime } from '../../utils/format'
 import { verdictLabel } from '../../utils/verdict'
 import { ActionButton, Card, ErrorBanner, Screen, styles as ui } from '../../components/ui'
-import { colors } from '../../constants/theme'
+import { colors, fonts } from '../../constants/theme'
 import { useAuth } from '../../context/AuthContext'
 import { api, ApiError } from '../../services/api'
 import type { HistoryItem } from '../../types/api'
@@ -128,7 +128,7 @@ export default function HistoryScreen() {
       {cursor ? <ActionButton label="Load more" variant="secondary" onPress={() => void load(cursor)} /> : null}
       {items.length > 0 ? (
         <Pressable accessibilityRole="button" onPress={removeAll} style={{ alignSelf: 'center', padding: 12 }}>
-          <Text style={{ color: colors.danger, fontWeight: '700' }}>Delete all</Text>
+          <Text style={{ fontFamily: fonts.sans, color: colors.danger, fontWeight: '700' }}>Delete all</Text>
         </Pressable>
       ) : null}
     </Screen>

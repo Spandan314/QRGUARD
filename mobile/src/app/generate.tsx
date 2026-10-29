@@ -4,7 +4,7 @@ import { useRef, useState } from 'react'
 import { Pressable, Switch, Text, TextInput, View } from 'react-native'
 import QRCode from 'react-native-qrcode-svg'
 import { ActionButton, Card, Screen, styles as ui } from '../components/ui'
-import { colors, MIN_TOUCH } from '../constants/theme'
+import { colors, MIN_TOUCH, fonts } from '../constants/theme'
 import { buildPayload, PayloadError, type QrInput, type QrKind, type WifiSecurity } from '../utils/qrPayload'
 
 const KINDS: { value: QrKind; label: string }[] = [
@@ -30,6 +30,7 @@ function Field(props: { label: string; value: string | undefined; onChange: (v: 
     <View style={{ gap: 4 }}>
       <Text style={ui.label}>{props.label}</Text>
       <TextInput
+        placeholderTextColor={colors.muted}
         accessibilityLabel={props.label}
         style={[ui.input, props.multiline && { minHeight: 90, textAlignVertical: 'top' }]}
         value={props.value ?? ''}
@@ -59,11 +60,11 @@ function Chips<T extends string>({ options, value, onChange }: { options: { valu
             paddingHorizontal: 14,
             borderRadius: 999,
             borderWidth: 1,
-            borderColor: colors.utility,
-            backgroundColor: value === option.value ? colors.utility : '#fff',
+            borderColor: value === option.value ? colors.brand : colors.border,
+            backgroundColor: value === option.value ? colors.brand : 'transparent',
           }}
         >
-          <Text style={{ color: value === option.value ? '#fff' : colors.utility, fontWeight: '600' }}>{option.label}</Text>
+          <Text style={{ fontFamily: fonts.sans, color: value === option.value ? colors.onBrand : colors.text, fontWeight: '600' }}>{option.label}</Text>
         </Pressable>
       ))}
     </View>

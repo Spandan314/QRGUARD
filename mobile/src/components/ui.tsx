@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { colors, MIN_TOUCH } from '../constants/theme'
+import { colors, MIN_TOUCH, fonts } from '../constants/theme'
 import type { ApiError } from '../services/api'
 
 export function Screen({ children, title, intro }: { children: ReactNode; title?: string; intro?: string }) {
@@ -53,7 +53,7 @@ export function ActionButton({
         pressed && styles.buttonPressed,
       ]}
     >
-      {loading ? <ActivityIndicator color="#fff" /> : null}
+      {loading ? <ActivityIndicator color={variant === 'secondary' ? colors.brand : colors.onBrand} /> : null}
       <Text style={[styles.buttonText, variant === 'secondary' && styles.buttonTextSecondary]}>{label}</Text>
     </Pressable>
   )
@@ -102,10 +102,10 @@ export function ErrorBanner({ error, onRetry }: { error: ApiError; onRetry?: () 
 export const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, gap: 16, paddingBottom: 48 },
-  title: { fontSize: 26, fontWeight: '700', color: colors.text },
-  intro: { fontSize: 16, color: colors.muted, lineHeight: 22 },
-  card: { backgroundColor: colors.card, borderRadius: 16, padding: 16, gap: 12, borderWidth: 1, borderColor: '#e2e8f0' },
-  label: { fontSize: 16, fontWeight: '600', color: colors.text },
+  title: { fontFamily: fonts.display, fontSize: 26, fontWeight: '700', color: colors.text },
+  intro: { fontFamily: fonts.sans, fontSize: 16, color: colors.muted, lineHeight: 22 },
+  card: { backgroundColor: colors.card, borderRadius: 16, padding: 16, gap: 12, borderWidth: 1, borderColor: colors.border },
+  label: { fontFamily: fonts.sans, fontSize: 16, fontWeight: '600', color: colors.text },
   input: {
     minHeight: MIN_TOUCH,
     borderWidth: 1,
@@ -113,9 +113,10 @@ export const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
+    fontFamily: fonts.sans,
     fontSize: 16,
     color: colors.text,
-    backgroundColor: '#fff',
+    backgroundColor: colors.card2,
   },
   button: {
     minHeight: MIN_TOUCH,
@@ -127,16 +128,16 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonSecondary: { backgroundColor: '#fff', borderWidth: 1, borderColor: colors.brand },
+  buttonSecondary: { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.brand },
   buttonDanger: { backgroundColor: colors.danger },
   buttonDisabled: { opacity: 0.5 },
   buttonPressed: { opacity: 0.8 },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  buttonTextSecondary: { color: colors.brand },
-  error: { backgroundColor: '#fef2f2', borderColor: '#fca5a5', borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
-  errorTitle: { fontWeight: '700', color: '#7f1d1d' },
-  errorText: { color: '#7f1d1d' },
-  small: { fontSize: 12, color: colors.muted },
-  body: { fontSize: 15, color: colors.text, lineHeight: 21 },
-  mono: { fontFamily: 'monospace', fontSize: 13, color: colors.text },
+  buttonText: { fontFamily: fonts.sans, color: colors.onBrand, fontSize: 16, fontWeight: '700' },
+  buttonTextSecondary: { fontFamily: fonts.sans, color: colors.brand },
+  error: { backgroundColor: '#2d1614', borderColor: '#7a2e27', borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
+  errorTitle: { fontFamily: fonts.sans, fontWeight: '700', color: colors.danger },
+  errorText: { fontFamily: fonts.sans, color: colors.text },
+  small: { fontFamily: fonts.sans, fontSize: 12, color: colors.muted },
+  body: { fontFamily: fonts.sans, fontSize: 15, color: colors.text, lineHeight: 21 },
+  mono: { fontFamily: fonts.mono, fontSize: 13, color: colors.text },
 })
