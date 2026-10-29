@@ -148,11 +148,16 @@ Step 1  points(i)        = weight(i) × min(1, cap(category) / Σ positive weigh
                            (negative weights are not capped)
 Step 2  module_score(m)  = clamp(Σ points in m, 0, 100)
 Step 3  weighted         = Σ_{m applicable} w_m × module_score(m)  /  Σ_{m applicable} w_m
-Step 4  final            = round(max(weighted, highest floor among present indicators))
+Step 4  base             = weighted, or for messages max(primary, weighted), where primary is the
+                           same average over the primary modules only (the message text):
+                           links and threat intelligence may raise a message's score, never lower it
+Step 5  final            = round(max(base, highest floor among present indicators))
 ```
 
+The engine (`app/scoring/engine.py`, module docstring) is the reference for this algorithm.
+
 `score_contribution(i) = points(i) × (module_score / raw module sum) × (w_m / Σ applicable w)`,
-so the contributions add up to `weighted_score` (± rounding). A floor is reported separately as
+so the contributions add up to the base score (± rounding). A floor is reported separately as
 `floor_applied.points_added`.
 
 ### 4.3 Floors (configurable, `floor:` in the YAML)

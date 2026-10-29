@@ -10,23 +10,23 @@ recommended safe action.
 
 ## Project status
 
-**Version 1.0.0 — feature-complete; deployment in progress on free plans (Firebase and Render done).** The Flask backend analyses links, messages, screenshots
+**Version 1.0.0 — feature-complete and deployed on free plans (Firebase, Render, Vercel; Android APK built on GitHub Actions).** The Flask backend analyses links, messages, screenshots
 (OCR) and QR codes, checks threat intelligence and returns an explainable score. The React web app and
 the Expo mobile app use it for every check, with Firebase sign-in, a private privacy-minimised
 history, reports, account/privacy controls and an admin view.
 
 | Suite | Result |
 |---|---|
-| Backend (pytest, incl. Firestore emulator) | 897 tests, 95% coverage (without the emulator), Ruff clean |
+| Backend (pytest, incl. Firestore emulator) | 1067 tests (1063 + 4 on the Firestore emulator), 95% statement+branch coverage, Ruff clean |
 | Firestore security rules | 7 tests |
 | Postman / Newman | 83 requests, 303 assertions |
-| Web (Vitest) | 74 tests, 91% statements, lint with zero warnings |
-| Mobile (Jest) | 96 tests, 88% statements, lint with zero warnings |
-| End-to-end (`e2e/run.sh`: browsers → apps → Firebase emulators → Flask, production headers) | 18 flows + log privacy check |
+| Web (Vitest) | 175 tests, 84% statements / 79% branches, lint with zero warnings |
+| Mobile (Jest) | 110 tests, 89% statements / 77% branches, lint with zero warnings |
+| End-to-end (`e2e/run.sh`: browsers → apps → Firebase emulators → Flask, production headers) | 24 web + 11 mobile checks + log privacy check |
 | Demo kit / smoke test | 11/11 demo scenarios, 11/11 deployment checks |
 
-See [docs/testing.md](docs/testing.md), [docs/evaluation.md](docs/evaluation.md) and
-[docs/deployment.md](docs/deployment.md).
+Measured on `develop` on 29 October 2026. See [docs/testing.md](docs/testing.md),
+[docs/evaluation.md](docs/evaluation.md) and [docs/deployment.md](docs/deployment.md).
 
 ### Risk levels and verification
 
@@ -55,7 +55,7 @@ verification.
 | 9 | React Native (Expo) mobile application | ✅ Done |
 | 10 | Firebase sign-in, private history, reports, admin (backend, web, mobile) | ✅ Done |
 | 11 | End-to-end tests, security audit, evaluation | ✅ Done |
-| 12 | Deployment (Firebase, Docker/Render, Vercel, EAS) | 🔄 Firebase (Spark) and Render deployed; Vercel and EAS next ([docs/deployment.md](docs/deployment.md)) |
+| 12 | Deployment (Firebase, Docker/Render, Vercel, Android) | ✅ Firebase (Spark), Render and Vercel deployed; Android APK built by GitHub Actions ([docs/deployment.md](docs/deployment.md)) |
 
 "Done" means implemented, tested, merged (PRs #2–#17) and released on `main` as v1.0.0. PRs #18–#21
 made the Firebase configuration work on the free Spark plan (see [CHANGELOG.md](CHANGELOG.md)).
@@ -117,8 +117,8 @@ paid service (no Firestore TTL, Cloud Functions, Cloud Run or scheduled jobs) is
 |---|---|---|
 | Firestore rules + indexes, Auth | Firebase (**Spark**, free) | ✅ Deployed (`cd firebase && npm run deploy -- --project <id>`) |
 | Backend API (Docker) | Render (free) | ✅ Deployed from `render.yaml` |
-| Web app | Vercel (Hobby) | ⏳ Next |
-| Android app | EAS Build (free) | ⏳ After the web app |
+| Web app | Vercel (Hobby) | ✅ Deployed from `main` |
+| Android app | GitHub Actions (`mobile-apk`), APK on the [`android-latest` release](https://github.com/Spandan314/QRGUARD/releases/tag/android-latest) | ✅ Built from `main` (debug-signed, for direct install; Play Store needs EAS) |
 
 Follow [docs/deployment.md](docs/deployment.md) and verify the backend with
 `backend/scripts/smoke_test.py`. The demonstration script is
