@@ -29,10 +29,18 @@ services:
       # Render puts exactly one proxy in front of the app.
       - key: TRUST_PROXY_HOPS
         value: "1"
+      # One worker on the free plan: each Python worker needs about 95 MB before any request, and
+      # screenshot checks (OpenCV + Tesseract) add up to about 125 MB more while they run. Two
+      # workers came close to the 512 MB limit with a few uploads at once, and a worker killed for
+      # memory cuts uploads off mid-request. Four threads still serve several users at a time.
       - key: WEB_CONCURRENCY
-        value: "2"
+        value: "1"
       - key: GUNICORN_THREADS
         value: "4"
+      # A slow free CPU can take longer than Gunicorn's default 60 s to answer a screenshot check;
+      # the worker would then be killed mid-request.
+      - key: GUNICORN_TIMEOUT
+        value: "120"
       # Follow redirects of known link shorteners only (SSRF-hardened resolver:
       # backend/app/analyzers/redirect_resolver.py). Do NOT switch to "all" without a new
       # security review: "all" lets anyone make the backend contact a server of their choice for

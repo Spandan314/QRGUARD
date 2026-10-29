@@ -70,6 +70,31 @@ describe('api client', () => {
     await expect(api.analyzeImage(image)).rejects.toMatchObject({ code: 'NETWORK_ERROR' })
   })
 
+  it('retries an interrupted upload once, with a fresh form, and succeeds', async () => {
+    const image = { uri: 'file:///tmp/img.jpg', name: 'image.jpg', mimeType: 'image/jpeg' }
+    let uploads = 0
+    const fetchMock = stubFetch(async (input) => {
+      if (String(input).endsWith('/api/health')) return jsonResponse({ status: 'ok', engine_version: '1', components: { api: 'ok' } })
+      uploads += 1
+      if (uploads === 1) throw new TypeError('Network request failed') // cut off, e.g. while the server wakes up
+      return jsonResponse(maliciousUrl)
+    })
+    await expect(api.analyzeImage(image)).resolves.toMatchObject({ risk_level: 'MALICIOUS' })
+    expect(uploads).toBe(2)
+    const forms = fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/api/analyze/screenshot')).map(([, init]) => init?.body)
+    expect(forms[0]).not.toBe(forms[1]) // a request body is never reused
+  })
+
+  it('does not retry when the phone is offline', async () => {
+    let uploads = 0
+    stubFetch(async () => {
+      uploads += 1
+      throw new TypeError('Network request failed')
+    })
+    await expect(api.analyzeImage({ uri: 'f', name: 'i.jpg', mimeType: 'image/jpeg' })).rejects.toMatchObject({ code: 'NETWORK_ERROR' })
+    expect(uploads).toBe(2) // one upload + one health check, no second upload
+  })
+
   it('explains hosting-platform errors and oversized uploads', async () => {
     stubFetch(async () => new Response('<html>Bad gateway</html>', { status: 502 }))
     await expect(api.analyzeUrl('x')).rejects.toMatchObject({ code: 'SERVER_UNAVAILABLE' })

@@ -179,7 +179,7 @@ It shows only on/off, never keys or feed paths.
 
 **VirusTotal pacing is per process, not global.** Each Gunicorn worker counts its own lookups, and
 workers and instances do not coordinate. The free public API allows about 4 lookups/min per key, so
-the default `2` × `WEB_CONCURRENCY=2` stays within it on one Render instance. With more workers or
+the default `2` × `WEB_CONCURRENCY=1` (render.yaml; 2 also fits) stays within it on one Render instance. With more workers or
 instances, lower `VIRUSTOTAL_MAX_PER_MINUTE` accordingly; lookups beyond VirusTotal's limit are
 answered with HTTP 429 and reported as "rate limited" (never as a clean result). Daily and monthly
 quotas are not tracked locally.
