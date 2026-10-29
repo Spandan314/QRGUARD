@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native'
-import { colors, LEVEL_THEME, fonts } from '../constants/theme'
+import { colors, LEVEL_THEME, fonts, themedStyles } from '../constants/theme'
 import type { RiskLevel } from '../types/api'
 
 export function ScoreGauge({ score, level }: { score: number; level: RiskLevel }) {
@@ -31,7 +31,8 @@ export function ScoreGauge({ score, level }: { score: number; level: RiskLevel }
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() =>
+  StyleSheet.create({
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   label: { fontFamily: fonts.sans, fontWeight: '600', color: colors.text },
   score: { fontFamily: fonts.display, fontSize: 26, fontWeight: '700', color: colors.text },
@@ -39,4 +40,5 @@ const styles = StyleSheet.create({
   track: { height: 12, borderRadius: 6, backgroundColor: colors.border, overflow: 'hidden', marginVertical: 6 },
   fill: { height: '100%' },
   scale: { fontFamily: fonts.sans, fontSize: 11, color: colors.muted },
-})
+}),
+)

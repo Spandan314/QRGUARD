@@ -7,6 +7,7 @@ import { ActionButton, Card, ErrorBanner, Screen, styles as ui } from '../../com
 import { useAnalysis } from '../../hooks/useAnalysis'
 import { api } from '../../services/api'
 import { openAppSettings } from '../../utils/systemSettings'
+import { themedStyles } from '../../constants/theme'
 
 /** What the permission screen should offer (exported for tests). */
 export type CameraAccess = 'loading' | 'granted' | 'ask' | 'ask-again' | 'blocked'
@@ -170,7 +171,9 @@ export default function CameraScan() {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() =>
+  StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'space-between', padding: 16, paddingBottom: 32 },
   frame: { alignSelf: 'center', marginTop: 80, width: 240, height: 240, borderWidth: 3, borderColor: '#fff', borderRadius: 16 },
-})
+}),
+)

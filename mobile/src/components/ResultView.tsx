@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import { colors, LEVEL_THEME, VERDICT_THEME, fonts } from '../constants/theme'
+import { colors, LEVEL_THEME, VERDICT_THEME, fonts, themedStyles } from '../constants/theme'
 import type { AnalysisResult, CheckStatus, RiskLevel } from '../types/api'
 import { CONFIDENCE_TEXT, PROVIDER_NAME } from '../utils/format'
 import { providerState, providerSummary, type ProviderOutcome } from '../utils/providerStatus'
@@ -53,11 +53,14 @@ function linkIcon(level: RiskLevel): string {
 }
 
 const OUTCOME_ICON: Record<ProviderOutcome, string> = { flagged: '⛔', checked: '✓', not_checked: '⚠', not_configured: '–' }
-const OUTCOME_COLOR: Record<ProviderOutcome, string> = {
-  flagged: colors.danger,
-  checked: colors.text,
-  not_checked: colors.warn, // a warning, not a result
-  not_configured: colors.muted,
+function outcomeColor(outcome: ProviderOutcome): string {
+  const byOutcome: Record<ProviderOutcome, string> = {
+    flagged: colors.danger,
+    checked: colors.text,
+    not_checked: colors.warn, // a warning, not a result
+    not_configured: colors.muted,
+  }
+  return byOutcome[outcome]
 }
 
 export function ResultView({ result }: { result: AnalysisResult }) {
@@ -186,7 +189,7 @@ export function ResultView({ result }: { result: AnalysisResult }) {
         {result.threat_intel.providers.map((p) => {
           const state = providerState(p)
           return (
-            <Text key={p.provider} style={[ui.body, { color: OUTCOME_COLOR[state.outcome] }]}>
+            <Text key={p.provider} style={[ui.body, { color: outcomeColor(state.outcome) }]}>
               {OUTCOME_ICON[state.outcome]} {PROVIDER_NAME[p.provider] ?? p.provider}: {state.label}
             </Text>
           )
@@ -218,9 +221,11 @@ const HISTORY_REASON: Record<string, string> = {
   history_error: 'Not saved: history is temporarily unavailable. Your result is still valid.',
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() =>
+  StyleSheet.create({
   banner: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 8 },
   title: { fontFamily: fonts.display, fontSize: 19, fontWeight: '700' },
   summary: { fontFamily: fonts.sans, fontSize: 16, fontWeight: '500' },
   muted: { fontFamily: fonts.sans, color: colors.muted },
-})
+}),
+)
