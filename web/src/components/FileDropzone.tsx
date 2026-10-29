@@ -49,17 +49,17 @@ export function FileDropzone({ label, file, onFile, disabled = false }: Props) {
         }}
         onDragLeave={() => setDragging(false)}
         onDrop={onDrop}
-        className={`flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center transition ${
+        className={`flex min-h-36 cursor-pointer flex-col items-center justify-center gap-2 rounded-panel border border-dashed p-6 text-center transition ${
           dragging
-            ? 'border-teal-600 bg-teal-50 dark:bg-teal-950'
-            : 'border-slate-300 bg-slate-50/60 hover:border-teal-600 dark:border-slate-600 dark:bg-slate-950'
+            ? 'border-accent bg-accent/10'
+            : 'border-line bg-panel-2/60 hover:border-accent'
         }`}
       >
-        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-panel-2 text-muted">
           <Icon name="upload" />
         </span>
         <span className="font-medium">{label}</span>
-        <span className="text-sm text-slate-500 dark:text-slate-400">
+        <span className="text-sm text-muted">
           Drag and drop or click to choose · PNG, JPEG or WEBP · max 5 MB
         </span>
         {file ? (
@@ -81,7 +81,7 @@ export function FileDropzone({ label, file, onFile, disabled = false }: Props) {
         }}
       />
       {problem ? (
-        <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-300">
+        <p role="alert" className="mt-2 text-sm text-danger">
           {problem}
         </p>
       ) : null}

@@ -13,28 +13,28 @@ type StateStyle = {
   accent: string
 }
 
-// Red, amber and green are reserved for security states; everything else is neutral.
+// Accent, warn and danger are reserved for verdicts and warnings; everything else is neutral.
 export const LEVEL_STYLE: Record<RiskLevel, StateStyle> = {
   SAFE: {
     icon: 'shield-check',
     label: 'Safe',
-    classes: 'bg-emerald-50 text-emerald-800 ring-emerald-600/25 dark:bg-emerald-950 dark:text-emerald-200',
-    bar: 'bg-emerald-600',
-    accent: 'border-emerald-600 text-emerald-700 dark:text-emerald-400',
+    classes: 'bg-accent/10 text-accent ring-accent/40',
+    bar: 'bg-accent',
+    accent: 'border-accent text-accent',
   },
   SUSPICIOUS: {
     icon: 'alert-triangle',
     label: 'Suspicious',
-    classes: 'bg-amber-50 text-amber-800 ring-amber-600/25 dark:bg-amber-950 dark:text-amber-200',
-    bar: 'bg-amber-500',
-    accent: 'border-amber-500 text-amber-700 dark:text-amber-400',
+    classes: 'bg-warn/10 text-warn ring-warn/40',
+    bar: 'bg-warn',
+    accent: 'border-warn text-warn',
   },
   MALICIOUS: {
     icon: 'x-octagon',
     label: 'Malicious',
-    classes: 'bg-red-50 text-red-800 ring-red-600/25 dark:bg-red-950 dark:text-red-200',
-    bar: 'bg-red-600',
-    accent: 'border-red-600 text-red-700 dark:text-red-400',
+    classes: 'bg-danger/10 text-danger ring-danger/40',
+    bar: 'bg-danger',
+    accent: 'border-danger text-danger',
   },
 }
 
@@ -44,9 +44,9 @@ export const VERDICT_STYLE: Record<VerdictLabel, StateStyle> = {
   UNVERIFIED: {
     icon: 'help',
     label: 'NOT VERIFIED',
-    classes: 'bg-slate-100 text-slate-700 ring-slate-500/25 dark:bg-slate-800 dark:text-slate-200',
-    bar: 'bg-slate-500',
-    accent: 'border-slate-400 text-slate-600 dark:text-slate-300',
+    classes: 'bg-panel-2 text-muted ring-line',
+    bar: 'bg-muted',
+    accent: 'border-line text-muted',
   },
   SUSPICIOUS: { ...LEVEL_STYLE.SUSPICIOUS, label: 'SUSPICIOUS' },
   MALICIOUS: { ...LEVEL_STYLE.MALICIOUS, label: 'MALICIOUS' },
@@ -79,11 +79,11 @@ export const SOURCE_ORDER: EvidenceSource[] = [
 export const SEVERITY_ORDER: Record<Severity, number> = { critical: 0, high: 1, medium: 2, low: 3, info: 4 }
 
 export const SEVERITY_STYLE: Record<Severity, string> = {
-  critical: 'bg-red-50 text-red-800 ring-1 ring-inset ring-red-600/30 dark:bg-red-950 dark:text-red-200',
-  high: 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-600/15 dark:bg-red-950 dark:text-red-300',
-  medium: 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-600/25 dark:bg-amber-950 dark:text-amber-200',
-  low: 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-500/20 dark:bg-slate-800 dark:text-slate-200',
-  info: 'bg-slate-50 text-slate-600 ring-1 ring-inset ring-slate-400/20 dark:bg-slate-800 dark:text-slate-300',
+  critical: 'bg-danger/10 text-danger ring-1 ring-inset ring-danger/40',
+  high: 'bg-danger/10 text-danger ring-1 ring-inset ring-danger/25',
+  medium: 'bg-warn/10 text-warn ring-1 ring-inset ring-warn/40',
+  low: 'bg-panel-2 text-muted ring-1 ring-inset ring-line',
+  info: 'bg-panel-2 text-muted ring-1 ring-inset ring-line',
 }
 
 export const PROVIDER_NAME: Record<string, string> = {

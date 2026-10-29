@@ -74,19 +74,19 @@ export function QrCameraScanner({ onCode, paused }: { onCode: (content: string) 
 
   if (problem) {
     return (
-      <p role="alert" className="text-sm text-amber-800 dark:text-amber-300">
+      <p role="alert" className="text-sm text-warn">
         {problem}
       </p>
     )
   }
   return (
     <div className="space-y-2">
-      <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-xl bg-black">
+      <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-panel bg-black">
         <video ref={videoRef} className="h-full w-full object-cover" muted playsInline aria-label="Camera preview" />
         <div className="pointer-events-none absolute inset-8 rounded-xl border-4 border-white/80" aria-hidden="true" />
       </div>
       <canvas ref={canvasRef} className="hidden" />
-      <p className="text-center text-sm text-slate-600 dark:text-slate-300" role="status">
+      <p className="text-center text-sm text-muted" role="status">
         {paused ? 'QR code found – checking…' : starting ? 'Starting the camera…' : 'Point the camera at a QR code.'}
       </p>
     </div>

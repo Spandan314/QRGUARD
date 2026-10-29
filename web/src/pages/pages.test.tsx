@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { jsonResponse, maliciousUrl, qrResult, screenshotResult } from '../test/fixtures'
 import { renderRoute } from '../test/renderRoute'
@@ -34,16 +34,30 @@ describe('dashboard', () => {
   it('shows the backend status from /api/health', async () => {
     stubFetch(healthy())
     renderRoute('/')
-    expect(await screen.findByTestId('backend-status')).toHaveTextContent(
-      'Server online · engine 0.1.0 · text recognition available · 1 threat-intelligence source active',
-    )
-    expect(screen.getByRole('link', { name: /Check a link/ })).toHaveAttribute('href', '/check/url')
+    const status = await screen.findByTestId('backend-status')
+    await waitFor(() => expect(status).toHaveAttribute('data-state', 'ok'))
+    expect(status).toHaveTextContent('Ready to check · 1 scam database connected')
+    expect(screen.getByRole('link', { name: 'Link' })).toHaveAttribute('href', '/check/url')
   })
 
-  it('warns when the backend is unreachable', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('offline'))))
-    renderRoute('/')
-    expect(await screen.findByText(/not reachable right now/)).toBeInTheDocument()
+  it('waits for a sleeping server, retries, and only then says it cannot be reached, with "Try again"', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const fetchMock = vi.fn(async () => Promise.reject(new TypeError('offline')))
+      vi.stubGlobal('fetch', fetchMock)
+      renderRoute('/')
+      expect(await screen.findByText(/Starting the checker/)).toBeInTheDocument() // one failure is not "down"
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(95_000)
+      })
+      expect(await screen.findByText(/can’t reach the checker/)).toBeInTheDocument()
+      const tries = fetchMock.mock.calls.length
+      expect(tries).toBeGreaterThan(5) // it kept retrying while the server could be waking up
+      await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
+      await waitFor(() => expect(fetchMock.mock.calls.length).toBeGreaterThan(tries))
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
@@ -185,25 +199,38 @@ describe('static pages and routing', () => {
     stubFetch()
     renderRoute('/tips')
     await waitFor(() => expect(screen.getByRole('link', { name: 'Safety tips' })).toHaveAttribute('aria-current', 'page'))
-    expect(screen.getByRole('link', { name: 'Safety tips' })).toHaveClass('border-teal-400')
+    expect(screen.getByRole('link', { name: 'Check anything' })).not.toHaveAttribute('aria-current')
   })
 })
 
-describe('navigation on small screens', () => {
-  it('folds the links behind a Menu button that expands and collapses', async () => {
+describe('header', () => {
+  it('shows every page on the main bar, with no hidden menu', async () => {
     stubFetch(healthy())
     renderRoute('/')
-    const menu = screen.getByRole('button', { name: 'Menu' })
-    const nav = screen.getByRole('navigation', { name: 'Main', hidden: true })
-    expect(menu).toHaveAttribute('aria-expanded', 'false')
-    expect(menu).toHaveAttribute('aria-controls', nav.id)
-    expect(nav.className).toMatch(/(^| )hidden( |$)/)
-    expect(nav.className).toContain('lg:block') // always shown as a sidebar on wide screens
-    await userEvent.click(menu)
-    expect(menu).toHaveAttribute('aria-expanded', 'true')
-    expect(nav.className).not.toMatch(/(^| )hidden( |$)/)
-    await userEvent.click(screen.getByRole('link', { name: 'Safety tips' }))
-    expect(menu).toHaveAttribute('aria-expanded', 'false') // closes after choosing a page
+    const nav = screen.getByRole('navigation', { name: 'Main' })
+    const pages = { 'Check anything': '/', Link: '/check/url', Message: '/check/message', 'QR code': '/check/qr', Screenshot: '/check/screenshot', 'Make a QR': '/generate', History: '/history', 'Safety tips': '/tips', About: '/about' }
+    for (const [name, href] of Object.entries(pages)) {
+      const link = within(nav).getByRole('link', { name })
+      expect(link).toBeVisible()
+      expect(link).toHaveAttribute('href', href)
+    }
+    expect(screen.queryByRole('button', { name: 'More' })).toBeNull()
+  })
+
+  it('theme toggle switches the theme, says what it will do, and remembers the choice', async () => {
+    stubFetch(healthy())
+    localStorage.removeItem('qrguard-theme')
+    renderRoute('/')
+    const toggle = screen.getByTestId('theme-toggle')
+    const before = document.documentElement.getAttribute('data-theme')
+    expect(['light', 'dark']).toContain(before)
+    const after = before === 'dark' ? 'light' : 'dark'
+    expect(toggle).toHaveAccessibleName(`Switch to ${after} theme`)
+    await userEvent.click(toggle)
+    expect(document.documentElement.getAttribute('data-theme')).toBe(after)
+    expect(localStorage.getItem('qrguard-theme')).toBe(after)
+    expect(toggle).toHaveAccessibleName(`Switch to ${before} theme`)
+    localStorage.removeItem('qrguard-theme')
   })
 })
 
@@ -224,10 +251,10 @@ describe('analysis in progress', () => {
 
     const progress = await screen.findByTestId('analysis-progress')
     expect(screen.getAllByTestId('analysis-stage').map((stage) => stage.textContent)).toEqual([
-      'Validating and normalizing the URL',
-      'Analyzing URL structure',
-      'Checking threat-intelligence sources',
-      'Evaluating risk indicators and calculating the score',
+      'Reading the link',
+      'Looking for tricks in the web address',
+      'Checking scam databases',
+      'Adding up the warning signs',
     ])
     expect(progress.textContent).not.toMatch(/\d+ ?%/) // no invented percentage
     expect(screen.queryByRole('article', { name: 'Analysis result' })).toBeNull()
@@ -245,8 +272,8 @@ describe('analysis in progress', () => {
     await userEvent.upload(container.querySelector('input[type=file]') as HTMLInputElement, new File(['p'], 'qr.png', { type: 'image/png' }))
     await userEvent.click(screen.getByRole('button', { name: 'Check QR code' }))
     const stages = (await screen.findAllByTestId('analysis-stage')).map((stage) => stage.textContent)
-    expect(stages[0]).toBe('Decoding the QR code')
-    expect(stages).toContain('Checking threat-intelligence sources')
+    expect(stages[0]).toBe('Reading the QR code')
+    expect(stages).toContain('Checking scam databases')
     answer(jsonResponse(qrResult))
     expect(await screen.findByRole('article', { name: 'Analysis result' })).toBeInTheDocument()
   })
@@ -259,5 +286,99 @@ describe('analysis in progress', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not complete the check')
     expect(screen.queryByTestId('analysis-progress')).toBeNull()
     expect(screen.getByRole('button', { name: 'Check link' })).toBeEnabled() // retry possible
+  })
+})
+
+describe('Airlock check page', () => {
+  // Reveal the stages at once (the page honours prefers-reduced-motion).
+  beforeEach(() => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce'), addEventListener() {}, removeEventListener() {} }))
+  })
+
+  function pendingAnalysis() {
+    let answer: (response: Response) => void = () => undefined
+    const fetchMock = vi.fn((url: RequestInfo | URL) =>
+      String(url).endsWith('/api/health') ? Promise.resolve(healthyResponse()) : new Promise<Response>((resolve) => (answer = resolve)),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    return { fetchMock, answer: (response: Response) => answer(response) }
+  }
+  const healthyResponse = () => jsonResponse({ status: 'ok', engine_version: '1.0.0', components: {} })
+  const analyzeCalls = (fetchMock: ReturnType<typeof vi.fn>) => fetchMock.mock.calls.filter(([url]) => /\/api\/analyze\//.test(String(url)))
+
+  it('detects a link, checks it on the server, then reveals the real steps, log and result', async () => {
+    const { fetchMock, answer } = pendingAnalysis()
+    renderRoute('/')
+    const field = screen.getByLabelText('Paste a link, UPI ID or message')
+    await userEvent.type(field, 'http://sbi.co.in.kyc-verify.xyz/login')
+    expect(screen.getByTestId('detected-type')).toHaveTextContent('Looks like a link')
+    await userEvent.click(screen.getByRole('button', { name: 'Check it' }))
+
+    expect(screen.getByTestId('chamber')).toHaveAttribute('data-phase', 'running')
+    expect(screen.getByTestId('chamber-status')).toHaveTextContent('Status · Checking…')
+    expect(screen.getByTestId('specimen')).toHaveTextContent('http://sbi.co.in.kyc-verify.xyz/login')
+    expect(screen.getAllByTestId('stage').map((s) => s.dataset.state)).toEqual(['active', 'active', 'active', 'active', 'waiting'])
+    expect(screen.getByRole('button', { name: 'Check it' })).toBeDisabled() // no double submit
+    const [url, init] = analyzeCalls(fetchMock)[0] ?? []
+    expect(String(url)).toMatch(/\/api\/analyze\/url$/)
+    expect(JSON.parse(String(init?.body)).url).toBe('http://sbi.co.in.kyc-verify.xyz/login')
+    expect(screen.queryByRole('article', { name: 'Analysis result' })).toBeNull()
+
+    answer(jsonResponse(maliciousUrl))
+    expect(await screen.findByRole('article', { name: 'Analysis result' })).toBeInTheDocument()
+    expect(screen.getByTestId('chamber')).toHaveAttribute('data-phase', 'done')
+    expect(screen.getAllByTestId('stage').map((s) => s.dataset.state)).toEqual(['done', 'done', 'warning', 'warning', 'warning'])
+    const log = screen.getByTestId('chamber-log')
+    expect(log).toHaveTextContent('sent to our server · your phone does not open it')
+    expect(log).toHaveTextContent('result: MALICIOUS · risk 73 out of 100')
+  })
+
+  it('sends a UPI ID as a payment payload and a message to the message check', async () => {
+    const { fetchMock, answer } = pendingAnalysis()
+    renderRoute('/')
+    const field = screen.getByLabelText('Paste a link, UPI ID or message')
+    await userEvent.type(field, 'refund.desk9912@okdemo{Enter}')
+    const [qrUrl, qrInit] = analyzeCalls(fetchMock)[0] ?? []
+    expect(String(qrUrl)).toMatch(/\/api\/analyze\/qr$/)
+    expect(JSON.parse(String(qrInit?.body)).content).toBe('upi://pay?pa=refund.desk9912%40okdemo')
+    answer(jsonResponse(qrResult))
+    await screen.findByRole('article', { name: 'Analysis result' })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Check something else' }))
+    expect(screen.getByTestId('chamber')).toHaveAttribute('data-phase', 'idle')
+    expect(field).toHaveFocus()
+    await userEvent.clear(field)
+    await userEvent.type(field, 'Your KYC expires today, share the OTP{Enter}')
+    const [messageUrl, messageInit] = analyzeCalls(fetchMock)[1] ?? []
+    expect(String(messageUrl)).toMatch(/\/api\/analyze\/message$/)
+    expect(JSON.parse(String(messageInit?.body)).text).toBe('Your KYC expires today, share the OTP')
+  })
+
+  it('uploads an image to the combined QR + text check and refuses other files in the browser', async () => {
+    const { fetchMock, answer } = pendingAnalysis()
+    const { container } = renderRoute('/')
+    const input = container.querySelector('input[type=file]') as HTMLInputElement
+    await userEvent.upload(input, new File(['%PDF'], 'doc.pdf', { type: 'application/pdf' }), { applyAccept: false })
+    expect(screen.getByRole('alert')).toHaveTextContent('Please choose a PNG, JPEG or WEBP image.')
+    expect(analyzeCalls(fetchMock)).toHaveLength(0)
+    await userEvent.upload(input, new File(['png'], 'shot.png', { type: 'image/png' }))
+    expect(String(analyzeCalls(fetchMock)[0]?.[0])).toMatch(/\/api\/analyze\/screenshot$/)
+    expect(screen.getByTestId('specimen')).toHaveTextContent('shot.png')
+    answer(jsonResponse(screenshotResult))
+    await screen.findByRole('article', { name: 'Analysis result' })
+  })
+
+  it('a failed check stops, shows the error and never a result', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url).endsWith('/api/health')) return healthyResponse()
+      throw new TypeError('offline')
+    }))
+    renderRoute('/')
+    await userEvent.type(screen.getByLabelText('Paste a link, UPI ID or message'), 'example.com{Enter}')
+    expect(await screen.findByText('Could not complete the check')).toBeInTheDocument()
+    expect(screen.getByTestId('chamber')).toHaveAttribute('data-phase', 'failed')
+    // the log line is appended on the next tick, after the error renders
+    await waitFor(() => expect(screen.getByTestId('chamber-log')).toHaveTextContent('stopped:'))
+    expect(screen.queryByRole('article', { name: 'Analysis result' })).toBeNull()
   })
 })
