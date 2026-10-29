@@ -15,6 +15,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Make a phone-sized test photo (1600 px JPEG, like the app sends)
         run: |
+          pip install -q pillow
           python3 -c "
           from PIL import Image, ImageDraw
           im = Image.new('RGB', (720, 1600), 'white'); d = ImageDraw.Draw(im)
