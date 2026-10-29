@@ -1,0 +1,85 @@
+name: mobile-apk
+
+# Builds an installable Android APK of the QRGUARD app on GitHub's runners, without an Expo
+# account: `expo prebuild` generates the native project and Gradle builds it. The APK is signed
+# with the template's debug key, which is fine for installing on phones (demo, testing) but not
+# for the Play Store (that needs EAS or an upload key; docs/deployment.md §4).
+#
+# Run it from the Actions tab ("mobile-apk" → "Run workflow"), or it runs when the app changes on
+# main. Download the APK from the run's "Artifacts" section.
+#
+# Settings (repository → Settings → Secrets and variables → Actions → Variables). All are public
+# app configuration, never secrets:
+#   QRGUARD_API_BASE_URL           https backend URL (default: the Render service below)
+#   EXPO_PUBLIC_FIREBASE_API_KEY, EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+#   EXPO_PUBLIC_FIREBASE_PROJECT_ID, EXPO_PUBLIC_FIREBASE_APP_ID
+#                                  optional; without them sign-in is off and every check still works
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["mobile/**", ".github/workflows/mobile-apk.yml"]
+  pull_request:
+    paths: [".github/workflows/mobile-apk.yml"]
+
+concurrency:
+  group: mobile-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+    env:
+      EXPO_PUBLIC_API_BASE_URL: ${{ vars.QRGUARD_API_BASE_URL || 'https://qrguard-api-pc00.onrender.com' }}
+      EXPO_PUBLIC_FIREBASE_API_KEY: ${{ vars.EXPO_PUBLIC_FIREBASE_API_KEY }}
+      EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ vars.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+      EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+      EXPO_PUBLIC_FIREBASE_APP_ID: ${{ vars.EXPO_PUBLIC_FIREBASE_APP_ID }}
+      # Same guard as an EAS release build: refuse a non-https backend (see app.config.ts).
+      EAS_BUILD_PROFILE: preview
+      NODE_ENV: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - name: Generate the native Android project
+        run: npx expo prebuild --platform android --no-install --clean
+      - name: Check permissions (camera granted for QR scanning, nothing extra)
+        run: |
+          manifest=android/app/src/main/AndroidManifest.xml
+          grep -E 'android.permission.CAMERA"' "$manifest" | grep -vq 'tools:node="remove"' ||
+            { echo "::error::CAMERA permission missing or removed: QR scanning would not work"; exit 1; }
+          for p in RECORD_AUDIO READ_EXTERNAL_STORAGE WRITE_EXTERNAL_STORAGE READ_MEDIA_IMAGES; do
+            grep -E "android.permission.$p\"" "$manifest" | grep -q 'tools:node="remove"' ||
+              { echo "::error::$p must stay blocked"; exit 1; }
+          done
+      - name: Build the release APK (64-bit ARM phones)
+        working-directory: mobile/android
+        run: ./gradlew assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
+      - name: Name the APK
+        id: apk
+        run: |
+          name="QRGUARD-${GITHUB_SHA::7}.apk"
+          cp android/app/build/outputs/apk/release/app-release.apk "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "Built $name ($(du -h "$name" | cut -f1)) for $EXPO_PUBLIC_API_BASE_URL" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.apk.outputs.name }}
+          path: mobile/${{ steps.apk.outputs.name }}
+          retention-days: 30
+          if-no-files-found: error
