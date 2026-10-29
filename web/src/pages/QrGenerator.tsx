@@ -57,20 +57,20 @@ export default function QrGenerator() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Make a QR code</h1>
-        <p className="mt-2 text-slate-600 dark:text-slate-300">
+        <p className="mt-2 text-muted">
           The code is created in your browser. Nothing you type here – including Wi-Fi passwords – is sent to
           QRGUARD.
         </p>
       </div>
       <form
         onSubmit={submit}
-        className="space-y-4 rounded-lg border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+        className="space-y-4 rounded-panel border border-line bg-panel p-5"
       >
         <fieldset>
           <legend className="mb-2 font-medium">Type</legend>
           <div className="flex flex-wrap gap-2">
             {KINDS.map((option) => (
-              <label key={option.value} className="flex min-h-11 items-center gap-2 rounded-lg border border-slate-300 px-3 dark:border-slate-600">
+              <label key={option.value} className="flex min-h-11 items-center gap-2 rounded-btn border border-line px-3">
                 <input
                   type="radio"
                   name="kind"
@@ -161,15 +161,15 @@ export default function QrGenerator() {
           Create QR code
         </button>
         {error ? (
-          <p role="alert" className="text-sm text-red-700 dark:text-red-300">
+          <p role="alert" className="text-sm text-danger">
             {error}
           </p>
         ) : null}
       </form>
 
       {generated ? (
-        <div className="flex flex-col items-center gap-4 rounded-lg border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-          <img src={generated.png} alt="Generated QR code" className="h-64 w-64 bg-white" />
+        <div className="flex flex-col items-center gap-4 rounded-panel border border-line bg-panel p-5">
+          <img src={generated.png} alt="Generated QR code" className="h-64 w-64 bg-panel" />
           <div className="flex gap-3">
             <a className={buttonClass} href={generated.png} download="qrguard-qr.png">
               Download PNG

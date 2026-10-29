@@ -91,8 +91,8 @@ export default function Admin() {
             ['Malicious', totals.MALICIOUS],
           ] as const
         ).map(([label, value]) => (
-          <div key={label} className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <p className="text-sm text-slate-500">{label} (30 days)</p>
+          <div key={label} className="rounded-panel border border-line bg-panel p-4">
+            <p className="text-sm text-muted">{label} (30 days)</p>
             <p className="text-2xl font-bold" data-testid={`stat-${label}`}>
               {value}
             </p>
@@ -114,7 +114,7 @@ export default function Admin() {
               </thead>
               <tbody>
                 {stats.days.map((day) => (
-                  <tr key={day.date} className="border-t border-slate-200 dark:border-slate-700">
+                  <tr key={day.date} className="border-t border-line">
                     <td className="p-2">{day.date}</td>
                     <td className="p-2">{day.total}</td>
                     <td className="p-2">{day.by_level.MALICIOUS ?? 0}</td>
@@ -144,7 +144,7 @@ export default function Admin() {
         <button
           type="button"
           disabled={purging}
-          className="rounded bg-teal-700 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          className="min-h-11 rounded-btn bg-accent px-3 py-1.5 text-sm font-medium text-on-accent disabled:opacity-50"
           onClick={() => void purgeExpired()}
         >
           Delete expired history now
@@ -162,7 +162,7 @@ export default function Admin() {
             aria-label="Report status"
             value={status}
             onChange={(e) => setStatus(e.target.value as 'open' | 'reviewed')}
-            className="rounded border border-slate-300 px-2 py-1 dark:border-slate-600 dark:bg-slate-950"
+            className="min-h-11 rounded-btn border border-line bg-panel px-2 py-1"
           >
             <option value="open">Open</option>
             <option value="reviewed">Reviewed</option>
@@ -171,7 +171,7 @@ export default function Admin() {
         {reports.length === 0 ? <p className="text-sm">No {status} reports.</p> : null}
         <ul className="space-y-2">
           {reports.map((report) => (
-            <li key={report.id} className="rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700" data-testid="admin-report">
+            <li key={report.id} className="rounded-lg border border-line p-3 text-sm" data-testid="admin-report">
               <p className="font-medium">
                 {REPORT_LABEL[report.reported_as]}
                 {report.domain ? ` · ${report.domain}` : ''} · {formatDateTime(report.created_at)}
@@ -179,7 +179,7 @@ export default function Admin() {
               {report.note ? <p className="mt-1 whitespace-pre-wrap">{report.note}</p> : null}
               <button
                 type="button"
-                className="mt-2 text-teal-700 underline dark:text-teal-400"
+                className="mt-2 text-accent underline"
                 onClick={() => void mark(report.id, status === 'open' ? 'reviewed' : 'open')}
               >
                 {status === 'open' ? 'Mark as reviewed' : 'Reopen'}

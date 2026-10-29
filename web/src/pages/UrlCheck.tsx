@@ -18,7 +18,7 @@ export default function UrlCheck() {
   return (
     <CheckPage
       title="Check a link"
-      intro="Paste a link you received. QRGUARD examines it without opening the page for you."
+      intro="Paste a link you received. We check it on our server, so your phone never opens it."
       state={state}
       kind="url"
     >

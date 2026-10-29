@@ -78,6 +78,12 @@ def _get_ocr_languages(env: Mapping[str, str]) -> str:
     return value
 
 
+# One exact browser origin: scheme://host[:port]. flask-cors treats an entry containing *, ?, ^,
+# $, [, ( and similar characters as a regular expression, so "https://*.vercel.app" would quietly
+# allow other sites; only exact origins are accepted.
+_EXACT_ORIGIN = re.compile(r"https?://[a-z0-9-]+(?:\.[a-z0-9-]+)*(?::\d{1,5})?", re.IGNORECASE)
+
+
 def _get_list(env: Mapping[str, str], name: str, default: str) -> list[str]:
     raw = env.get(name, default)
     return [item.strip().rstrip("/") for item in raw.split(",") if item.strip()]
@@ -165,8 +171,11 @@ class Config:
         if app_env == "production" and "*" in origins:
             raise ConfigError("ALLOWED_ORIGINS must list explicit origins in production, not '*'")
         for origin in origins:
-            if origin != "*" and not origin.startswith(("http://", "https://")):
-                raise ConfigError(f"ALLOWED_ORIGINS entry must start with http(s)://: {origin!r}")
+            if origin != "*" and not _EXACT_ORIGIN.fullmatch(origin):
+                raise ConfigError(
+                    "ALLOWED_ORIGINS entries must be exact origins such as https://app.example "
+                    f"(no wildcard, pattern or path): {origin!r}"
+                )
 
         scoring_path = env.get("SCORING_CONFIG_PATH", "").strip() or None
 

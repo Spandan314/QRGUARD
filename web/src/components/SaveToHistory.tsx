@@ -18,8 +18,8 @@ export function SaveToHistory({ option }: { option: ReturnType<typeof useSaveOpt
   if (!option.available) {
     if (client.mode === 'off' || user) return null
     return (
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        <Link to="/account" className="text-teal-700 underline dark:text-teal-400">
+      <p className="text-sm text-muted">
+        <Link to="/account" className="text-accent underline">
           Sign in
         </Link>{' '}
         to keep a private history of your checks (only the verdict is saved, never your content).

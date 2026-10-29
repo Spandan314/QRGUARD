@@ -20,14 +20,14 @@ export function ReportForm({ scanId }: { scanId?: string | undefined }) {
   if (!auth?.user || !auth.profile) return null
   if (state === 'sent') {
     return (
-      <p role="status" className="text-sm text-teal-800 dark:text-teal-300">
+      <p role="status" className="text-sm text-accent">
         Thank you – your report was sent to the QRGUARD team.
       </p>
     )
   }
   if (!open) {
     return (
-      <button type="button" className="text-sm text-teal-700 underline dark:text-teal-400" onClick={() => setOpen(true)}>
+      <button type="button" className="text-sm text-accent underline" onClick={() => setOpen(true)}>
         Is this result wrong? Report it
       </button>
     )
@@ -45,7 +45,7 @@ export function ReportForm({ scanId }: { scanId?: string | undefined }) {
   }
 
   return (
-    <form onSubmit={submit} className="space-y-2 rounded-lg border border-slate-200 p-3 text-sm dark:border-slate-700" aria-label="Report this result">
+    <form onSubmit={submit} className="space-y-2 rounded-panel border border-line p-4 text-sm" aria-label="Report this result">
       <fieldset className="space-y-1">
         <legend className="font-medium">What is wrong?</legend>
         {KINDS.map((option) => (
@@ -58,16 +58,16 @@ export function ReportForm({ scanId }: { scanId?: string | undefined }) {
       <label className="block">
         <span className="font-medium">Note (optional, max 280 characters)</span>
         <textarea
-          className="mt-1 w-full rounded border border-slate-300 p-2 dark:border-slate-600 dark:bg-slate-950"
+          className="mt-1 w-full rounded-btn border border-line bg-panel-2 p-2"
           maxLength={280}
           rows={2}
           value={note}
           onChange={(event) => setNote(event.target.value)}
         />
-        <span className="text-xs text-slate-500">Do not include personal data such as account numbers or OTPs.</span>
+        <span className="text-xs text-muted">Do not include personal data such as account numbers or OTPs.</span>
       </label>
       <div className="flex gap-2">
-        <button type="submit" disabled={state === 'sending'} className="rounded bg-teal-700 px-3 py-2 font-semibold text-white disabled:opacity-50">
+        <button type="submit" disabled={state === 'sending'} className="min-h-11 rounded-btn bg-accent px-4 py-2 font-semibold text-on-accent disabled:opacity-50">
           Send report
         </button>
         <button type="button" className="px-3 py-2" onClick={() => setOpen(false)}>
@@ -75,7 +75,7 @@ export function ReportForm({ scanId }: { scanId?: string | undefined }) {
         </button>
       </div>
       {state !== 'idle' && state !== 'sending' ? (
-        <p role="alert" className="text-red-700 dark:text-red-300">
+        <p role="alert" className="text-danger">
           {state}
         </p>
       ) : null}
