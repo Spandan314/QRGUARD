@@ -4,6 +4,7 @@ import { BackendStatus } from '../../components/BackendStatus'
 import { ActionButton, Card, ErrorBanner, Screen, styles as ui } from '../../components/ui'
 import { API_BASE_URL } from '../../constants/config'
 import { useAuth } from '../../context/AuthContext'
+import { colors } from '../../constants/theme'
 import { api, ApiError } from '../../services/api'
 import { authErrorMessage } from '../../services/auth'
 import { confirmAction } from '../../utils/confirm'
@@ -39,6 +40,7 @@ function SignIn() {
         <Text style={ui.label}>Demo sign-in</Text>
         <Text style={ui.small}>Demo mode: the server must run with AUTH_DEV_TOKENS=true. Not available in production.</Text>
         <TextInput
+        placeholderTextColor={colors.muted}
           accessibilityLabel="Demo user name"
           style={ui.input}
           value={demoName}
@@ -70,8 +72,8 @@ function SignIn() {
         onPress={() => void attempt(client.signInAnonymously && (() => client.signInAnonymously!()))}
       />
       <Text style={[ui.label, { marginTop: 12 }]}>E-mail and password</Text>
-      <TextInput accessibilityLabel="E-mail" style={ui.input} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
-      <TextInput accessibilityLabel="Password" style={ui.input} value={password} onChangeText={setPassword} secureTextEntry />
+      <TextInput placeholderTextColor={colors.muted} accessibilityLabel="E-mail" style={ui.input} value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" />
+      <TextInput placeholderTextColor={colors.muted} accessibilityLabel="Password" style={ui.input} value={password} onChangeText={setPassword} secureTextEntry />
       <ActionButton
         label="Sign in"
         disabled={busy || !email || !password}

@@ -1,7 +1,7 @@
 import { StyleSheet, Text, View } from 'react-native'
 import { SvgXml } from 'react-native-svg'
 import { BRAND_MARK_SVG } from '../constants/brandMark'
-import { colors } from '../constants/theme'
+import { colors, fonts } from '../constants/theme'
 
 /** The QRGUARD logo: the shield mark (decorative) and the wordmark, which carries the name. */
 export function BrandTitle() {
@@ -19,6 +19,6 @@ export function BrandTitle() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  word: { fontSize: 20, fontWeight: '800', letterSpacing: -0.3, color: colors.brand },
-  qr: { color: colors.text },
+  word: { fontFamily: fonts.display, fontSize: 20, fontWeight: '800', letterSpacing: -0.3, color: colors.brand },
+  qr: { fontFamily: fonts.sans, color: colors.text },
 })

@@ -3,6 +3,7 @@ import { SaveToHistory, useSaveOption } from '../../components/SaveToHistory'
 import { Text, TextInput } from 'react-native'
 import { ActionButton, Card, ErrorBanner, Screen, styles as ui } from '../../components/ui'
 import { MAX_MESSAGE_CHARS } from '../../constants/config'
+import { colors } from '../../constants/theme'
 import { useAnalysis } from '../../hooks/useAnalysis'
 import { api } from '../../services/api'
 
@@ -16,6 +17,7 @@ export default function MessageCheck() {
       <Card>
         <Text style={ui.label}>Message text</Text>
         <TextInput
+        placeholderTextColor={colors.muted}
           accessibilityLabel="Message text"
           style={[ui.input, { minHeight: 160, textAlignVertical: 'top' }]}
           value={text}

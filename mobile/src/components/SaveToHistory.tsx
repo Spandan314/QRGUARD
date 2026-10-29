@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router'
 import { useState } from 'react'
 import { Pressable, Switch, Text, View } from 'react-native'
 import { useOptionalAuth } from '../context/AuthContext'
-import { colors } from '../constants/theme'
+import { colors, fonts } from '../constants/theme'
 import { styles as ui } from './ui'
 
 /** Opt-in "save to my history" choice; defaults to the user's setting. */
@@ -22,7 +22,7 @@ export function SaveToHistory({ option }: { option: ReturnType<typeof useSaveOpt
     return (
       <Pressable accessibilityRole="link" onPress={() => router.push('/settings')}>
         <Text style={ui.small}>
-          <Text style={{ color: colors.brand, fontWeight: '600' }}>Sign in</Text> to keep a private history (verdicts only).
+          <Text style={{ fontFamily: fonts.sans, color: colors.brand, fontWeight: '600' }}>Sign in</Text> to keep a private history (verdicts only).
         </Text>
       </Pressable>
     )

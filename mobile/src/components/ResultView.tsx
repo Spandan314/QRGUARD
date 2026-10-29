@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { StyleSheet, Text, View } from 'react-native'
-import { colors, LEVEL_THEME, VERDICT_THEME } from '../constants/theme'
+import { colors, LEVEL_THEME, VERDICT_THEME, fonts } from '../constants/theme'
 import type { AnalysisResult, CheckStatus, RiskLevel } from '../types/api'
 import { CONFIDENCE_TEXT, PROVIDER_NAME } from '../utils/format'
 import { providerState, providerSummary, type ProviderOutcome } from '../utils/providerStatus'
@@ -56,7 +56,7 @@ const OUTCOME_ICON: Record<ProviderOutcome, string> = { flagged: '⛔', checked:
 const OUTCOME_COLOR: Record<ProviderOutcome, string> = {
   flagged: colors.danger,
   checked: colors.text,
-  not_checked: '#92400e', // amber-800: a warning, not a result
+  not_checked: colors.warn, // a warning, not a result
   not_configured: colors.muted,
 }
 
@@ -80,7 +80,7 @@ export function ResultView({ result }: { result: AnalysisResult }) {
           {verdict.title}
         </Text>
         <Text style={[styles.summary, { color: theme.foreground }]}>{result.summary}</Text>
-        <Text style={{ color: theme.foreground }}>{CONFIDENCE_TEXT[result.confidence]}</Text>
+        <Text style={{ fontFamily: fonts.sans, color: theme.foreground }}>{CONFIDENCE_TEXT[result.confidence]}</Text>
       </View>
 
       <Section title="What you should do">
@@ -220,7 +220,7 @@ const HISTORY_REASON: Record<string, string> = {
 
 const styles = StyleSheet.create({
   banner: { borderRadius: 16, borderWidth: 1, padding: 16, gap: 8 },
-  title: { fontSize: 19, fontWeight: '700' },
-  summary: { fontSize: 16, fontWeight: '500' },
-  muted: { color: colors.muted },
+  title: { fontFamily: fonts.display, fontSize: 19, fontWeight: '700' },
+  summary: { fontFamily: fonts.sans, fontSize: 16, fontWeight: '500' },
+  muted: { fontFamily: fonts.sans, color: colors.muted },
 })
