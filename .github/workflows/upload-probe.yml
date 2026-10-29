@@ -1,0 +1,47 @@
+# Temporary diagnostic: upload test images to the deployed backend and report what happens.
+name: upload-probe
+on:
+  push:
+    branches: [diag/upload-probe]
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      API: https://qrguard-api-pc00.onrender.com
+    steps:
+      - uses: actions/checkout@v4
+      - name: Make a phone-sized test photo (1600 px JPEG, like the app sends)
+        run: |
+          python3 -c "
+          from PIL import Image, ImageDraw
+          im = Image.new('RGB', (720, 1600), 'white'); d = ImageDraw.Draw(im)
+          for i in range(40): d.text((20, 30 + i * 38), 'Dear customer your SBI account will be BLOCKED today update KYC http://sbi-kyc-update.xyz/login', fill='black')
+          im.save('/tmp/phone.jpg', quality=85)
+          big = Image.new('RGB', (1600, 1200), (120, 140, 160)); big.save('/tmp/photo.jpg', quality=85)
+          "
+          ls -la /tmp/phone.jpg /tmp/photo.jpg postman/fixtures/scam-kyc.png
+      - name: Wake the server and read its health
+        run: |
+          for i in 1 2 3 4 5 6; do curl -s -m 60 -o /tmp/h.json -w "health %{http_code} %{time_total}s\n" $API/api/health && break; sleep 10; done
+          cat /tmp/h.json; echo
+      - name: Upload images (same multipart form as the Android app)
+        run: |
+          set +e
+          for img in postman/fixtures/scam-kyc.png /tmp/phone.jpg /tmp/photo.jpg /tmp/phone.jpg /tmp/phone.jpg; do
+            type=image/jpeg; case $img in *.png) type=image/png;; esac
+            echo "== $img ($type)"
+            curl -sS -m 120 -o /tmp/r.json -w "status %{http_code} time %{time_total}s upload %{size_upload}B\n" \
+              -F "file=@$img;type=$type;filename=image.jpg" -F save_to_history=false $API/api/analyze/screenshot
+            echo "exit=$?"; head -c 300 /tmp/r.json; echo
+            curl -s -m 30 -o /dev/null -w "health-after %{http_code} %{time_total}s\n" $API/api/health
+          done
+      - name: Two uploads at the same time
+        run: |
+          set +e
+          for n in 1 2; do (curl -sS -m 120 -o /tmp/p$n.json -w "parallel-$n status %{http_code} time %{time_total}s\n" \
+            -F "file=@/tmp/phone.jpg;type=image/jpeg;filename=image.jpg" -F save_to_history=false $API/api/analyze/screenshot; echo "exit=$?") & done; wait
+          head -c 200 /tmp/p1.json; echo; head -c 200 /tmp/p2.json; echo
+          curl -s -m 30 -o /dev/null -w "health-after %{http_code} %{time_total}s\n" $API/api/health
