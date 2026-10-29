@@ -26,6 +26,23 @@ describe('api client', () => {
     expect(init?.body).toBe(JSON.stringify({ url: 'http://x.test', save_to_history: false }))
   })
 
+  it('phones upload with the native uploader: a multipart "file" field plus save_to_history', async () => {
+    const fs = jest.requireMock('expo-file-system') as { File: { prototype: { upload: (...args: unknown[]) => unknown } } }
+    const spy = jest.spyOn(fs.File.prototype, 'upload')
+    stubFetch(async () => jsonResponse(maliciousUrl))
+    await api.analyzeImage({ uri: 'file:///cache/image.jpg', name: 'image.jpg', mimeType: 'image/jpeg' }, { save: true })
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(spy.mock.calls[0]?.[0]).toMatch(/\/api\/analyze\/screenshot$/)
+    expect(spy.mock.calls[0]?.[1]).toMatchObject({
+      httpMethod: 'POST',
+      uploadType: 1,
+      fieldName: 'file',
+      mimeType: 'image/jpeg',
+      parameters: { save_to_history: 'true' },
+    })
+    spy.mockRestore()
+  })
+
   it('uploads a picked image as multipart form data to the combined QR + text endpoint', async () => {
     const fetchMock = stubFetch(async () => jsonResponse(maliciousUrl))
     await api.analyzeImage({ uri: 'file:///tmp/img.jpg', name: 'image.jpg', mimeType: 'image/jpeg' })

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { colors, MIN_TOUCH, fonts } from '../constants/theme'
+import { colors, MIN_TOUCH, fonts, themedStyles } from '../constants/theme'
 import type { ApiError } from '../services/api'
 
 export function Screen({ children, title, intro }: { children: ReactNode; title?: string; intro?: string }) {
@@ -99,7 +99,8 @@ export function ErrorBanner({ error, onRetry }: { error: ApiError; onRetry?: () 
   )
 }
 
-export const styles = StyleSheet.create({
+export const styles = themedStyles(() =>
+  StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, gap: 16, paddingBottom: 48 },
   title: { fontFamily: fonts.display, fontSize: 26, fontWeight: '700', color: colors.text },
@@ -134,10 +135,11 @@ export const styles = StyleSheet.create({
   buttonPressed: { opacity: 0.8 },
   buttonText: { fontFamily: fonts.sans, color: colors.onBrand, fontSize: 16, fontWeight: '700' },
   buttonTextSecondary: { fontFamily: fonts.sans, color: colors.brand },
-  error: { backgroundColor: '#2d1614', borderColor: '#7a2e27', borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
+  error: { backgroundColor: colors.dangerBackground, borderColor: colors.dangerBorder, borderWidth: 1, borderRadius: 12, padding: 12, gap: 4 },
   errorTitle: { fontFamily: fonts.sans, fontWeight: '700', color: colors.danger },
   errorText: { fontFamily: fonts.sans, color: colors.text },
   small: { fontFamily: fonts.sans, fontSize: 12, color: colors.muted },
   body: { fontFamily: fonts.sans, fontSize: 15, color: colors.text, lineHeight: 21 },
   mono: { fontFamily: fonts.mono, fontSize: 13, color: colors.text },
-})
+}),
+)

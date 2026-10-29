@@ -1,10 +1,12 @@
+import { router } from 'expo-router'
 import { useState } from 'react'
-import { Switch, Text, TextInput, View } from 'react-native'
+import { Pressable, Switch, Text, TextInput, View } from 'react-native'
 import { BackendStatus } from '../../components/BackendStatus'
 import { ActionButton, Card, ErrorBanner, Screen, styles as ui } from '../../components/ui'
 import { API_BASE_URL } from '../../constants/config'
 import { useAuth } from '../../context/AuthContext'
-import { colors } from '../../constants/theme'
+import { colors, fonts, MIN_TOUCH } from '../../constants/theme'
+import { useTheme, type ThemeMode } from '../../context/ThemeContext'
 import { api, ApiError } from '../../services/api'
 import { authErrorMessage } from '../../services/auth'
 import { confirmAction } from '../../utils/confirm'
@@ -148,11 +150,62 @@ function Account() {
   )
 }
 
+const APPEARANCE: { value: ThemeMode; label: string }[] = [
+  { value: 'system', label: 'Same as phone' },
+  { value: 'light', label: 'Light' },
+  { value: 'dark', label: 'Dark' },
+]
+
+function Appearance() {
+  const { mode, setMode } = useTheme()
+  function choose(next: ThemeMode) {
+    if (next === mode) return
+    setMode(next)
+    // Changing the theme redraws every screen; come back to this one afterwards.
+    setTimeout(() => router.navigate('/settings'), 0)
+  }
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={ui.label}>Appearance</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} accessibilityRole="radiogroup">
+        {APPEARANCE.map((option) => {
+          const selected = mode === option.value
+          return (
+            <Pressable
+              key={option.value}
+              accessibilityRole="radio"
+              accessibilityLabel={option.label}
+              accessibilityState={{ checked: selected }}
+              onPress={() => choose(option.value)}
+              style={{
+                minHeight: MIN_TOUCH,
+                justifyContent: 'center',
+                paddingHorizontal: 14,
+                borderRadius: 999,
+                borderWidth: 1,
+                borderColor: selected ? colors.brand : colors.border,
+                backgroundColor: selected ? colors.brand : 'transparent',
+              }}
+            >
+              <Text style={{ fontFamily: fonts.sans, fontWeight: '600', color: selected ? colors.onBrand : colors.text }}>
+                {option.label}
+              </Text>
+            </Pressable>
+          )
+        })}
+      </View>
+    </View>
+  )
+}
+
 export default function Settings() {
   const { user, ready } = useAuth()
   return (
     <Screen>
       <Card>{!ready ? <Text style={ui.body}>Loading…</Text> : user ? <Account /> : <SignIn />}</Card>
+      <Card>
+        <Appearance />
+      </Card>
       <Card>
         <Text style={ui.label}>Server</Text>
         <Text style={ui.mono}>{API_BASE_URL}</Text>

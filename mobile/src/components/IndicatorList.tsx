@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native'
-import { colors, fonts } from '../constants/theme'
+import { colors, fonts, themedStyles } from '../constants/theme'
 import type { EvidenceSource, Indicator } from '../types/api'
 import { evidenceSource, formatPoints, SEVERITY_ORDER, SOURCE_LABEL, SOURCE_ORDER } from '../utils/format'
 import { styles as ui } from './ui'
@@ -36,11 +36,13 @@ export function IndicatorList({ indicators }: { indicators: Indicator[] }) {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() =>
+  StyleSheet.create({
   group: { fontFamily: fonts.sans, fontSize: 12, fontWeight: '700', color: colors.muted, letterSpacing: 0.5 },
   item: { borderWidth: 1, borderColor: colors.border, borderRadius: 10, padding: 10, gap: 4 },
   header: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
   title: { fontFamily: fonts.sans, flex: 1, fontWeight: '600', fontSize: 15, color: colors.text },
   points: { fontFamily: fonts.mono, color: colors.muted },
   severity: { fontFamily: fonts.sans, fontSize: 11, fontWeight: '700', color: colors.muted },
-})
+}),
+)
