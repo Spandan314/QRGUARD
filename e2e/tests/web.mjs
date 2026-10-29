@@ -3,6 +3,7 @@
 // Run through ../run.sh, which starts everything.
 import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import http from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { ARTIFACTS, check, finish, launch, watch } from './harness.mjs'
 import { chromium } from 'playwright-core'
@@ -215,6 +216,134 @@ await check('QR image upload -> decoded link, verdict, reasons and recommended a
     const outcomes = await result.getByTestId('ti-provider').evaluateAll((rows) => rows.map((r) => r.dataset.outcome))
     if (outcomes.filter((o) => o === 'not_configured').length !== 4) throw new Error(`provider outcomes: ${outcomes}`)
     await p.screenshot({ path: `${ARTIFACTS}/web-e2e-qr-upload.png`, fullPage: true })
+  } finally {
+    await u.context.close()
+  }
+})
+
+// ---- Screenshot OCR: image -> Tesseract -> scam-message engine -> result (no mocks) ----------------
+const API = process.env.API_URL ?? 'http://127.0.0.1:5095'
+const fixturePath = (name) => fileURLToPath(new URL(`../../postman/fixtures/${name}`, import.meta.url))
+const isScreenshotCall = (r) => r.url().endsWith('/api/analyze/screenshot')
+
+await check('screenshot upload -> OCR text -> scam analysis -> MALICIOUS with message and link reasons', async () => {
+  // A rendered SMS (demo data): fake SBI "account blocked" + KYC link.
+  const u = await newUser()
+  try {
+    const p = u.page
+    await p.goto(`${WEB}/check/screenshot`)
+    await p.getByLabel('Screenshot of the message').setInputFiles(fixturePath('scam-kyc.png'))
+    const answered = p.waitForResponse(isScreenshotCall)
+    await p.getByRole('button', { name: 'Check screenshot' }).click()
+    await p.getByTestId('analysis-progress').getByText('Reading the text in the image').waitFor({ timeout: 5000 })
+    const response = await answered
+    const body = await response.json()
+    // The text really came out of OCR and really reached the message engine.
+    const extracted = body.analysis?.ocr?.extracted_text ?? ''
+    if (response.status() !== 200 || !/BLOCKED/i.test(extracted) || !/KYC/i.test(extracted)) {
+      throw new Error(`OCR ${response.status()}: ${extracted.slice(0, 120)}`)
+    }
+    const sources = new Set(body.indicators.map((i) => i.source))
+    if (!sources.has('message') || !sources.has('link')) throw new Error(`evidence sources: ${[...sources]}`)
+    if (body.risk_level !== 'MALICIOUS') throw new Error(`level ${body.risk_level} ${body.risk_score}`)
+    // ...and the page shows that result.
+    const result = p.getByRole('article', { name: 'Analysis result' })
+    await result.waitFor({ timeout: 5000 })
+    const text = await result.innerText()
+    for (const expected of ['MALICIOUS', 'What you should do', 'Message text']) {
+      if (!text.includes(expected)) throw new Error(`missing "${expected}"`)
+    }
+    if (!/BLOCKED/i.test(await p.getByTestId('ocr-details').innerText())) throw new Error('OCR text not shown')
+    await p.screenshot({ path: `${ARTIFACTS}/web-e2e-screenshot.png`, fullPage: true })
+  } finally {
+    await u.context.close()
+  }
+})
+
+await check('screenshot without text -> "no text found" error, no result', async () => {
+  const u = await newUser()
+  try {
+    const p = u.page
+    await p.goto(`${WEB}/check/screenshot`)
+    await p.getByLabel('Screenshot of the message').setInputFiles(fixturePath('blank.png'))
+    const answered = p.waitForResponse(isScreenshotCall)
+    await p.getByRole('button', { name: 'Check screenshot' }).click()
+    const response = await answered
+    if (response.status() !== 422 || (await response.json()).error?.code !== 'NO_TEXT_FOUND') throw new Error(`${response.status()}`)
+    const alert = await p.getByRole('alert').innerText()
+    if (!alert.includes('Could not complete the check') || !alert.includes('Try a sharper screenshot')) throw new Error(alert)
+    if (await p.getByRole('article', { name: 'Analysis result' }).count()) throw new Error('a result was shown')
+    if (!(await p.getByRole('button', { name: 'Check screenshot' }).isEnabled())) throw new Error('cannot retry')
+  } finally {
+    await u.context.close()
+  }
+})
+
+await check('corrupted image -> unreadable-image error, no result', async () => {
+  const u = await newUser()
+  try {
+    const p = u.page
+    await p.goto(`${WEB}/check/screenshot`)
+    await p.getByLabel('Screenshot of the message').setInputFiles(fixturePath('truncated.png'))
+    const answered = p.waitForResponse(isScreenshotCall)
+    await p.getByRole('button', { name: 'Check screenshot' }).click()
+    const response = await answered
+    if (response.status() !== 422 || (await response.json()).error?.code !== 'UNPROCESSABLE_IMAGE') throw new Error(`${response.status()}`)
+    await p.getByRole('alert').waitFor({ timeout: 5000 })
+    if (await p.getByRole('article', { name: 'Analysis result' }).count()) throw new Error('a result was shown')
+  } finally {
+    await u.context.close()
+  }
+})
+
+await check('unsupported and oversized files are refused in the browser (nothing uploaded) and by the API', async () => {
+  const u = await newUser()
+  try {
+    const p = u.page
+    const uploads = []
+    p.on('request', (r) => isScreenshotCall(r) && uploads.push(r.url()))
+    await p.goto(`${WEB}/check/screenshot`)
+    const input = p.getByLabel('Screenshot of the message')
+    const button = p.getByRole('button', { name: 'Check screenshot' })
+    await input.setInputFiles(fixturePath('not-an-image.txt'))
+    await p.getByText('Please choose a PNG, JPEG or WEBP image.').waitFor({ timeout: 5000 })
+    if (await button.isEnabled()) throw new Error('submit enabled for a text file')
+    const big = Buffer.alloc(6 * 1024 * 1024, 0)
+    big.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+    await input.setInputFiles({ name: 'huge.png', mimeType: 'image/png', buffer: big })
+    await p.getByText(/the limit is 5 MB/).waitFor({ timeout: 5000 })
+    if (await button.isEnabled()) throw new Error('submit enabled for a 6 MB file')
+    if (uploads.length) throw new Error('a file was uploaded')
+    // The browser checks are a convenience: the API enforces the same rules itself.
+    // Playwright's request client reads the server's early 413 answer (Node's fetch reports the
+    // closed upload as a network error instead).
+    const post = async (bytes, name, type) => {
+      const response = await u.context.request.post(`${API}/api/analyze/screenshot`, {
+        multipart: { file: { name, mimeType: type, buffer: bytes } },
+      })
+      return [response.status(), (await response.json().catch(() => ({}))).error?.code]
+    }
+    const text = await post(Buffer.from('hello'), 'note.txt', 'text/plain')
+    if (text.join() !== '415,UNSUPPORTED_MEDIA_TYPE') throw new Error(`text file: ${text}`)
+    // An oversized upload is refused from its declared size, before the body is read: send only
+    // the headers of a 6 MB upload and read the answer (sending the body would hit a closed socket).
+    const huge = await new Promise((resolve, reject) => {
+      const req = http.request(`${API}/api/analyze/screenshot`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'multipart/form-data; boundary=x', 'Content-Length': String(big.length) },
+      })
+      req.on('response', (res) => {
+        let raw = ''
+        res.on('data', (chunk) => (raw += chunk))
+        res.on('end', () => {
+          req.destroy()
+          resolve([res.statusCode, JSON.parse(raw || '{}').error?.code])
+        })
+      })
+      req.on('error', reject)
+      req.flushHeaders()
+    })
+    if (huge.join() !== '413,PAYLOAD_TOO_LARGE') throw new Error(`6 MB upload: ${huge}`)
   } finally {
     await u.context.close()
   }

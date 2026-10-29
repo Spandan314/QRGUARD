@@ -81,6 +81,7 @@ const HINTS: Record<string, string> = {
   INCOMPLETE_URL: 'Type the full address, for example offer.com or https://www.example.in.',
   INVALID_URL: 'Check the link for typing mistakes.',
   AUTH_REQUIRED: 'Please sign in again in the Account tab.',
+  INVALID_TOKEN: 'Sign out and sign in again in the Account tab.',
 }
 
 /** Problems worth retrying unchanged: the connection or the server, not the input. */
