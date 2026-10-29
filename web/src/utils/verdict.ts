@@ -27,13 +27,13 @@ export function verdictOf(result: Pick<AnalysisResult, 'verdict' | 'risk_level' 
       label === 'UNVERIFIED' && messageLike.includes(result.input_type)
         ? 'No scam signs found – not verified'
         : confirmed
-          ? 'Malicious – listed by threat intelligence'
+          ? 'Dangerous – listed in a scam database'
           : TITLES[label],
     explanation: result.verification.message,
   }
 }
 
-export const NOT_CONFIRMED = 'Not confirmed by a threat-intelligence source.'
+export const NOT_CONFIRMED = 'Not confirmed by a scam database.'
 
 /**
  * The verification note under the verdict. A SUSPICIOUS or MALICIOUS result that no source has
@@ -53,7 +53,7 @@ export function verificationNote(
   const verified = verification.status === 'VERIFIED'
   const heading =
     (verified ? 'Verified' : 'Unverified') +
-    (verification.source === 'threat_intelligence' ? ' by threat intelligence' : '') +
-    (verification.source === 'trusted_domain_list' ? ' – recognised legitimate website' : '')
+    (verification.source === 'threat_intelligence' ? ' by a scam database' : '') +
+    (verification.source === 'trusted_domain_list' ? ' – a known, genuine website' : '')
   return { heading, message: verification.message, verified }
 }

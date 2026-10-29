@@ -2,6 +2,7 @@
 // ID tokens) -> analysis + threat intelligence -> Firestore emulator (history). No mocks.
 // Run through ../run.sh, which starts everything.
 import { execFileSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { ARTIFACTS, check, finish, launch, watch } from './harness.mjs'
 import { chromium } from 'playwright-core'
@@ -24,6 +25,11 @@ async function newUser() {
   return { context, page }
 }
 
+/** Every page is a link in the header: the main bar, or Sign in / Account / Admin beside it. */
+async function openFromHeader(page, name) {
+  await page.locator('header').getByRole('link', { name, exact: true }).click()
+}
+
 const alice = await newUser()
 const a = alice.page
 
@@ -33,6 +39,29 @@ await check('served with the production security headers from vercel.json', asyn
   if (!headers['content-security-policy']?.includes("default-src 'self'")) throw new Error('no CSP')
   if (!headers['permissions-policy']?.includes('camera=(self)')) throw new Error('camera not allowed')
   if (headers['x-frame-options'] !== 'DENY') throw new Error('frame protection missing')
+})
+
+await check('self-hosted fonts and theme: no third-party requests; Airlock fonts load; theme follows the OS', async () => {
+  for (const scheme of ['dark', 'light']) {
+    const context = await browser.newContext({ colorScheme: scheme })
+    const page = watch(await context.newPage())
+    const hosts = new Set()
+    page.on('request', (r) => hosts.add(new URL(r.url()).hostname))
+    await page.goto(WEB)
+    // Fonts download only when used: request each one, so this proves all three load from this site.
+    await page.evaluate(() =>
+      Promise.all(['Inter Variable', 'Space Grotesk Variable', 'JetBrains Mono Variable'].map((f) => document.fonts.load(`16px "${f}"`))),
+    )
+    const outside = [...hosts].filter((h) => !['localhost', '127.0.0.1'].includes(h))
+    if (outside.length) throw new Error(`third-party requests: ${outside}`)
+    const state = await page.evaluate(() => ({
+      theme: document.documentElement.dataset.theme,
+      fonts: ['Inter Variable', 'Space Grotesk Variable', 'JetBrains Mono Variable'].map((f) => document.fonts.check(`16px "${f}"`)),
+    }))
+    if (state.theme !== scheme) throw new Error(`theme ${state.theme} for an OS in ${scheme} mode`)
+    if (state.fonts.includes(false)) throw new Error(`fonts not loaded: ${state.fonts}`)
+    await context.close()
+  }
 })
 
 await check('anonymous Firebase sign-in (Auth emulator) and profile from Flask', async () => {
@@ -45,13 +74,13 @@ await check('anonymous Firebase sign-in (Auth emulator) and profile from Flask',
 })
 
 await check('URL check -> demo blocklist hit 90 MALICIOUS (labelled demo data, not verified TI), saved to Firestore history', async () => {
-  await a.getByRole('link', { name: 'Link', exact: true }).click()
+  await openFromHeader(a, 'Link')
   await a.locator('#url').fill('http://secure-sbi-kyc-update.example/login')
   if (!(await a.getByLabel(/Save the result to my history/).isChecked())) throw new Error('save not preselected')
   await a.getByRole('button', { name: 'Check link' }).click()
   await a.getByTestId('history-notice').waitFor({ timeout: 20000 })
   const text = await a.getByRole('article').innerText()
-  if (!text.includes('MALICIOUS') || !text.includes("demo blocklist") || text.includes('Verified by threat intelligence')) throw new Error(text.slice(0, 150))
+  if (!text.includes('MALICIOUS') || !text.includes("demo blocklist") || text.includes('Verified by a scam database')) throw new Error(text.slice(0, 150))
   if (!(await a.getByTestId('history-notice').innerText()).includes('Saved')) throw new Error('not saved')
   await a.screenshot({ path: `${ARTIFACTS}/web-e2e-url.png`, fullPage: true })
 })
@@ -65,7 +94,7 @@ await check('report the result (linked to the saved scan)', async () => {
 })
 
 await check('message check saved; content never shown in history', async () => {
-  await a.getByRole('link', { name: 'Message', exact: true }).click()
+  await openFromHeader(a, 'Message')
   await a.getByLabel('Message text').fill(
     'Dear customer, your SBI account will be BLOCKED today. Share the OTP and update KYC: http://sbi-kyc-update.xyz/login?t=E2ESECRET',
   )
@@ -74,7 +103,7 @@ await check('message check saved; content never shown in history', async () => {
 })
 
 await check('live camera QR scan (fake camera shows a UPI refund QR) -> SUSPICIOUS', async () => {
-  await a.getByRole('link', { name: 'QR code', exact: true }).click()
+  await openFromHeader(a, 'QR code')
   await a.getByRole('tab', { name: 'Use the camera' }).click()
   await a.getByTestId('qr-details').waitFor({ timeout: 30000 })
   const text = await a.getByRole('article').innerText()
@@ -107,7 +136,7 @@ await check('isolation: another user sees an empty history', async () => {
 await check('admin: a normal user is refused (page and API)', async () => {
   await bob.page.goto(`${WEB}/admin`)
   await bob.page.getByText('Administrator access is required.').waitFor({ timeout: 10000 })
-  if (await bob.page.getByRole('link', { name: 'Admin' }).count()) throw new Error('admin link shown')
+  if (await bob.page.getByRole('link', { name: 'Admin', includeHidden: true }).count()) throw new Error('admin link shown')
 })
 
 await check('admin e-mail user: claim on sign-in, stats and report review', async () => {
@@ -130,7 +159,8 @@ await check('admin e-mail user: claim on sign-in, stats and report review', asyn
   await p.getByLabel('E-mail').fill('admin@qrguard.test')
   await p.getByLabel('Password').fill('demo-password-123')
   await p.getByRole('button', { name: 'Sign in', exact: true }).click()
-  await p.getByRole('link', { name: 'Admin' }).click({ timeout: 15000 })
+  await p.getByRole('link', { name: 'Admin', includeHidden: true }).waitFor({ state: 'attached', timeout: 15000 })
+  await openFromHeader(p, 'Admin')
   await p.getByTestId('stat-Checks').waitFor({ timeout: 15000 })
   const checks = Number(await p.getByTestId('stat-Checks').innerText())
   if (!(checks >= 3)) throw new Error(`checks=${checks}`)
@@ -143,7 +173,7 @@ await check('admin e-mail user: claim on sign-in, stats and report review', asyn
 })
 
 await check('delete my data removes all history and signs out', async () => {
-  await a.getByRole('link', { name: 'Account' }).click()
+  await openFromHeader(a, 'Account')
   await a.getByRole('button', { name: 'Delete my data' }).click()
   await a.getByRole('button', { name: 'Yes, delete everything' }).click()
   await a.getByRole('button', { name: 'Continue without an e-mail' }).waitFor({ timeout: 15000 })
@@ -179,12 +209,57 @@ await check('QR image upload -> decoded link, verdict, reasons and recommended a
     // No provider keys in this stack: only the demo blocklist answers, the rest are "Not configured",
     // and the summary says that an unchecked source is not evidence of safety.
     const summary = await result.getByTestId('ti-summary').innerText()
-    if (!summary.startsWith('1 of 5 sources checked this link, 4 not configured.') || !summary.includes('says nothing about whether it is safe')) {
+    if (!summary.startsWith('1 of 5 scam databases checked this, 4 not set up.') || !summary.includes('tells us nothing either way')) {
       throw new Error(`provider summary: ${summary}`)
     }
     const outcomes = await result.getByTestId('ti-provider').evaluateAll((rows) => rows.map((r) => r.dataset.outcome))
     if (outcomes.filter((o) => o === 'not_configured').length !== 4) throw new Error(`provider outcomes: ${outcomes}`)
     await p.screenshot({ path: `${ARTIFACTS}/web-e2e-qr-upload.png`, fullPage: true })
+  } finally {
+    await u.context.close()
+  }
+})
+
+await check('Airlock: a pasted link is sealed, inspected on the server, and the stages, log and result come out', async () => {
+  const u = await newUser()
+  try {
+    const p = u.page
+    await p.goto(WEB)
+    const field = p.getByLabel('Paste a link, UPI ID or message')
+    await field.fill('http://secure-sbi-kyc-update.example/login')
+    if ((await p.getByTestId('detected-type').innerText()).toLowerCase() !== 'looks like a link') throw new Error('not detected as a link')
+    const answered = p.waitForResponse((r) => r.url().endsWith('/api/analyze/url'))
+    await p.getByRole('button', { name: 'Check it' }).click()
+    const body = await (await answered).json()
+    await p.locator('[data-testid=chamber][data-phase=done]').waitFor({ timeout: 15000 })
+    const states = await p.getByTestId('stage').evaluateAll((rows) => rows.map((r) => r.dataset.state))
+    if (states.length !== 5 || states.includes('active') || states.includes('waiting')) throw new Error(`stages: ${states}`)
+    const log = await p.getByTestId('chamber-log').innerText()
+    if (!log.includes('your phone does not open it') || !log.includes(`result: MALICIOUS · risk ${body.risk_score} out of 100`)) {
+      throw new Error(`log: ${log.slice(0, 200)}`)
+    }
+    await p.getByRole('article', { name: 'Analysis result' }).waitFor()
+    // result page: claims vs reality, the score breakdown, and no way to open a malicious link
+    if ((await p.getByTestId('claim-row').count()) < 2) throw new Error('claims vs reality rows missing')
+    const why = await p.getByTestId('score-breakdown').innerText()
+    if (!why.includes(`How we got ${body.risk_score} out of 100`)) throw new Error(`breakdown: ${why.slice(0, 120)}`)
+    if (await p.getByRole('button', { name: /Open checked link/ }).count()) throw new Error('open offered for a MALICIOUS link')
+    await p.getByTestId('never-open-reason').waitFor()
+    for (const href of await p.getByTestId('open-official-site').evaluateAll((links) => links.map((l) => l.href))) {
+      if (new URL(href).host.includes('secure-sbi-kyc-update')) throw new Error(`official site points at the scanned link: ${href}`)
+    }
+    // result card: DANGER stamp, number from the request ID, and a real PNG under the production CSP
+    if ((await p.getByTestId('pass-stamp').innerText()).trim() !== 'DANGER') throw new Error('stamp is not DANGER')
+    const passNo = `QG-${body.request_id.replace(/[^a-z0-9]/gi, '').slice(0, 8).toUpperCase()}`
+    if (!(await p.getByTestId('pass-number').innerText()).includes(passNo)) throw new Error(`pass number is not ${passNo}`)
+    const saving = p.waitForEvent('download')
+    await p.getByRole('button', { name: 'Save as image' }).click()
+    const download = await saving
+    if (download.suggestedFilename() !== `QRGUARD-check-${passNo}.png`) throw new Error(download.suggestedFilename())
+    const png = readFileSync(await download.path())
+    if (png.length < 5000 || png.subarray(1, 4).toString() !== 'PNG') throw new Error(`not a PNG (${png.length} bytes)`)
+    await download.saveAs(`${ARTIFACTS}/web-e2e-pass.png`)
+    await p.screenshot({ path: `${ARTIFACTS}/web-e2e-airlock.png`, fullPage: true })
   } finally {
     await u.context.close()
   }
@@ -203,9 +278,9 @@ await check('QR generator renders a Wi-Fi code under the production CSP', async 
   if (!(width > 0)) throw new Error('generated image did not load')
 })
 
-await check('mobile width: no horizontal scroll on the result page', async () => {
+await check('mobile width (360 px): no horizontal scroll on the result page', async () => {
   const m = await newUser()
-  await m.page.setViewportSize({ width: 375, height: 800 })
+  await m.page.setViewportSize({ width: 360, height: 800 })
   await m.page.goto(`${WEB}/check/url`)
   await m.page.locator('#url').fill('https://flipkrat.com/rewards')
   await m.page.getByRole('button', { name: 'Check link' }).click()

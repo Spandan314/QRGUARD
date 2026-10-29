@@ -12,7 +12,7 @@ function sourceOf(indicator: Indicator): EvidenceSource {
 /** Why the score is what it is: indicators grouped by where the evidence came from. */
 export function IndicatorList({ indicators }: { indicators: Indicator[] }) {
   if (indicators.length === 0) {
-    return <p className="text-sm text-slate-600 dark:text-slate-300">No warning signs were found.</p>
+    return <p className="text-sm text-muted">No warning signs were found.</p>
   }
   const groups = new Map<EvidenceSource, Indicator[]>()
   for (const indicator of indicators) {
@@ -23,10 +23,10 @@ export function IndicatorList({ indicators }: { indicators: Indicator[] }) {
     <div className="space-y-4">
       {SOURCE_ORDER.filter((source) => groups.has(source)).map((source) => (
         <section key={source} aria-label={SOURCE_LABEL[source]}>
-          <h4 className="mb-1.5 text-sm font-medium text-slate-700 dark:text-slate-200">
+          <h4 className="mb-1.5 text-sm font-medium text-ink">
             {SOURCE_LABEL[source]}
           </h4>
-          <ul className="divide-y divide-slate-100 rounded-md border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
+          <ul className="divide-y divide-line rounded-btn border border-line">
             {[...(groups.get(source) ?? [])]
               .sort((a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity])
               .map((indicator, index) => (
@@ -42,16 +42,16 @@ export function IndicatorList({ indicators }: { indicators: Indicator[] }) {
                         {indicator.severity}
                       </span>
                       <span
-                        className="w-14 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300"
+                        className="w-14 text-right font-mono tabular-nums text-muted"
                         title="Points this sign added to the final score"
                       >
                         {formatPoints(indicator.score_contribution)} pts
                       </span>
                     </span>
                   </div>
-                  <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300">{indicator.message}</p>
+                  <p className="mt-0.5 text-sm text-muted">{indicator.message}</p>
                   {indicator.evidence ? (
-                    <p className="mt-1 break-all text-xs text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 break-all text-xs text-muted">
                       Evidence: <span className="font-mono">{indicator.evidence}</span>
                     </p>
                   ) : null}
